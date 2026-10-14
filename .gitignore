@@ -1,0 +1,46 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# The radio's own build of librtlsdr (native/build_rtlsdr.ps1)
+native/*.dll
+
+# Project instructions for Claude Code, kept locally only
+CLAUDE.md
+
+# Notes for the developer and Claude Code, kept locally only
+TODO.md
+
+# Documents kept locally only: standards and specifications (free to download, not
+# ours to redistribute), notes and plans
+docs/local/
+
+# Test vectors from real broadcasts, kept locally only (tests/conftest.py leaves out
+# the test modules that need a missing one)
+tests/*_vectors.py
+
+# Recordings: I/Q captures, titles of the recorder, decoded audio
+*.iq
+*.cu8
+*.cs8
+*.cs16
+*.cf32
+*.sigmf-data
+*.sigmf-meta
+*.wav
+*.aac
+*.m4a
+*.mp2
+Puffer/
+
+# Data built or imported per machine (OSM extract, TMC location table of the BASt)
+road_network.npz
+tmc_locations.npz
+*.osm.pbf

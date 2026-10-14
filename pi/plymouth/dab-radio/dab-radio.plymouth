@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=DAB+ Radio
+Description=Boot splash of the DAB+ radio: its constellation locking in
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/dab-radio
+ScriptFile=/usr/share/plymouth/themes/dab-radio/dab-radio.script

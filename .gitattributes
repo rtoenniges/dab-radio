@@ -1,0 +1,4 @@
+# The translation catalogs as src/i18n/update_catalogs.py writes them: with LF on every
+# platform, so that tests/test_i18n.py finds them current after a checkout on Windows.
+src/i18n/*.po text eol=lf
+src/i18n/*.mo binary

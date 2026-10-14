@@ -1,0 +1,19 @@
+// Lets the members of the group netdev (on Raspberry Pi OS the user made at
+// installation) set the WLAN from the touch surface of the DAB+ radio
+// (src/net/wifi.py) without a password, also without a desktop session (started
+// over SSH or by systemd). Without it NetworkManager answers "auth" or "no".
+//
+// Install once on the Pi; polkit reads it at once:
+//   sudo install -m 644 pi/50-dab-radio-networkmanager.rules /etc/polkit-1/rules.d/
+// Afterwards `nmcli general permissions` shows "yes" for the four actions below.
+polkit.addRule(function (action, subject) {
+    var actions = [
+        "org.freedesktop.NetworkManager.enable-disable-wifi",
+        "org.freedesktop.NetworkManager.network-control",
+        "org.freedesktop.NetworkManager.settings.modify.system",
+        "org.freedesktop.NetworkManager.wifi.scan"
+    ];
+    if (actions.indexOf(action.id) >= 0 && subject.isInGroup("netdev")) {
+        return polkit.Result.YES;
+    }
+});

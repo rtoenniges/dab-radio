@@ -1,0 +1,41 @@
+[project]
+name = "dab-radio"
+version = "1.0.0"
+description = "DAB+ receiver with RTL-SDR or SDRplay RSPduo, PyQt6 surfaces and a visible signal chain"
+requires-python = ">=3.14"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE", "THIRD-PARTY.md", "src/ui/assets/fonts/LICENSE.md"]
+dependencies = [
+    "pyqt6",
+    "pyrtlsdr",
+    "pyrtlsdrlib",
+    "numpy",
+    "pyqtgraph>=0.14.0",
+    "numba>=0.67.0",
+    "paho-mqtt>=2.1.0",
+    "segno>=1.6.6",
+]
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+    "babel>=2.18.0",
+    "osmium>=4.3.1",
+    "pip>=26.2.1",
+    "pytest",
+    "ruff",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.format]
+# The diagram generator is laid out by hand; its compact calls are the layout.
+exclude = ["docs/signal-chain/generate.py"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

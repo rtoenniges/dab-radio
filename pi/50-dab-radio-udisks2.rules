@@ -1,0 +1,24 @@
+// Lets the members of the group plugdev (on Raspberry Pi OS the user made at
+// installation) mount, unmount, eject and power off USB drives from the touch surface
+// of the DAB+ radio (src/storage/volumes.py) without a password, also without a desktop
+// session (started over SSH or by systemd). Without it UDisks2 answers
+// "NotAuthorized" or asks an authentication agent the radio has not got.
+//
+// UDisks2 itself is not part of Raspberry Pi OS Lite: `sudo apt install udisks2`.
+//
+// Install once on the Pi; polkit reads it at once:
+//   sudo install -m 644 pi/50-dab-radio-udisks2.rules /etc/polkit-1/rules.d/
+polkit.addRule(function (action, subject) {
+    var actions = [
+        "org.freedesktop.udisks2.filesystem-mount",
+        "org.freedesktop.udisks2.filesystem-mount-other-seat",
+        "org.freedesktop.udisks2.filesystem-unmount-others",
+        "org.freedesktop.udisks2.eject-media",
+        "org.freedesktop.udisks2.eject-media-other-seat",
+        "org.freedesktop.udisks2.power-off-drive",
+        "org.freedesktop.udisks2.power-off-drive-other-seat"
+    ];
+    if (actions.indexOf(action.id) >= 0 && subject.isInGroup("plugdev")) {
+        return polkit.Result.YES;
+    }
+});

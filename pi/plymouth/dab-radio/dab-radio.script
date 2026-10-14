@@ -1,0 +1,262 @@
+# The boot splash of the DAB+ radio for Plymouth's script plugin, installed by
+# pi/install.sh --splash: the constellation of DAB's pi/4-DQPSK, whose dots first run
+# round a ring, as while the receiver is off in frequency, then slow down and gather in
+# the four points; under it the name. Its last picture is the one the radio shows while
+# it starts (src/ui/touch/splash.py). The layout and the dots between the two marks
+# below are written from there by tools/build_boot_splash.py, as are the images; the
+# rest is written by hand.
+#
+# Plymouth calls the refresh function 50 times a second. The time here counts those
+# calls from the first one with a screen: Plymouth starts long before the display of
+# the Pi 5 is up. With a mode other than boot (shutdown, reboot) the picture shows as
+# locked from the start.
+
+# --- begin of the part written by tools/build_boot_splash.py ---
+design.width = 1280;
+design.height = 720;
+design.centre_y = 284;
+design.axis_length = 240;
+design.dot_size = 16;
+design.title_centre_y = 572;
+design.background_red = 0.0627;
+design.background_green = 0.0784;
+design.background_blue = 0.0941;
+dots.count = 96;
+dots.radius[0] = 156.218; dots.angle[0] = 0.78927; dots.spread[0] = 0.48865; dots.noise[0] = 0.07475; dots.phase[0] = 5.19291;
+dots.radius[1] = 160.519; dots.angle[1] = 0.76451; dots.spread[1] = -0.59248; dots.noise[1] = -0.07777; dots.phase[1] = 2.83808;
+dots.radius[2] = 159.415; dots.angle[2] = 0.81722; dots.spread[2] = 0.76316; dots.noise[2] = 0.16551; dots.phase[2] = 0.01919;
+dots.radius[3] = 153.503; dots.angle[3] = 0.76119; dots.spread[3] = 0.38197; dots.noise[3] = 0.12675; dots.phase[3] = 0.74863;
+dots.radius[4] = 165.449; dots.angle[4] = 0.78129; dots.spread[4] = 0.61046; dots.noise[4] = 0.18103; dots.phase[4] = 0.08666;
+dots.radius[5] = 153.195; dots.angle[5] = 0.82391; dots.spread[5] = -0.23010; dots.noise[5] = 0.04074; dots.phase[5] = 5.44756;
+dots.radius[6] = 158.558; dots.angle[6] = 0.73023; dots.spread[6] = -0.53019; dots.noise[6] = -0.13668; dots.phase[6] = 1.81673;
+dots.radius[7] = 165.031; dots.angle[7] = 0.82762; dots.spread[7] = -0.38875; dots.noise[7] = -0.07159; dots.phase[7] = 5.10604;
+dots.radius[8] = 148.140; dots.angle[8] = 0.77992; dots.spread[8] = -0.17135; dots.noise[8] = -0.16168; dots.phase[8] = 0.61593;
+dots.radius[9] = 167.236; dots.angle[9] = 0.74476; dots.spread[9] = 0.24455; dots.noise[9] = 0.13146; dots.phase[9] = 2.50423;
+dots.radius[10] = 156.868; dots.angle[10] = 0.85965; dots.spread[10] = 0.71454; dots.noise[10] = -0.04239; dots.phase[10] = 2.68055;
+dots.radius[11] = 151.924; dots.angle[11] = 0.71595; dots.spread[11] = 0.27127; dots.noise[11] = 0.12214; dots.phase[11] = 6.03644;
+dots.radius[12] = 171.340; dots.angle[12] = 0.80497; dots.spread[12] = 0.52513; dots.noise[12] = -0.02112; dots.phase[12] = 3.85483;
+dots.radius[13] = 146.046; dots.angle[13] = 0.83079; dots.spread[13] = -0.42885; dots.noise[13] = -0.04259; dots.phase[13] = 6.14191;
+dots.radius[14] = 164.017; dots.angle[14] = 0.69926; dots.spread[14] = 0.01753; dots.noise[14] = 0.19522; dots.phase[14] = 3.02741;
+dots.radius[15] = 165.211; dots.angle[15] = 0.87387; dots.spread[15] = -0.27699; dots.noise[15] = -0.12824; dots.phase[15] = 1.03182;
+dots.radius[16] = 143.306; dots.angle[16] = 0.73667; dots.spread[16] = -0.73895; dots.noise[16] = -0.12985; dots.phase[16] = 2.10633;
+dots.radius[17] = 175.396; dots.angle[17] = 0.75423; dots.spread[17] = -0.00024; dots.noise[17] = -0.02842; dots.phase[17] = 5.35927;
+dots.radius[18] = 149.966; dots.angle[18] = 0.89509; dots.spread[18] = -0.07645; dots.noise[18] = 0.09928; dots.phase[18] = 2.09687;
+dots.radius[19] = 155.148; dots.angle[19] = 0.65860; dots.spread[19] = 0.10167; dots.noise[19] = 0.03918; dots.phase[19] = 2.62534;
+dots.radius[20] = 176.582; dots.angle[20] = 0.85490; dots.spread[20] = 0.43594; dots.noise[20] = -0.09653; dots.phase[20] = 2.90021;
+dots.radius[21] = 135.255; dots.angle[21] = 0.80910; dots.spread[21] = -0.47663; dots.noise[21] = -0.08078; dots.phase[21] = 4.96130;
+dots.radius[22] = 176.049; dots.angle[22] = 0.67184; dots.spread[22] = -0.68404; dots.noise[22] = -0.06131; dots.phase[22] = 5.61640;
+dots.radius[23] = 162.814; dots.angle[23] = 0.97428; dots.spread[23] = 0.16312; dots.noise[23] = -0.16141; dots.phase[23] = 0.83845;
+dots.radius[24] = 160.041; dots.angle[24] = 2.34651; dots.spread[24] = 0.15633; dots.noise[24] = 0.08871; dots.phase[24] = 4.50411;
+dots.radius[25] = 158.154; dots.angle[25] = 2.38112; dots.spread[25] = -0.37030; dots.noise[25] = -0.06222; dots.phase[25] = 2.73931;
+dots.radius[26] = 155.245; dots.angle[26] = 2.33012; dots.spread[26] = -0.50529; dots.noise[26] = 0.09820; dots.phase[26] = 1.50765;
+dots.radius[27] = 164.492; dots.angle[27] = 2.36219; dots.spread[27] = -0.45287; dots.noise[27] = -0.05855; dots.phase[27] = 2.25245;
+dots.radius[28] = 152.518; dots.angle[28] = 2.38172; dots.spread[28] = -0.60809; dots.noise[28] = 0.02757; dots.phase[28] = 0.96627;
+dots.radius[29] = 160.523; dots.angle[29] = 2.30824; dots.spread[29] = -0.31616; dots.noise[29] = -0.00535; dots.phase[29] = 0.72039;
+dots.radius[30] = 162.718; dots.angle[30] = 2.40352; dots.spread[30] = -0.73603; dots.noise[30] = -0.05143; dots.phase[30] = 3.66499;
+dots.radius[31] = 149.433; dots.angle[31] = 2.33522; dots.spread[31] = 0.38656; dots.noise[31] = -0.13220; dots.phase[31] = 5.34795;
+dots.radius[32] = 167.890; dots.angle[32] = 2.33198; dots.spread[32] = -0.70322; dots.noise[32] = -0.00667; dots.phase[32] = 1.86144;
+dots.radius[33] = 154.189; dots.angle[33] = 2.42155; dots.spread[33] = -0.20805; dots.noise[33] = 0.08148; dots.phase[33] = 1.05868;
+dots.radius[34] = 155.099; dots.angle[34] = 2.28388; dots.spread[34] = 0.39895; dots.noise[34] = 0.02735; dots.phase[34] = 5.34869;
+dots.radius[35] = 169.466; dots.angle[35] = 2.39242; dots.spread[35] = 0.64061; dots.noise[35] = 0.12210; dots.phase[35] = 4.06581;
+dots.radius[36] = 145.436; dots.angle[36] = 2.37722; dots.spread[36] = 0.09952; dots.noise[36] = 0.14373; dots.phase[36] = 0.45369;
+dots.radius[37] = 166.765; dots.angle[37] = 2.28604; dots.spread[37] = -0.00300; dots.noise[37] = -0.05316; dots.phase[37] = 1.94011;
+dots.radius[38] = 161.219; dots.angle[38] = 2.44826; dots.spread[38] = 0.56837; dots.noise[38] = 0.02665; dots.phase[38] = 1.28084;
+dots.radius[39] = 146.467; dots.angle[39] = 2.28764; dots.spread[39] = 0.23403; dots.noise[39] = -0.01695; dots.phase[39] = 3.20806;
+dots.radius[40] = 175.145; dots.angle[40] = 2.35082; dots.spread[40] = 0.68792; dots.noise[40] = -0.02152; dots.phase[40] = 5.29571;
+dots.radius[41] = 146.530; dots.angle[41] = 2.44316; dots.spread[41] = 0.74508; dots.noise[41] = -0.03043; dots.phase[41] = 0.79717;
+dots.radius[42] = 160.101; dots.angle[42] = 2.23804; dots.spread[42] = 0.30130; dots.noise[42] = -0.03204; dots.phase[42] = 0.33123;
+dots.radius[43] = 172.193; dots.angle[43] = 2.44494; dots.spread[43] = 0.05386; dots.noise[43] = 0.07214; dots.phase[43] = 1.48470;
+dots.radius[44] = 136.983; dots.angle[44] = 2.33750; dots.spread[44] = 0.52093; dots.noise[44] = 0.09648; dots.phase[44] = 4.19059;
+dots.radius[45] = 177.920; dots.angle[45] = 2.27943; dots.spread[45] = -0.17133; dots.noise[45] = -0.01719; dots.phase[45] = 3.86886;
+dots.radius[46] = 155.167; dots.angle[46] = 2.52032; dots.spread[46] = -0.10148; dots.noise[46] = 0.10703; dots.phase[46] = 0.23240;
+dots.radius[47] = 145.190; dots.angle[47] = 2.17385; dots.spread[47] = -0.57197; dots.noise[47] = 0.06329; dots.phase[47] = 1.37745;
+dots.radius[48] = 156.929; dots.angle[48] = -2.36710; dots.spread[48] = -0.01931; dots.noise[48] = -0.07560; dots.phase[48] = 4.83852;
+dots.radius[49] = 162.317; dots.angle[49] = -2.35331; dots.spread[49] = 0.74277; dots.noise[49] = -0.09570; dots.phase[49] = 1.12138;
+dots.radius[50] = 154.231; dots.angle[50] = -2.33668; dots.spread[50] = 0.44877; dots.noise[50] = 0.01621; dots.phase[50] = 1.16040;
+dots.radius[51] = 159.772; dots.angle[51] = -2.39404; dots.spread[51] = -0.18491; dots.noise[51] = 0.06830; dots.phase[51] = 0.16732;
+dots.radius[52] = 162.123; dots.angle[52] = -2.31858; dots.spread[52] = -0.44452; dots.noise[52] = 0.14130; dots.phase[52] = 1.27182;
+dots.radius[53] = 150.813; dots.angle[53] = -2.37144; dots.spread[53] = -0.36439; dots.noise[53] = -0.00508; dots.phase[53] = 4.19267;
+dots.radius[54] = 166.316; dots.angle[54] = -2.37896; dots.spread[54] = -0.77400; dots.noise[54] = -0.02142; dots.phase[54] = 4.81374;
+dots.radius[55] = 155.100; dots.angle[55] = -2.29918; dots.spread[55] = -0.49386; dots.noise[55] = 0.28961; dots.phase[55] = 4.63395;
+dots.radius[56] = 155.065; dots.angle[56] = -2.41831; dots.spread[56] = 0.04768; dots.noise[56] = -0.02522; dots.phase[56] = 5.91152;
+dots.radius[57] = 168.317; dots.angle[57] = -2.32654; dots.spread[57] = 0.23042; dots.noise[57] = 0.14319; dots.phase[57] = 0.91745;
+dots.radius[58] = 147.062; dots.angle[58] = -2.33458; dots.spread[58] = -0.22898; dots.noise[58] = 0.05325; dots.phase[58] = 0.11021;
+dots.radius[59] = 165.373; dots.angle[59] = -2.42075; dots.spread[59] = 0.53105; dots.noise[59] = 0.08225; dots.phase[59] = 1.58973;
+dots.radius[60] = 161.382; dots.angle[60] = -2.27484; dots.spread[60] = -0.56850; dots.noise[60] = -0.10305; dots.phase[60] = 1.41035;
+dots.radius[61] = 147.326; dots.angle[61] = -2.41387; dots.spread[61] = -0.68749; dots.noise[61] = -0.01451; dots.phase[61] = 3.93224;
+dots.radius[62] = 173.303; dots.angle[62] = -2.36462; dots.spread[62] = 0.32132; dots.noise[62] = 0.14273; dots.phase[62] = 4.74382;
+dots.radius[63] = 148.274; dots.angle[63] = -2.27657; dots.spread[63] = 0.36130; dots.noise[63] = -0.05204; dots.phase[63] = 2.96233;
+dots.radius[64] = 159.110; dots.angle[64] = -2.46183; dots.spread[64] = 0.10857; dots.noise[64] = 0.11779; dots.phase[64] = 1.35469;
+dots.radius[65] = 171.027; dots.angle[65] = -2.28018; dots.spread[65] = 0.18289; dots.noise[65] = -0.02580; dots.phase[65] = 4.68893;
+dots.radius[66] = 139.574; dots.angle[66] = -2.36666; dots.spread[66] = -0.62497; dots.noise[66] = 0.10233; dots.phase[66] = 2.59117;
+dots.radius[67] = 174.682; dots.angle[67] = -2.42728; dots.spread[67] = 0.67974; dots.noise[67] = -0.02489; dots.phase[67] = 5.55535;
+dots.radius[68] = 156.304; dots.angle[68] = -2.21955; dots.spread[68] = -0.26403; dots.noise[68] = 0.15133; dots.phase[68] = 2.43520;
+dots.radius[69] = 146.951; dots.angle[69] = -2.49006; dots.spread[69] = 0.46705; dots.noise[69] = -0.02240; dots.phase[69] = 5.05835;
+dots.radius[70] = 183.588; dots.angle[70] = -2.32093; dots.spread[70] = -0.10355; dots.noise[70] = -0.11530; dots.phase[70] = 1.72666;
+dots.radius[71] = 132.158; dots.angle[71] = -2.24717; dots.spread[71] = 0.59296; dots.noise[71] = -0.12725; dots.phase[71] = 4.41472;
+dots.radius[72] = 159.888; dots.angle[72] = -0.79602; dots.spread[72] = -0.73512; dots.noise[72] = -0.04575; dots.phase[72] = 3.53630;
+dots.radius[73] = 158.530; dots.angle[73] = -0.76047; dots.spread[73] = 0.43322; dots.noise[73] = 0.03892; dots.phase[73] = 6.05055;
+dots.radius[74] = 154.867; dots.angle[74] = -0.80946; dots.spread[74] = 0.35337; dots.noise[74] = -0.02343; dots.phase[74] = 5.76849;
+dots.radius[75] = 164.556; dots.angle[75] = -0.78295; dots.spread[75] = 0.61491; dots.noise[75] = 0.09660; dots.phase[75] = 1.12768;
+dots.radius[76] = 152.929; dots.angle[76] = -0.75638; dots.spread[76] = -0.09493; dots.noise[76] = 0.03552; dots.phase[76] = 2.55296;
+dots.radius[77] = 159.792; dots.angle[77] = -0.83451; dots.spread[77] = -0.63716; dots.noise[77] = -0.00407; dots.phase[77] = 3.30926;
+dots.radius[78] = 163.410; dots.angle[78] = -0.74089; dots.spread[78] = -0.29370; dots.noise[78] = -0.05930; dots.phase[78] = 3.88009;
+dots.radius[79] = 149.160; dots.angle[79] = -0.80059; dots.spread[79] = 0.69725; dots.noise[79] = 0.00098; dots.phase[79] = 3.48832;
+dots.radius[80] = 167.485; dots.angle[80] = -0.81492; dots.spread[80] = 0.28988; dots.noise[80] = 0.08423; dots.phase[80] = 4.84503;
+dots.radius[81] = 155.189; dots.angle[81] = -0.71798; dots.spread[81] = 0.58305; dots.noise[81] = -0.15975; dots.phase[81] = 5.53992;
+dots.radius[82] = 154.026; dots.angle[82] = -0.85560; dots.spread[82] = 0.20703; dots.noise[82] = 0.02292; dots.phase[82] = 4.47878;
+dots.radius[83] = 169.964; dots.angle[83] = -0.75557; dots.spread[83] = -0.40227; dots.noise[83] = -0.22754; dots.phase[83] = 1.32718;
+dots.radius[84] = 145.816; dots.angle[84] = -0.75606; dots.spread[84] = -0.49232; dots.noise[84] = -0.00819; dots.phase[84] = 3.72548;
+dots.radius[85] = 165.672; dots.angle[85] = -0.86027; dots.spread[85] = -0.53580; dots.noise[85] = -0.08069; dots.phase[85] = 3.55886;
+dots.radius[86] = 162.587; dots.angle[86] = -0.69578; dots.spread[86] = 0.11883; dots.noise[86] = -0.11125; dots.phase[86] = 0.80789;
+dots.radius[87] = 145.493; dots.angle[87] = -0.84608; dots.spread[87] = -0.36400; dots.noise[87] = -0.11941; dots.phase[87] = 3.45168;
+dots.radius[88] = 174.996; dots.angle[88] = -0.79984; dots.spread[88] = -0.16259; dots.noise[88] = -0.00863; dots.phase[88] = 3.22706;
+dots.radius[89] = 147.891; dots.angle[89] = -0.69162; dots.spread[89] = -0.67028; dots.noise[89] = -0.02407; dots.phase[89] = 1.77169;
+dots.radius[90] = 158.315; dots.angle[90] = -0.90471; dots.spread[90] = 0.16262; dots.noise[90] = -0.00610; dots.phase[90] = 1.16210;
+dots.radius[91] = 173.466; dots.angle[91] = -0.70492; dots.spread[91] = 0.03776; dots.noise[91] = -0.10835; dots.phase[91] = 5.27585;
+dots.radius[92] = 136.814; dots.angle[92] = -0.78916; dots.spread[92] = -0.25357; dots.noise[92] = -0.06145; dots.phase[92] = 6.04071;
+dots.radius[93] = 176.686; dots.angle[93] = -0.87260; dots.spread[93] = -0.04265; dots.noise[93] = 0.01617; dots.phase[93] = 2.67288;
+dots.radius[94] = 157.629; dots.angle[94] = -0.62135; dots.spread[94] = 0.75966; dots.noise[94] = -0.02742; dots.phase[94] = 4.31270;
+dots.radius[95] = 142.515; dots.angle[95] = -0.95979; dots.spread[95] = 0.50804; dots.noise[95] = 0.07397; dots.phase[95] = 3.04152;
+# --- end of the part written by tools/build_boot_splash.py ---
+
+# The animation, in seconds from the first picture.
+fade_in = 0.5;       # dots and axes appear
+lock_start = 0.8;    # the dots begin to gather
+lock_time = 1.6;     # and are in their points this much later
+title_start = 1.6;   # the name appears
+title_time = 0.8;    # within this
+quarter_turns = 3;   # the ring turns this far until the dots are locked
+drift = 2.0;         # how far a locked dot drifts about its place (px)
+frames_per_second = 50;
+pi = 3.14159265358979;
+
+# The ring turns at this speed until the lock begins and comes to rest with it, a whole
+# number of quarter turns on, so that the points end on the diagonals: the turn at the
+# time t of the lock is the integral of spin * (1 - lock) over the time.
+spin = quarter_turns * pi / 2 / (lock_start + lock_time / 2);
+rest_turn = spin * (lock_start + lock_time / 2);
+
+Window.SetBackgroundTopColor(design.background_red, design.background_green, design.background_blue);
+Window.SetBackgroundBottomColor(design.background_red, design.background_green, design.background_blue);
+
+original_dot = Image("dot.png");
+original_axes = Image("axes.png");
+original_title = Image("title.png");
+
+axes_sprite = Sprite();
+axes_sprite.SetZ(0);
+axes_sprite.SetOpacity(0);
+title_sprite = Sprite();
+title_sprite.SetZ(20);
+title_sprite.SetOpacity(0);
+# A loop variable of its own: a function assigning to a name that exists globally
+# assigns to the global one.
+index = 0;
+while (index < dots.count)
+{
+    dot_sprite[index] = Sprite();
+    dot_sprite[index].SetZ(10);
+    dot_sprite[index].SetOpacity(0);
+    index = index + 1;
+}
+
+screen_width = 0;
+screen_height = 0;
+frame = 0;
+locked_from_start = Plymouth.GetMode() != "boot";
+
+fun scaled(image)
+{
+    if (scale == 1)
+    {
+        return image;
+    }
+    return image.Scale(Math.Int(image.GetWidth() * scale + 0.5), Math.Int(image.GetHeight() * scale + 0.5));
+}
+
+# Lays the picture out on the screen, scaled by the smaller of the two ratios to the
+# 1280 x 720 it is drawn for, in the middle.
+fun layout()
+{
+    global.screen_width = Window.GetWidth();
+    global.screen_height = Window.GetHeight();
+    global.scale = Math.Min(screen_width / design.width, screen_height / design.height);
+    global.centre_x = Window.GetX() + screen_width / 2;
+    global.centre_y = Window.GetY() + screen_height / 2 + (design.centre_y - design.height / 2) * scale;
+    global.dot_half = design.dot_size * scale / 2;
+
+    axes = scaled(original_axes);
+    axes_sprite.SetImage(axes);
+    axes_sprite.SetX(centre_x - design.axis_length * scale);
+    axes_sprite.SetY(centre_y - design.axis_length * scale);
+
+    title = scaled(original_title);
+    title_sprite.SetImage(title);
+    title_sprite.SetX(centre_x - title.GetWidth() / 2);
+    title_sprite.SetY(centre_y + (design.title_centre_y - design.centre_y) * scale - title.GetHeight() / 2);
+
+    dot = scaled(original_dot);
+    i = 0;
+    while (i < dots.count)
+    {
+        dot_sprite[i].SetImage(dot);
+        i = i + 1;
+    }
+}
+
+fun smooth(u)
+{
+    u = Math.Min(Math.Max(u, 0), 1);
+    return u * u * (3 - 2 * u);
+}
+
+fun refresh()
+{
+    if (Window.GetWidth() > 0 && Window.GetHeight() > 0)
+    {
+        if (Window.GetWidth() != screen_width || Window.GetHeight() != screen_height)
+        {
+            layout();
+        }
+        t = frame / frames_per_second;
+        global.frame = frame + 1;
+        if (locked_from_start)
+        {
+            t = t + 100;
+        }
+
+        fade = smooth(t / fade_in);
+        u = Math.Min(Math.Max((t - lock_start) / lock_time, 0), 1);
+        lock = u * u * (3 - 2 * u);
+        if (t < lock_start)
+        {
+            turn = spin * t;
+        }
+        else
+        {
+            turn = spin * (lock_start + lock_time * (u - u * u * u + u * u * u * u / 2));
+        }
+        turn = turn - rest_turn;
+        unlocked = 1 - lock;
+        wobble = drift * lock;
+        opacity = fade * (0.55 + 0.45 * lock);
+
+        i = 0;
+        while (i < dots.count)
+        {
+            angle = dots.angle[i] + unlocked * dots.spread[i] + turn;
+            radius = dots.radius[i] * (1 + unlocked * dots.noise[i]);
+            x = radius * Math.Cos(angle) + wobble * Math.Sin(1.4 * pi * t + dots.phase[i]);
+            y = radius * Math.Sin(angle) + wobble * Math.Cos(1.8 * pi * t + 1.7 * dots.phase[i]);
+            dot_sprite[i].SetX(centre_x + x * scale - dot_half);
+            dot_sprite[i].SetY(centre_y + y * scale - dot_half);
+            dot_sprite[i].SetOpacity(opacity);
+            i = i + 1;
+        }
+        axes_sprite.SetOpacity(fade);
+        title_sprite.SetOpacity(smooth((t - title_start) / title_time));
+    }
+}
+
+Plymouth.SetRefreshFunction(refresh);

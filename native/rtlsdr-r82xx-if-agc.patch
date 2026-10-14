@@ -1,0 +1,57 @@
+diff --git a/src/librtlsdr.c b/src/librtlsdr.c
+index 0918787..3e2e082 100644
+--- a/src/librtlsdr.c
++++ b/src/librtlsdr.c
+@@ -1630,6 +1630,26 @@ found:
+ 		}
+ 		/* fall-through */
+ 	case RTLSDR_TUNER_R820T:
++		/* Set up the IF AGC loop of the RTL2832U, which drives the VGA of the
++		 * R82XX through its vagc pin (see r82xx_set_gain()). The values are those
++		 * of librtlsdr/librtlsdr 0.8.0 (USE_OLD_DAB_IF_GAIN), taken there from
++		 * old-dab/rtlsdr. */
++		rtlsdr_demod_write_reg(dev, 1, 0x12, 0x5a, 1); /* DAGC_TRG_VAL */
++		rtlsdr_demod_write_reg(dev, 1, 0x02, 0x40, 1); /* AGC_TARG_VAL_0 */
++		rtlsdr_demod_write_reg(dev, 1, 0x03, 0x80, 1); /* AGC_TARG_VAL_8_1 */
++		rtlsdr_demod_write_reg(dev, 1, 0xc7, 0x24, 1); /* AAGC_LOOP_GAIN */
++		rtlsdr_demod_write_reg(dev, 1, 0x04, 0xcc, 1); /* LOOP_GAIN2_3_0 */
++		rtlsdr_demod_write_reg(dev, 1, 0x05, 0xbe, 1); /* LOOP_GAIN2_4 */
++		rtlsdr_demod_write_reg(dev, 1, 0xc8, 0x14, 1); /* LOOP_GAIN3 */
++		rtlsdr_demod_write_reg(dev, 1, 0x06, 0x35, 1); /* VTOP1 */
++		rtlsdr_demod_write_reg(dev, 1, 0xc9, 0x21, 1); /* VTOP2 */
++		rtlsdr_demod_write_reg(dev, 1, 0xca, 0x21, 1); /* VTOP3 */
++		rtlsdr_demod_write_reg(dev, 1, 0xcb, 0x00, 1); /* KRF1 */
++		rtlsdr_demod_write_reg(dev, 1, 0x07, 0x40, 1); /* KRF2 */
++		rtlsdr_demod_write_reg(dev, 1, 0xcd, 0x10, 1); /* KRF3 */
++		rtlsdr_demod_write_reg(dev, 1, 0xce, 0x10, 1); /* KRF4 */
++		rtlsdr_demod_write_reg(dev, 0, 0x11, 0xe9f4, 2); /* AD7_SETTING */
++
+ 		/* disable Zero-IF mode */
+ 		rtlsdr_demod_write_reg(dev, 1, 0xb1, 0x1a, 1);
+ 
+diff --git a/src/tuner_r82xx.c b/src/tuner_r82xx.c
+index 8c3b2b1..d796baa 100644
+--- a/src/tuner_r82xx.c
++++ b/src/tuner_r82xx.c
+@@ -999,8 +999,8 @@ int r82xx_set_gain(struct r82xx_priv *priv, int set_manual_gain, int gain)
+ 		if (rc < 0)
+ 			return rc;
+ 
+-		/* set fixed VGA gain for now (16.3 dB) */
+-		rc = r82xx_write_reg_mask(priv, 0x0c, 0x08, 0x9f);
++		/* VGA gain controlled by the vagc pin: the IF AGC of the RTL2832U */
++		rc = r82xx_write_reg_mask(priv, 0x0c, 0x10, 0x9f);
+ 		if (rc < 0)
+ 			return rc;
+ 
+@@ -1036,8 +1036,8 @@ int r82xx_set_gain(struct r82xx_priv *priv, int set_manual_gain, int gain)
+ 		if (rc < 0)
+ 			return rc;
+ 
+-		/* set fixed VGA gain for now (26.5 dB) */
+-		rc = r82xx_write_reg_mask(priv, 0x0c, 0x0b, 0x9f);
++		/* VGA gain controlled by the vagc pin: the IF AGC of the RTL2832U */
++		rc = r82xx_write_reg_mask(priv, 0x0c, 0x10, 0x9f);
+ 		if (rc < 0)
+ 			return rc;
+ 	}

@@ -1,0 +1,23 @@
+diff --git a/src/librtlsdr.c b/src/librtlsdr.c
+index 55d2ef1..0918787 100644
+--- a/src/librtlsdr.c
++++ b/src/librtlsdr.c
+@@ -1529,6 +1529,18 @@ int rtlsdr_open(rtlsdr_dev_t **out_dev, uint32_t index)
+ 		goto err;
+ 	}
+ 
++#ifdef _WIN32
++	/* Without RAW_IO, WinUSB passes on one read at a time however many transfers
++	 * are submitted: the dongle is not polled between two of them, and its FIFO
++	 * overflows. The buffers of rtlsdr_read_async() must then be multiples of
++	 * 512 bytes, which its defaults are. */
++	if (libusb_endpoint_supports_raw_io(dev->devh, 0x81) == 1) {
++		int raw_io = libusb_endpoint_set_raw_io(dev->devh, 0x81, 1);
++		if (raw_io < 0)
++			fprintf(stderr, "Failed to enable RAW_IO: %d\n", raw_io);
++	}
++#endif
++
+ 	dev->rtl_xtal = DEF_RTL_XTAL_FREQ;
+ 
+ 	/* perform a dummy write, if it fails, reset the device */

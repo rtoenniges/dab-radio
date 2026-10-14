@@ -1,0 +1,13 @@
+# Lets the members of the group video (on Raspberry Pi OS the user made at
+# installation) dim the Touch Display 2 and switch it off from the touch surface of the
+# DAB+ radio (src/ui/touch/backlight.py, settings page "Anzeige"). The kernel's backlight
+# class, /sys/class/backlight/<name>/, lets only root write brightness and bl_power;
+# Raspberry Pi OS (99-com.rules) does not hand them out.
+#
+# Install once on the Pi, then reboot (or reload the rules and trigger the backlight):
+#   sudo install -m 644 pi/99-dab-radio-backlight.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger -s backlight -c add
+# Afterwards `ls -l /sys/class/backlight/*/` shows both files as video, group-writable,
+# and the radio's log no longer says "not writable".
+SUBSYSTEM=="backlight", ACTION=="add", RUN+="/bin/sh -c 'chgrp video /sys/class/backlight/%k/brightness && chmod g+w /sys/class/backlight/%k/brightness'"
+SUBSYSTEM=="backlight", ACTION=="add", RUN+="/bin/sh -c 'chgrp video /sys/class/backlight/%k/bl_power && chmod g+w /sys/class/backlight/%k/bl_power'"

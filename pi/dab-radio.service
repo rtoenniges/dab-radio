@@ -1,0 +1,59 @@
+# Starts the DAB+ radio on the Raspberry Pi Touch Display 2 at boot, in the kiosk
+# compositor cage on tty1, through pi/start-touch.sh (rotation of the output, pointer
+# into the corner, the radio with --touch --fullscreen). Before that, as root, it binds
+# the driver of the touch controller anew where the kernel found no touchscreen at
+# boot (pi/rebind-touch.sh), and ends the boot splash, if there is one. An example with
+# the radio in /opt/dab-radio and its own account dabradio (home /var/lib/dab-radio,
+# UID 1001); pi/install.sh puts both in place and writes the account, the path and the
+# UID of the Pi it runs on. By hand:
+#
+#   sudo install -m 644 pi/dab-radio.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now dab-radio.service
+#   journalctl -t dab-radio -f        (the radio's own messages)
+#   journalctl -u dab-radio -f        (starts and stops of the unit)
+[Unit]
+Description=DAB+ radio on the touch display (cage kiosk)
+# In place of the getty on tty1, and of plymouth-quit.service: with the boot splash
+# (pi/install.sh --splash) the unit ends Plymouth itself and keeps its last picture on
+# the screen until cage draws, as display managers do; plymouth-quit.service would put
+# the console back first. Hence not after plymouth-quit-wait.service either, which
+# waits for that end. Without Plymouth none of this has an effect.
+After=systemd-user-sessions.service plymouth-start.service plymouth-quit.service getty@tty1.service
+Conflicts=getty@tty1.service plymouth-quit.service
+# Should the unit fail before it got to end Plymouth, the splash must not stay.
+OnFailure=plymouth-quit.service
+
+[Service]
+User=dabradio
+WorkingDirectory=/opt/dab-radio
+# A login session on tty1: cage gets the seat, and logind starts the user's services
+# with it, PipeWire for the audio (Bluetooth headphones included) among them.
+PAMName=login
+TTYPath=/dev/tty1
+StandardInput=tty
+# The radio's log (its messages, those of Qt) into the journal: with the tty as
+# input, systemd would otherwise send its output to tty1, behind cage, unread. The
+# journal files those lines under the login session the unit opens (PAMName), not
+# under the unit, so `journalctl -u dab-radio` does not show them; they carry this
+# name instead of "sh": journalctl -t dab-radio.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=dab-radio
+# The radio runs from the Python environment of the checkout, uv is not needed; the
+# runtime directory of the account (UID 1001), where the Wayland socket of cage and
+# PipeWire live.
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1" "XDG_RUNTIME_DIR=/run/user/1001"
+# "+": as root, not as the account; the script never fails, so that the radio starts
+# without touch rather than not at all.
+ExecStartPre=+/bin/sh /opt/dab-radio/pi/rebind-touch.sh
+# Plymouth lets go of the display, which cage needs, and leaves its picture there. "+":
+# only root may tell it; "-": Plymouth is not installed, or no longer running.
+ExecStartPre=-+/usr/bin/plymouth quit --retain-splash
+ExecStart=/bin/sh /opt/dab-radio/pi/start-touch.sh
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

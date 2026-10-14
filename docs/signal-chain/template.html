@@ -1,0 +1,273 @@
+<title>DAB+ signal chain</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:ital,wght@0,400;0,500;0,600;1,400&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400&display=swap">
+<style>
+  :root {
+    --f-cond: "Barlow Semi Condensed", "Roboto Condensed", "Arial Narrow", sans-serif;
+    --f-body: "Barlow", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    color-scheme: light;
+
+    --bg: #f1f4f5;
+    --ink: #17212b;
+    --ink-2: #4a5763;
+    --ink-3: #75828d;
+    --rule: #cdd5db;
+    --block: #ffffff;
+    --group: #8e9ba6;
+    --copy: #dbe2e8;
+    --band-hw: #ece3d5;
+    --band-sdr: #e0e8ee;
+    --band-dsp: #e4eaef;
+    --band-audio: #e3e5f0;
+    --band-gui: #e2eae5;
+    --disp: #a35a00;
+    --disp-bg: #fcebcf;
+    --disp-ink: #794200;
+    --ctrl: #1d5faf;
+    --ctrl-bg: #dce8f7;
+    --ctrl-ink: #174f93;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1317;
+      --ink: #e3e8ec;
+      --ink-2: #a7b2bb;
+      --ink-3: #7b8893;
+      --rule: #2c353d;
+      --block: #1a2128;
+      --group: #56636e;
+      --copy: #2c3743;
+      --band-hw: #231f18;
+      --band-sdr: #151c23;
+      --band-dsp: #141a20;
+      --band-audio: #171a26;
+      --band-gui: #141c18;
+      --disp: #f0a445;
+      --disp-bg: #3a2910;
+      --disp-ink: #f6c27a;
+      --ctrl: #79adee;
+      --ctrl-bg: #14263a;
+      --ctrl-ink: #a9ccf6;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1317;
+    --ink: #e3e8ec;
+    --ink-2: #a7b2bb;
+    --ink-3: #7b8893;
+    --rule: #2c353d;
+    --block: #1a2128;
+    --group: #56636e;
+    --copy: #2c3743;
+    --band-hw: #231f18;
+    --band-sdr: #151c23;
+    --band-dsp: #141a20;
+    --band-audio: #171a26;
+    --band-gui: #141c18;
+    --disp: #f0a445;
+    --disp-bg: #3a2910;
+    --disp-ink: #f6c27a;
+    --ctrl: #79adee;
+    --ctrl-bg: #14263a;
+    --ctrl-ink: #a9ccf6;
+    color-scheme: dark;
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 400 16px/1.55 var(--f-body);
+    padding-inline: 20px;
+    padding-block: 40px 64px;
+  }
+  .page { max-width: 1440px; margin: 0 auto; display: grid; gap: 40px; }
+  header { display: grid; gap: 12px; max-width: 72ch; }
+  .eyebrow {
+    font: 500 13px var(--f-mono);
+    color: var(--ink-3);
+    letter-spacing: 0.02em;
+  }
+  h1 {
+    font: 600 clamp(34px, 5vw, 52px)/1.02 var(--f-cond);
+    letter-spacing: -0.01em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  h2 {
+    font: 600 22px/1.2 var(--f-cond);
+    margin: 0;
+    text-wrap: balance;
+  }
+  .lede { margin: 0; font-size: 18px; color: var(--ink-2); }
+  .spec {
+    display: flex; flex-wrap: wrap; gap: 6px 18px;
+    margin: 4px 0 0; padding: 0; list-style: none;
+    font: 400 13px var(--f-mono); color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+  .spec b { font-weight: 400; color: var(--ink); }
+
+  section { display: grid; gap: 14px; }
+  .section-head { display: grid; gap: 4px; max-width: 80ch; }
+  .section-head p { margin: 0; color: var(--ink-2); }
+
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 10px 26px;
+    margin: 0; padding: 0; list-style: none;
+    font: 400 14px/1.3 var(--f-cond); color: var(--ink-2);
+  }
+  .legend li { display: flex; align-items: center; gap: 8px; }
+  .legend svg { flex: none; overflow: visible; }
+
+  .fig-scroll {
+    overflow-x: auto;
+    border-radius: 14px;
+    -webkit-overflow-scrolling: touch;
+  }
+  svg.diagram { display: block; width: 100%; min-width: 1180px; height: auto; }
+  svg.diagram.frame { min-width: 980px; }
+  figure { margin: 0; display: grid; gap: 12px; }
+  figcaption { max-width: 80ch; color: var(--ink-2); font-size: 15px; }
+  .scroll-hint { display: none; font: 400 13px var(--f-cond); color: var(--ink-3); }
+  @media (max-width: 1180px) { .scroll-hint { display: block; } }
+
+  footer {
+    border-top: 1px solid var(--rule);
+    padding-top: 16px;
+    font: 400 13px var(--f-mono);
+    color: var(--ink-3);
+  }
+
+  /* ---- Diagram ----------------------------------------------------- */
+  .d-band-hw { fill: var(--band-hw); }
+  .d-band-sdr { fill: var(--band-sdr); }
+  .d-band-dsp { fill: var(--band-dsp); }
+  .d-band-audio { fill: var(--band-audio); }
+  .d-band-gui { fill: var(--band-gui); }
+  .d-band-label { font: 600 12px var(--f-cond); letter-spacing: 0.1em; fill: var(--ink); }
+  .d-mod { font: 400 10.5px var(--f-mono); fill: var(--ink-3); }
+  .d-group { fill: none; stroke: var(--group); stroke-width: 1; stroke-dasharray: 5 4; }
+  .d-group-label { font: 600 11.5px var(--f-cond); letter-spacing: 0.08em; fill: var(--ink-2); }
+  .d-block { fill: var(--block); stroke: var(--ink); stroke-width: 1.2; }
+  .d-title { font: 600 14px var(--f-cond); fill: var(--ink); }
+  .d-detail { font: 400 11.5px var(--f-cond); fill: var(--ink-2); }
+  .d-flow { fill: none; stroke: var(--ink); stroke-width: 1.3; stroke-linejoin: round; }
+  .d-ctrl { fill: none; stroke: var(--ctrl); stroke-width: 1.3; stroke-dasharray: 5 3.5; stroke-linejoin: round; }
+  .d-ah-flow, .d-dot-flow { fill: var(--ink); }
+  .d-ah-ctrl, .d-dot-ctrl { fill: var(--ctrl); }
+  .d-lbl { font: italic 400 11px var(--f-cond); fill: var(--ink-2); }
+  .d-lbl-ctrl { fill: var(--ctrl); }
+  .d-sym { fill: var(--block); stroke: var(--ink); stroke-width: 1.3; stroke-linejoin: round; }
+  .d-panel { fill: var(--block); stroke: var(--rule); }
+  .d-panel-title { font: 600 12.5px var(--f-cond); fill: var(--ink); }
+
+  .d-badge { cursor: default; outline: none; }
+  .d-badge rect { stroke-width: 1; transition: fill 120ms ease; }
+  .d-badge text { font: 600 10.5px var(--f-cond); }
+  .d-badge .g { fill: none; stroke-width: 1.1; }
+  .d-badge-disp rect { fill: var(--disp-bg); stroke: var(--disp); }
+  .d-badge-disp text { fill: var(--disp-ink); }
+  .d-badge-disp .g { stroke: var(--disp-ink); }
+  .d-badge-ctrl rect { fill: var(--ctrl-bg); stroke: var(--ctrl); }
+  .d-badge-ctrl text { fill: var(--ctrl-ink); }
+  .d-badge-ctrl .g { stroke: var(--ctrl-ink); }
+  .d-badge-ctrl .gf { fill: var(--ctrl-ink); }
+  .d-badge-disp.is-hl rect { fill: var(--disp); }
+  .d-badge-ctrl.is-hl rect { fill: var(--ctrl); }
+  .d-badge.is-hl text, .d-badge.is-hl .gf { fill: var(--block); }
+  .d-badge.is-hl .g { stroke: var(--block); }
+  .d-badge:focus-visible rect { stroke-width: 2.5; }
+
+  /* ---- Frame layout ------------------------------------------------- */
+  .f-null { fill: var(--bg); stroke: var(--ink-3); stroke-dasharray: 2 2; }
+  .f-prs { fill: var(--ink-2); }
+  .f-fic { fill: var(--ctrl-bg); stroke: var(--ctrl); }
+  .f-tick-fic { stroke: var(--ctrl); stroke-width: 0.8; }
+  .f-msc { fill: var(--block); stroke: var(--ink); }
+  .f-tick { stroke: var(--ink-3); stroke-width: 1; }
+  .f-zoomsym { fill: none; stroke: var(--ink); stroke-width: 2; }
+  .f-cone { fill: var(--ink); fill-opacity: 0.06; stroke: var(--ink-3); stroke-width: 1; stroke-linejoin: round; }
+  .f-leader, .f-axis { fill: none; stroke: var(--ink-3); stroke-width: 1; }
+  .f-head { font-weight: 600; fill: var(--ink); }
+  .f-copy { fill: var(--copy); }
+  .f-useful { fill: var(--block); }
+  .f-outline { fill: none; stroke: var(--ink); stroke-width: 1.2; }
+  .f-divider { fill: none; stroke: var(--ink); stroke-width: 1; stroke-dasharray: 3 2.5; }
+
+  @media (prefers-reduced-motion: reduce) { .d-badge rect { transition: none; } }
+</style>
+
+<!-- BODY -->
+
+<div class="page">
+  <header>
+    <span class="eyebrow">dab-radio · signal processing</span>
+    <h1>DAB+ signal chain</h1>
+    <p class="lede">From the antenna to audio, Dynamic Label, slideshow, Journaline, programme guide, the satellites of GEPOS and the traffic messages of ARD TPEG: every processing stage as it is implemented in the code, the thread it runs in, and the place where it becomes visible in the user interface.</p>
+    <ul class="spec">
+      <li><b>Mode I</b></li>
+      <li><b>2.048</b> MSps</li>
+      <li><b>1 536</b> carriers, 1 kHz apart</li>
+      <li><b>76</b> symbols + null symbol</li>
+      <li><b>96 ms</b> per frame</li>
+    </ul>
+  </header>
+
+  <section aria-labelledby="h-block">
+    <div class="section-head">
+      <h2 id="h-block">Block diagram</h2>
+    </div>
+    <ul class="legend">
+      <li><svg width="34" height="12" viewBox="0 0 34 12" aria-hidden="true"><path d="M1,6 H31" class="d-flow"/><path d="M24,1.8 L33,6 L24,10.2 z" class="d-ah-flow"/></svg>Signal and data flow</li>
+      <li><svg width="34" height="12" viewBox="0 0 34 12" aria-hidden="true"><path d="M1,6 H31" class="d-ctrl"/><path d="M24,1.8 L33,6 L24,10.2 z" class="d-ah-ctrl"/></svg>Control information, feedback</li>
+      <li><svg width="16" height="12" viewBox="0 0 16 12" aria-hidden="true"><path d="M0,6 H16" class="d-flow"/><circle cx="8" cy="6" r="3.2" class="d-dot-flow"/></svg>Tap, the signal continues unchanged</li>
+      <li><svg width="30" height="17" viewBox="0 0 30 17" aria-hidden="true" class="d-badge d-badge-disp"><rect x="0.5" y="0.5" width="29" height="16" rx="2.5"/><rect x="10" y="4.5" width="9" height="6.5" rx="1" class="g"/><path d="M12.5,13.5 h4" class="g"/></svg>Visible in the user interface</li>
+      <li><svg width="30" height="17" viewBox="0 0 30 17" aria-hidden="true" class="d-badge d-badge-ctrl"><rect x="0.5" y="0.5" width="29" height="16" rx="2.5"/><path d="M9.5,6 h11 M9.5,11 h11" class="g"/><circle cx="12.5" cy="6" r="1.8" class="gf"/><circle cx="17.5" cy="11" r="1.8" class="gf"/></svg>Adjustable in the user interface</li>
+      <li><svg width="30" height="17" viewBox="0 0 30 17" aria-hidden="true"><rect x="0" y="0" width="30" height="17" rx="5" class="d-band-dsp" style="stroke: var(--rule)"/></svg>Thread, connected via Qt signals</li>
+      <li><svg width="30" height="17" viewBox="0 0 30 17" aria-hidden="true"><rect x="0.5" y="0.5" width="29" height="16" rx="4" class="d-group"/></svg>Processing stage with its modules</li>
+    </ul>
+    <figure>
+      <div class="fig-scroll" tabindex="0" aria-label="Block diagram, scrollable sideways">
+        {{FIG1}}
+      </div>
+      <span class="scroll-hint">The diagram is wider than the screen and can be scrolled sideways.</span>
+      <figcaption>Each block is a step in the code, the bands are the four threads. The chain in the DSP thread processes each frame in five stages; superframe (DAB+) and MP2 frames (DAB) are two variants of the same stage, depending on the audio coding of the selected station. The FIC supplies the position of the selected subchannel, with which the MSC chain cuts out its bits. A data service in packet mode (such as the programme guide) runs through a second, identically built channel chain and then, on the right, through packet FEC, packets and MOT carousel; for GEPOS, instead of the carousel, through the RTCM 3 stream with the orbit data of the navigation satellites, for ARD TPEG through the TPEG frames with traffic messages and traffic flow. Without a selected station or data service the chain demodulates only the first 16 data symbols: enough for constellation and station list. Pointing the mouse at a yellow badge shows in which tab the display is found. Instead of the stick, one of the two tuners of the SDRplay RSPduo can receive (selection “Device”): the SDRplay API sets it to 2.048 MSps with 1.536 MHz IF bandwidth, a callback compiled with numba writes its packets into a ring without the GIL, and the RspDuoWorker assembles the same blocks from them; it fills gaps in the API's sample counter with zeros so that the symbol grid is kept.</figcaption>
+    </figure>
+  </section>
+
+  <section aria-labelledby="h-frame">
+    <div class="section-head">
+      <h2 id="h-frame">Layout of a transmission frame</h2>
+      <p>The symbol numbers l in the block diagram refer to this layout.</p>
+    </div>
+    <figure>
+      <div class="fig-scroll" tabindex="0" aria-label="Frame layout, scrollable sideways">
+        {{FIG2}}
+      </div>
+      <figcaption>To scale: 196 608 samples at 2.048 MSps, the time axis starts at the null symbol. The null symbol search finds this transmission pause, and all further stages align themselves to it. Below, a single MSC symbol is enlarged: the guard copy of its end, on which the fine frequency estimate is based, and the useful part that the FFT decomposes.</figcaption>
+    </figure>
+  </section>
+
+  <footer>{{GENERATED}} · Source: src/sdr, src/dsp, src/dab, src/audio, src/main.py · regenerate: uv run python docs/signal-chain/generate.py</footer>
+</div>
+
+<script>
+  (function () {
+    var badges = document.querySelectorAll(".d-badge[data-d]");
+    function mark(key, on) {
+      var sel = '.d-badge[data-d="' + (window.CSS && CSS.escape ? CSS.escape(key) : key) + '"]';
+      document.querySelectorAll(sel).forEach(function (el) { el.classList.toggle("is-hl", on); });
+    }
+    badges.forEach(function (el) {
+      var key = el.getAttribute("data-d");
+      el.addEventListener("pointerenter", function () { mark(key, true); });
+      el.addEventListener("pointerleave", function () { mark(key, false); });
+      el.addEventListener("focus", function () { mark(key, true); });
+      el.addEventListener("blur", function () { mark(key, false); });
+    });
+  })();
+</script>
