@@ -48,8 +48,8 @@ System libraries, loaded through ctypes:
 
 | Library | Used for | License |
 |---|---|---|
-| FAAD2 (`libfaad2`, `faad.dll`) | AAC decoding of DAB+ | GPL-2.0-or-later |
-| mpg123 (`libmpg123-0`) | MPEG Audio Layer II decoding of DAB | LGPL-2.1 |
+| FAAD2 (`libfaad2`; on Windows `native/faad.dll`, 2.11.4 built from the project's sources by `native/build_codecs.ps1`) | AAC decoding of DAB+ | GPL-2.0-or-later |
+| mpg123 (`libmpg123-0`; on Windows `native/mpg123.dll`, 1.33.7 built from the release tarball by `native/build_codecs.ps1`) | MPEG Audio Layer II decoding of DAB | LGPL-2.1 |
 | rtl-sdr 2.0.3 with libusb 1.0.30 (`native/rtlsdr.dll`, built by `native/build_rtlsdr.ps1`) | RTL-SDR stick on Windows | GPL-2.0-or-later; libusb LGPL-2.1-or-later |
 | SDRplay API 3.15 | SDRplay RSPduo, optional | Proprietary (SDRplay Ltd.); installed by the user from sdrplay.com |
 

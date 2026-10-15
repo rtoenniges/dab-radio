@@ -37,7 +37,8 @@ class Mp2DecoderError(RuntimeError):
 
 
 def _load_mpg123() -> ctypes.CDLL:
-    # libmpg123-0.dll as distributed by the mpg123 project and MSYS2.
+    # mpg123.dll as built by native\build_codecs.ps1, libmpg123-0.dll as distributed by
+    # the mpg123 project and MSYS2.
     name = find_library("mpg123", "libmpg123-0") or "libmpg123.so.0"
     try:
         library = ctypes.CDLL(name)
@@ -46,7 +47,8 @@ def _load_mpg123() -> ctypes.CDLL:
             tr(
                 "libmpg123 was not found - without this library the audio of classic DAB "
                 "stations cannot be decoded. On Debian/Ubuntu: 'apt install libmpg123-0', "
-                "on Windows: put libmpg123-0.dll into the folder .venv\\Scripts."
+                "on Windows: build it with native\\build_codecs.ps1 or put mpg123.dll into "
+                "the folder native."
             )
         ) from exc
 

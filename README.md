@@ -170,16 +170,21 @@ The audio decoders and receivers need some system components:
 
 | | Windows | Linux |
 |---|---|---|
-| Audio decoders | `faad.dll` (FAAD2, or `libfaad-2.dll` from MSYS2) and `libmpg123-0.dll` (mpg123.de) in `.venv\Scripts` | `apt install libfaad2 libmpg123-0` |
+| Audio decoders | `pwsh native\build_codecs.ps1` builds `faad.dll` and `mpg123.dll` into `native\` (see below); DLLs from elsewhere (`libfaad-2.dll` from MSYS2, `libmpg123-0.dll` from mpg123.de) go into `native\` or `.venv\Scripts` | `apt install libfaad2 libmpg123-0` |
 | RTL-SDR | WinUSB driver, installed with Zadig | udev rule from the `rtl-sdr` package |
 | RSPduo | SDRplay API 3.15, with its service running | SDRplay API 3.15, with its service running |
 
 Without the decoders the radio runs, but stays silent and says why. The desktop window
 has only been tested on Windows so far; the Pi runs the same code.
 
-On Windows, `pwsh native\build_rtlsdr.ps1` optionally builds a custom `rtlsdr.dll`
-(needs git and Visual Studio with the C++ tools). It enables RAW_IO, so that no samples
-are lost between USB transfers, and restores the IF AGC of the tuner.
+On Windows, `pwsh native\build_codecs.ps1` builds the two audio decoders from their
+original, unchanged sources: FAAD2 2.11.4 from the project's git repository and
+libmpg123 1.33.7 from the release tarball of mpg123.de, both pinned, with CMake and
+the static C runtime, so that the DLLs depend on nothing but Windows (needs git and
+Visual Studio with the C++ tools and its CMake component). `pwsh native\build_rtlsdr.ps1`
+optionally builds a custom `rtlsdr.dll` (git and the C++ tools suffice). It enables
+RAW_IO, so that no samples are lost between USB transfers, and restores the IF AGC of
+the tuner.
 
 ### Using the desktop window
 
@@ -259,7 +264,7 @@ uv run python src/i18n/update_catalogs.py   # after changing texts marked for tr
 | `src/ui/` | The controller without widgets, the desktop window and `ui/touch/` |
 | `src/i18n/` | Translation catalogs |
 | `pi/` | What is installed on the Raspberry Pi |
-| `native/` | Build of `rtlsdr.dll` |
+| `native/` | Builds of the audio decoders and of `rtlsdr.dll` |
 | `tools/` | Builders of the data files and the boot splash |
 
 Further documents: the evaluated FIGs in [docs/fig-overview.md](docs/fig-overview.md),

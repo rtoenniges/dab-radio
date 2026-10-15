@@ -183,7 +183,7 @@ _FAAD_FMT_16BIT = 1
 
 
 def _load_faad() -> ctypes.CDLL:
-    # faad.dll as built by the FAAD2 project, libfaad-2.dll as in MSYS2.
+    # faad.dll as built by native\build_codecs.ps1, libfaad-2.dll as in MSYS2.
     name = find_library("faad", "libfaad-2") or "libfaad.so.2"
     try:
         library = ctypes.CDLL(name)
@@ -192,7 +192,8 @@ def _load_faad() -> ctypes.CDLL:
             tr(
                 "FAAD2 (libfaad2) was not found - without this library the DAB+ audio "
                 "cannot be decoded. On Debian/Ubuntu: 'apt install libfaad2', on Windows: "
-                "put faad.dll into the folder .venv\\Scripts."
+                "build it with native\\build_codecs.ps1 or put faad.dll into the folder "
+                "native."
             )
         ) from exc
 
