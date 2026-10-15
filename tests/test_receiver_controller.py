@@ -32,6 +32,7 @@ from dab.mot import CONTENT_TYPE_IMAGE, MotObject
 from dab.service_following import EnsembleLocation
 from dsp.pipeline import CarouselObject, DataComponentStatus
 from sdr.gain import FALLBACK_GAIN_RANGE_DB, FALLBACK_GAINS_DB
+from sdr.rtl_tcp import RtlTcpSettings
 from tests.fake_receiver import ENSEMBLE_5C, SERVICES_5C, SERVICES_11D
 from tests.test_data_services import FIGS_5C, _ensemble
 from ui import receiver_controller
@@ -713,6 +714,67 @@ def test_another_device_after_a_failed_scan_starts_nothing(
 
     assert len(fake_workers) == 1
     assert controller.state is ReceptionState.IDLE
+
+
+def test_rtl_tcp_receives_from_the_server_with_the_settings_of_the_stick(
+    data_directory, make_controller, fake_workers, fake_scanners
+):
+    controller = make_controller(data_directory)
+    statuses = _Recorder(controller.status_changed)
+    controller.set_device_settings(
+        replace(
+            controller.device_settings,
+            device="rtltcp",
+            gain_db=25.4,
+            ppm=3,
+            rtl_tcp_host="radio-pi",
+            rtl_tcp_port=1235,
+        )
+    )
+    assert controller.device_settings.is_rtlsdr
+    assert controller.device_settings.rspduo() is None
+
+    controller.start_reception()
+
+    assert fake_workers[-1].rtl_tcp == RtlTcpSettings("radio-pi", 1235, 25.4, 3)
+    assert statuses.last == ("Connecting to RTL_TCP radio-pi:1235...",)
+    fake_workers[-1].error.emit("No answer from the rtl_tcp server radio-pi:1235.")
+    controller.start_scan()
+    assert fake_scanners[-1].rtl_tcp == RtlTcpSettings("radio-pi", 1235, 25.4, 3)
+    assert fake_scanners[-1].rspduo is None
+
+
+def test_the_rtl_tcp_server_is_stored(data_directory, make_controller):
+    controller = make_controller(data_directory, start=False)
+    controller.set_device_settings(
+        replace(controller.device_settings, device="rtltcp", rtl_tcp_host="10.0.0.7")
+    )
+    settings = _settings(data_directory)
+    settings.setValue("controls/rtl_tcp_port", 70000)  # edited by hand
+    settings.sync()
+
+    stored = make_controller(data_directory, start=False).device_settings
+
+    assert stored.device == "rtltcp"
+    assert stored.rtl_tcp() == RtlTcpSettings("10.0.0.7", 65535, DEFAULT_GAIN_DB, 0)
+
+
+def test_another_rtl_tcp_server_after_an_error_starts_reception_again(
+    data_directory, make_controller, fake_workers
+):
+    controller = make_controller(data_directory)
+    first = replace(controller.device_settings, device="rtltcp", rtl_tcp_host="radio-pi")
+    controller.set_device_settings(first)
+    controller.start_reception()
+    fake_workers[-1].error.emit("radio-pi:1234 refuses the connection.")
+
+    controller.set_device_settings(replace(first, gain_db=33.8))
+    assert len(fake_workers) == 1
+    controller.set_device_settings(replace(first, rtl_tcp_port=1235))
+
+    assert len(fake_workers) == 2
+    assert fake_workers[-1].rtl_tcp.port == 1235
+    assert controller.state is ReceptionState.CONNECTING
 
 
 def _receive_5c_data(controller, worker, figs=FIGS_5C) -> list:

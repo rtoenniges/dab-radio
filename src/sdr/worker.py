@@ -1,8 +1,9 @@
-"""Reading the IQ stream from the RTL-SDR stick or the RSPduo in a thread of its own.
+"""Reading the IQ stream from the RTL-SDR stick, the RSPduo or an rtl_tcp server in a
+thread of its own.
 
-`RtlSdrWorker` and `RspDuoWorker` offer the GUI the same signals and methods
-(`samples_ready`, `tuned`, `connected`, `error`, `stopped`, `tuning`, `retune`, `stop`),
-so that everything downstream runs unchanged with either device.
+`RtlSdrWorker`, `RspDuoWorker` and `RtlTcpWorker` offer the GUI the same signals and
+methods (`samples_ready`, `tuned`, `connected`, `error`, `stopped`, `tuning`, `retune`,
+`stop`), so that everything downstream runs unchanged with any of them.
 """
 
 from __future__ import annotations
@@ -12,7 +13,9 @@ import logging
 import threading
 import time
 from collections.abc import Callable
+from typing import Protocol
 
+import numpy as np
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 from rtlsdr import RtlSdr
 
@@ -24,9 +27,10 @@ from sdr.device import (
     open_rtlsdr,
     retune_rtlsdr,
 )
-from sdr.exceptions import RtlSdrError, SdrplayError
-from sdr.rspduo import RspDuoSettings
+from sdr.exceptions import DeviceError, RtlSdrError
+from sdr.rspduo import DeviceInfo, RspDuoSettings
 from sdr.rspduo_reader import RspDuoReader
+from sdr.rtl_tcp import RtlTcpReader, RtlTcpSettings, ServerInfo
 
 logger = logging.getLogger(__name__)
 
@@ -282,13 +286,25 @@ class RtlSdrWorker(QThread):
                 self._sdr = None
 
 
-class RspDuoWorker(QThread):
-    """Reads IQ samples from one tuner of the RSPduo in a thread of its own.
+class _Reader(Protocol):
+    """A source of IQ blocks of one tuning each: `RspDuoReader`, `RtlTcpReader`."""
 
-    Same signals and methods as `RtlSdrWorker`, plus `overload_changed`. The samples
-    reach Python only here: the API's thread puts its packets into a ring without the
-    GIL (`sdr.packet_ring`), and `run()` takes them out in blocks of `read_size`
-    (`sdr.rspduo_reader.RspDuoReader`), which the API's sample numbers keep gapless.
+    def read_block(self, num_samples: int) -> tuple[int, np.ndarray] | None: ...
+
+    def retune(self, center_freq_hz: float, tag: int) -> None: ...
+
+    def cancel(self) -> None: ...
+
+    def close(self) -> None: ...
+
+
+class _BlockReaderWorker(QThread):
+    """Reads IQ blocks from a reader in a thread of its own: the RSPduo, rtl_tcp.
+
+    Same signals and methods as `RtlSdrWorker`. A subclass opens the reader
+    (`_open_reader`) and words the message of the connection (`_connected_text`); `run()`
+    reads blocks of `read_size` in a loop and announces each tuning before its first
+    block.
     """
 
     samples_ready = pyqtSignal(object)  # numpy.ndarray[complex64]
@@ -296,47 +312,48 @@ class RspDuoWorker(QThread):
     connected = pyqtSignal(object)  # see `RtlSdrWorker.connected`
     error = pyqtSignal(object)
     stopped = pyqtSignal()
-    # True while the RSPduo reports an overload of its ADC (from the API's thread).
-    overload_changed = pyqtSignal(bool)
+
+    # For the log: what is read.
+    _source = "the device"
 
     def __init__(
-        self,
-        center_freq: float,
-        settings: RspDuoSettings,
-        read_size: int = DEFAULT_READ_SIZE,
-        reader_factory: Callable[..., RspDuoReader] = RspDuoReader,
-        parent: QObject | None = None,
+        self, center_freq: float, read_size: int = DEFAULT_READ_SIZE, parent: QObject | None = None
     ) -> None:
         super().__init__(parent)
         self._center_freq = center_freq
-        self._settings = settings
         self._read_size = read_size
-        self._reader_factory = reader_factory
         self._running = False
         self._stop_requested = False
-        self._reader: RspDuoReader | None = None
+        self._reader: _Reader | None = None
         # Number of the current tuning, as announced by `tuned`.
         self.tuning = next(_tuning_numbers)
         # Keeps `retune()` and `stop()`, which run in the GUI thread, and opening and
         # closing the device apart.
         self._device_lock = threading.Lock()
 
+    def _open_reader(self) -> tuple[_Reader, object]:
+        """Makes and opens the reader for the current tuning; returns it with what
+        `_connected_text` needs.
+
+        Raises:
+            DeviceError: if the device cannot be opened; it is released again.
+        """
+        raise NotImplementedError
+
+    def _connected_text(self, info: object) -> str:
+        raise NotImplementedError
+
     def run(self) -> None:
-        reader = self._reader_factory(
-            self._settings,
-            self._center_freq,
-            tag=self.tuning,
-            on_overload=self.overload_changed.emit,
-        )
         try:
-            info = reader.open()
-        except SdrplayError as exc:
+            reader, info = self._open_reader()
+        except DeviceError as exc:
             self.error.emit(exception_text(exc))
             return
 
         with self._device_lock:
             if self._stop_requested:
-                # Stopped while opening (closing the window), which takes about 0.4 s.
+                # Stopped while opening (closing the window), which takes about 0.4 s
+                # on the RSPduo.
                 reader.close()
                 stopped_early = True
             else:
@@ -347,14 +364,7 @@ class RspDuoWorker(QThread):
         if stopped_early:
             self.stopped.emit()
             return
-        self.connected.emit(
-            tr("RSPduo {serial}, tuner {tuner} ready @ {frequency} MHz, {rate} MSps").format(
-                serial=info.serial,
-                tuner=self._settings.tuner,
-                frequency=f"{self._center_freq / 1e6:.3f}",
-                rate=f"{SAMPLE_RATE / 1e6:.3f}",
-            )
-        )
+        self.connected.emit(self._connected_text(info))
 
         failure: str | None = None
         announced: int | None = None
@@ -370,10 +380,10 @@ class RspDuoWorker(QThread):
                     self.tuned.emit(tuning)
                     announced = tuning
                 self.samples_ready.emit(samples)
-        except SdrplayError as exc:
+        except DeviceError as exc:
             failure = exception_text(exc)
         except Exception as exc:  # hardware errors must not crash the thread
-            logger.exception("Reading from the RSPduo failed")
+            logger.exception("Reading from %s failed", self._source)
             failure = tr("Error reading the IQ samples: {error}").format(error=exc)
 
         with self._device_lock:
@@ -387,18 +397,19 @@ class RspDuoWorker(QThread):
             self.stopped.emit()
 
     def retune(self, center_freq: float) -> int | None:
-        """Tunes the running RSPduo to another frequency without interrupting reception.
+        """Tunes the running device to another frequency without interrupting reception.
 
         Called from the GUI thread while `run()` reads. Everything the device delivered
-        before the API applied the frequency is dropped, plus the settling time (see
-        `RspDuoReader.retune`); the first block kept is preceded by `tuned`.
+        before the new frequency took effect is dropped, plus the settling time (see
+        `RspDuoReader.retune`, `RtlTcpReader.retune`); the first block kept is preceded
+        by `tuned`.
 
         Returns:
             The number of the new tuning, as `tuned` will announce it; None if the
             worker is not reading (not yet connected or already stopping).
 
         Raises:
-            SdrplayError: if the tuner could not be switched. No samples are passed on
+            DeviceError: if the device could not be switched. No samples are passed on
                 from then on; the caller should stop the worker.
         """
         with self._device_lock:
@@ -419,3 +430,86 @@ class RspDuoWorker(QThread):
             if self._reader is not None:
                 self._reader.cancel()
         self.wait(5000)
+
+
+class RspDuoWorker(_BlockReaderWorker):
+    """Reads IQ samples from one tuner of the RSPduo in a thread of its own.
+
+    Same signals and methods as `RtlSdrWorker`, plus `overload_changed`. The samples
+    reach Python only here: the API's thread puts its packets into a ring without the
+    GIL (`sdr.packet_ring`), and `run()` takes them out in blocks of `read_size`
+    (`sdr.rspduo_reader.RspDuoReader`), which the API's sample numbers keep gapless.
+    """
+
+    # True while the RSPduo reports an overload of its ADC (from the API's thread).
+    overload_changed = pyqtSignal(bool)
+
+    _source = "the RSPduo"
+
+    def __init__(
+        self,
+        center_freq: float,
+        settings: RspDuoSettings,
+        read_size: int = DEFAULT_READ_SIZE,
+        reader_factory: Callable[..., RspDuoReader] = RspDuoReader,
+        parent: QObject | None = None,
+    ) -> None:
+        super().__init__(center_freq, read_size, parent)
+        self._settings = settings
+        self._reader_factory = reader_factory
+
+    def _open_reader(self) -> tuple[_Reader, object]:
+        reader = self._reader_factory(
+            self._settings,
+            self._center_freq,
+            tag=self.tuning,
+            on_overload=self.overload_changed.emit,
+        )
+        return reader, reader.open()
+
+    def _connected_text(self, info: object) -> str:
+        assert isinstance(info, DeviceInfo)
+        return tr("RSPduo {serial}, tuner {tuner} ready @ {frequency} MHz, {rate} MSps").format(
+            serial=info.serial,
+            tuner=self._settings.tuner,
+            frequency=f"{self._center_freq / 1e6:.3f}",
+            rate=f"{SAMPLE_RATE / 1e6:.3f}",
+        )
+
+
+class RtlTcpWorker(_BlockReaderWorker):
+    """Reads IQ samples from an rtl_tcp server in a thread of its own.
+
+    Same signals and methods as `RtlSdrWorker`; the samples come in blocks of
+    `read_size` from `sdr.rtl_tcp.RtlTcpReader`. Nothing tells whether samples were
+    lost on the server (rtl_tcp drops the oldest of its queue when the client falls too
+    far behind), so a gap is found only by the signal processing, as a frame out of
+    place.
+    """
+
+    _source = "the rtl_tcp server"
+
+    def __init__(
+        self,
+        center_freq: float,
+        settings: RtlTcpSettings,
+        read_size: int = DEFAULT_READ_SIZE,
+        reader_factory: Callable[..., RtlTcpReader] = RtlTcpReader,
+        parent: QObject | None = None,
+    ) -> None:
+        super().__init__(center_freq, read_size, parent)
+        self._settings = settings
+        self._reader_factory = reader_factory
+
+    def _open_reader(self) -> tuple[_Reader, object]:
+        reader = self._reader_factory(self._settings, self._center_freq, tag=self.tuning)
+        return reader, reader.open()
+
+    def _connected_text(self, info: object) -> str:
+        assert isinstance(info, ServerInfo)
+        return tr("rtl_tcp {server} ({tuner}) ready @ {frequency} MHz, {rate} MSps").format(
+            server=self._settings.server,
+            tuner=info.tuner,
+            frequency=f"{self._center_freq / 1e6:.3f}",
+            rate=f"{SAMPLE_RATE / 1e6:.3f}",
+        )

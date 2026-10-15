@@ -102,7 +102,7 @@ Whatever does not exist or is not known is `null`.
 | `state` | `idle` (no reception), `connecting` (the device is being opened), `receiving`, `scanning` (scan). |
 | `status` | The radio's status line, in English. |
 | `error` | The last device error, until reception or a scan is next started. |
-| `device` | The selected receiver: “RTL-SDR”, “RSPduo Tuner 1”, “RSPduo Tuner 2”. |
+| `device` | The selected receiver: “RTL-SDR”, “RSPduo Tuner 1”, “RSPduo Tuner 2”, “RTL_TCP”. |
 | `channel` | The Band III channel (`"5C"`), `null` with a manual frequency. |
 | `ensemble`, `ensemble_id` | Name and EId of the ensemble of the station list on display. |
 | `scan` | During a scan `{"channel": "5A", "index": 0, "total": 38}`. |

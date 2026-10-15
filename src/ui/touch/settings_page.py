@@ -37,10 +37,12 @@ from i18n import available_languages, tr, tr_noop
 from net.bluetooth import BluetoothManager
 from net.wifi import WifiManager
 from sdr.rspduo import FREQ_CORRECTION_RANGE_PPM, IF_GAIN_REDUCTION_RANGE_DB, LNA_GAIN_REDUCTION_DB
+from sdr.rtl_tcp import PORT_RANGE as RTL_TCP_PORT_RANGE
 from storage.volumes import VolumeManager
 from ui.language import restart_question, store_language, stored_language
 from ui.receiver_controller import (
     APPLICATION_VERSION,
+    DEVICE_RTL_TCP,
     DEVICES,
     HEIGHT_RANGE_M,
     LATITUDE_RANGE,
@@ -53,7 +55,8 @@ from ui.receiver_controller import (
 from ui.touch.backlight import TIMEOUT_CHOICES_S, ScreenDimmer
 from ui.touch.bluetooth_view import BluetoothView
 from ui.touch.icons import symbol_icon
-from ui.touch.mqtt_view import MqttView
+from ui.touch.keyboard import Keyboard
+from ui.touch.mqtt_view import NO_HOST, MqttView, valid_host
 from ui.touch.number_pad import NumberPad, format_number
 from ui.touch.overlay import ActionSheet
 from ui.touch.recording_view import RecordingView
@@ -291,10 +294,27 @@ class SettingsPage(QWidget):
         self._volumes = volumes if volumes is not None else VolumeManager(self)
         self._volumes.watch()
 
-        # The stick apart from the two tuners of the RSPduo: two devices, not three.
-        self._device = ChoiceButtons(list(DEVICES.items()), gaps=("rspduo1",))
+        # The stick, the two tuners of the RSPduo and a stick behind rtl_tcp, in groups:
+        # three devices, not four.
+        self._device = ChoiceButtons(list(DEVICES.items()), gaps=("rspduo1", DEVICE_RTL_TCP))
         self._device.set_current(settings.device)
         self._device.chosen.connect(self._on_device_chosen)
+
+        # The rtl_tcp server: name or address over the keyboard, the port over the pad.
+        self._keyboard: Keyboard | None = None
+        self._rtl_tcp_host = settings.rtl_tcp_host
+        self._rtl_tcp_port = settings.rtl_tcp_port
+        self._server_host = set_role(QPushButton(), "value")
+        self._server_host.clicked.connect(self._edit_server_host)
+        self._server_port = set_role(QPushButton(), "value")
+        self._server_port.clicked.connect(self._edit_server_port)
+        server = QHBoxLayout()
+        server.setSpacing(8)
+        server.addWidget(self._server_host)
+        server.addWidget(self._server_port)
+        server.addStretch()
+        self._rtl_tcp_rows = self._rows((tr("Server"), server))
+        self._show_server()
 
         self._gain = Stepper(controller.gain_steps_db, lambda gain: f"{gain:.1f} dB")
         self._gain.set_value(settings.gain_db)
@@ -463,6 +483,7 @@ class SettingsPage(QWidget):
         self._stack.addWidget(
             self._subpage(
                 self._rows((tr("Device"), self._device)),
+                self._rtl_tcp_rows,
                 self._rtlsdr_rows,
                 self._rspduo_rows,
                 self._rows((tr("Correction"), corrections)),
@@ -627,6 +648,8 @@ class SettingsPage(QWidget):
         self._storage_view.apply_theme(THEMES[key])
         self._mqtt_view.apply_theme(THEMES[key])
         self._output_row.apply_theme(THEMES[key])
+        if self._keyboard is not None:
+            self._keyboard.apply_theme(THEMES[key])
         text = THEMES[key].color("text")
         self._equalizer_button.setIcon(symbol_icon("equalizer", text, EQUALIZER_ICON))
 
@@ -757,9 +780,52 @@ class SettingsPage(QWidget):
         self._on_device_settings_changed()
 
     def _show_device_rows(self) -> None:
-        rtlsdr = self._device.current() == "rtlsdr"
-        self._rtlsdr_rows.setVisible(rtlsdr)
-        self._rspduo_rows.setVisible(not rtlsdr)
+        settings = DeviceSettings(device=self._device.current())
+        self._rtl_tcp_rows.setVisible(settings.rtl_tcp() is not None)
+        self._rtlsdr_rows.setVisible(settings.is_rtlsdr)
+        self._rspduo_rows.setVisible(not settings.is_rtlsdr)
+
+    # --- rtl_tcp ----------------------------------------------------------------------
+
+    def keyboard(self) -> Keyboard:
+        """The keyboard over the whole window, made on first use."""
+        if self._keyboard is None:
+            self._keyboard = Keyboard(self.window())
+            self._keyboard.apply_theme(THEMES[self._theme_shown])
+        return self._keyboard
+
+    def _show_server(self) -> None:
+        self._server_host.setText(self._rtl_tcp_host or tr(NO_HOST))
+        self._server_port.setText(str(self._rtl_tcp_port))
+
+    def _edit_server_host(self) -> None:
+        self.keyboard().open(
+            tr("rtl_tcp server"),
+            self._set_server_host,
+            text=self._rtl_tcp_host,
+            check=valid_host,
+            hint=tr("Name or IP address, without port"),
+        )
+
+    def _edit_server_port(self) -> None:
+        self.number_pad().open(
+            tr("rtl_tcp port"),
+            self._rtl_tcp_port,
+            0,
+            "",
+            RTL_TCP_PORT_RANGE,
+            self._set_server_port,
+        )
+
+    def _set_server_host(self, text: str) -> None:
+        self._rtl_tcp_host = text.strip()
+        self._show_server()
+        self._on_device_settings_changed()
+
+    def _set_server_port(self, value: float) -> None:
+        self._rtl_tcp_port = int(value)
+        self._show_server()
+        self._on_device_settings_changed()
 
     def _on_device_settings_changed(self, *_args: object) -> None:
         # Asked first: after an error another device starts reception at once
@@ -774,6 +840,8 @@ class SettingsPage(QWidget):
                 lna_state=self._lna.value(),
                 if_gain_reduction_db=self._if_gain_reduction.value(),
                 rspduo_ppm=self._rspduo_ppm.value(),
+                rtl_tcp_host=self._rtl_tcp_host,
+                rtl_tcp_port=self._rtl_tcp_port,
             )
         )
         if receiving:
@@ -786,7 +854,7 @@ class SettingsPage(QWidget):
     def _on_state_changed(self, state: ReceptionState) -> None:
         """The device can be changed except while it is being opened or scans."""
         free = state in (ReceptionState.IDLE, ReceptionState.RECEIVING)
-        for widget in (self._device, self._rtlsdr_rows, self._rspduo_rows):
+        for widget in (self._device, self._rtl_tcp_rows, self._rtlsdr_rows, self._rspduo_rows):
             widget.setEnabled(free)
         if free:
             self._gain.setDisabled(self._agc.isChecked())

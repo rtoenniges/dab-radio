@@ -3,8 +3,8 @@
 What started out as a project for learning about the modulation and encoding of a DAB+
 signal has somehow escalated into a fairly full-featured DAB+ radio written in Python.
 
-It takes the I/Q samples of an RTL-SDR stick or an SDRplay RSPduo and decodes them itself,
-in NumPy and numba, from synchronisation and OFDM demodulation down to the error
+It takes the I/Q samples of an RTL-SDR stick, an SDRplay RSPduo or an rtl_tcp server and
+decodes them itself, in NumPy and numba, from synchronisation and OFDM demodulation down to the error
 correction. Since every step runs in Python, every step can be shown: spectrum, null
 symbol search, constellation, the FFT of each symbol, the error correction.
 
@@ -22,8 +22,9 @@ Two user interfaces share one core:
 
 ## Features
 
-- **Reception:** Band III (channels 5A to 13F) with an RTL-SDR stick or one tuner of an
-  SDRplay RSPduo. A scan reads the station lists of all channels and keeps them.
+- **Reception:** Band III (channels 5A to 13F) with an RTL-SDR stick, one tuner of an
+  SDRplay RSPduo, or a stick on another computer served by rtl_tcp. A scan reads the
+  station lists of all channels and keeps them.
 - **Decoding:** null symbol detection, frame timing, frequency offset correction, OFDM
   demodulation, D-QPSK, deinterleaving, Viterbi decoding (UEP and EEP), FIC and MSC,
   Reed-Solomon for DAB+, transmitter identification (TII) and SFN share.
@@ -52,6 +53,7 @@ Two user interfaces share one core:
 | Display | Raspberry Pi Touch Display 2 (7", 720 × 1280) | Used in landscape, on either DSI connector. |
 | Receiver | RTL-SDR stick (RTL2832U with R820T/R820T2) | |
 | Receiver | SDRplay RSPduo | One tuner at a time. Needs the SDRplay API 3.15 from sdrplay.com. |
+| Receiver | An RTL-SDR stick on another computer, served by rtl_tcp (“RTL_TCP”) | Start it there with `rtl_tcp -a 0.0.0.0`. The samples take about 33 Mbit/s: a cable is safe, Wi-Fi needs a good connection. |
 | Antenna | Any Band III antenna | Close to a transmitter, a telescopic antenna indoors is enough. |
 | Audio | HDMI, a sound HAT, a USB sound card or Bluetooth headphones | Anything PipeWire provides. |
 | Storage | A USB drive (FAT, exFAT, NTFS or ext4) | Only for recordings; the radio mounts it itself. |
@@ -147,6 +149,10 @@ The Touch UI also runs in a 1280 × 720 window on a PC:
 | Bluetooth headphones connect but stay silent | PipeWire's Bluetooth plugin or the WirePlumber settings are missing. Run the install script again. |
 | Bluetooth headphones sound tinny | Another device holds the Pi's only A2DP stream, so they fall back to the hands-free profile. Choose them under Settings › Audio › Output. |
 | The RSPduo is not found | The SDRplay API service must be running, and only API 3.15 is accepted. |
+| The rtl_tcp server refuses the connection | rtl_tcp listens only on its own computer unless started with `-a 0.0.0.0` (or its address). |
+| The rtl_tcp server sends nothing | rtl_tcp serves one program at a time; another one is connected to it. |
+| Audio drops out with RTL_TCP over Wi-Fi | The radio holds one second of audio; TCP over Wi-Fi pauses for longer when packets are lost (seen while a window was dragged on the PC). A cable to the Pi is safer. |
+| Audio drops out with RTL_TCP while the computer is busy (Linux) | Linux limits the receive buffer the radio may ask for; allow 16 MiB with `sudo sysctl -w net.core.rmem_max=16777216` (lasting in a file under `/etc/sysctl.d/`). |
 
 ## The desktop window
 
@@ -173,6 +179,7 @@ The audio decoders and receivers need some system components:
 | Audio decoders | `pwsh native\build_codecs.ps1` builds `faad.dll` and `mpg123.dll` into `native\` (see below); DLLs from elsewhere (`libfaad-2.dll` from MSYS2, `libmpg123-0.dll` from mpg123.de) go into `native\` or `.venv\Scripts` | `apt install libfaad2 libmpg123-0` |
 | RTL-SDR | WinUSB driver, installed with Zadig | udev rule from the `rtl-sdr` package |
 | RSPduo | SDRplay API 3.15, with its service running | SDRplay API 3.15, with its service running |
+| rtl_tcp | Nothing here; rtl_tcp (part of rtl-sdr) on the computer with the stick | The same |
 
 Without the decoders the radio runs, but stays silent and says why. The desktop window
 has only been tested on Windows so far; the Pi runs the same code.
@@ -257,7 +264,7 @@ uv run python src/i18n/update_catalogs.py   # after changing texts marked for tr
 |---|---|
 | `src/dsp/` | Signal processing |
 | `src/dab/` | FIGs, PAD, MOT, programme guide, Journaline, TPEG, RTCM, SSRZ, orbits, atmosphere |
-| `src/sdr/` | RTL-SDR (pyrtlsdr), RSPduo (SDRplay API), scan |
+| `src/sdr/` | RTL-SDR (pyrtlsdr), RSPduo (SDRplay API), rtl_tcp, scan |
 | `src/audio/` | Decoding, playback, outputs, equalizer |
 | `src/recording/`, `src/storage/` | Recording and USB drives |
 | `src/net/` | MQTT, NTRIP, Bluetooth, Wi-Fi, D-Bus |

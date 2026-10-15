@@ -142,6 +142,27 @@ def test_device_settings_are_handed_to_the_controller(data_directory, window_on)
     assert window._rspduo_controls.isVisibleTo(window)
 
 
+def test_rtl_tcp_shows_its_server_beside_the_controls_of_the_stick(data_directory, window_on):
+    window = window_on(data_directory)
+    assert not window._rtl_tcp_controls.isVisibleTo(window)
+
+    window._device_combo.setCurrentIndex(window._device_combo.findData("rtltcp"))
+    window._rtl_tcp_host.setText(" radio-pi ")
+    window._rtl_tcp_host.editingFinished.emit()
+    window._rtl_tcp_port.setValue(1235)
+    window._rtl_tcp_port.editingFinished.emit()
+
+    settings = window._controller.device_settings
+    assert (settings.device, settings.rtl_tcp_host, settings.rtl_tcp_port) == (
+        "rtltcp",
+        "radio-pi",
+        1235,
+    )
+    assert window._rtl_tcp_controls.isVisibleTo(window)
+    assert window._rtlsdr_controls.isVisibleTo(window)
+    assert not window._rspduo_controls.isVisibleTo(window)
+
+
 def test_closing_the_window_shuts_the_controller_down(data_directory, window_on):
     window = window_on(data_directory)
     audio_thread = window._controller._audio_thread

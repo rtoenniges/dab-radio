@@ -59,6 +59,15 @@ class FakeRspDuoWorker(FakeRtlSdrWorker):
         self.rspduo = settings
 
 
+class FakeRtlTcpWorker(FakeRtlSdrWorker):
+    """Stands in for `sdr.worker.RtlTcpWorker`, among the instances of
+    `FakeRtlSdrWorker`; `rtl_tcp` holds the server, gain and correction it was given."""
+
+    def __init__(self, center_freq, settings) -> None:
+        super().__init__(center_freq, None, settings.gain, settings.freq_correction_ppm)
+        self.rtl_tcp = settings
+
+
 class FakeChannelScanner(QObject):
     """Stands in for `sdr.scanner.ChannelScanner`: the same signals, no device. The test
     reports channels and the end itself."""
@@ -72,8 +81,10 @@ class FakeChannelScanner(QObject):
 
     instances: ClassVar[list[FakeChannelScanner]] = []
 
-    def __init__(self, channels, sample_rate, gain, freq_correction_ppm, rspduo) -> None:
+    def __init__(self, channels, sample_rate, gain, freq_correction_ppm, rspduo, rtl_tcp) -> None:
         super().__init__()
+        self.rspduo = rspduo
+        self.rtl_tcp = rtl_tcp
         self.started = False
         self.cancelled = False
         FakeChannelScanner.instances.append(self)

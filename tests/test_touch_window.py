@@ -1060,11 +1060,47 @@ def test_the_stick_stands_apart_from_the_tuners_of_the_rspduo(data_directory, to
     window.show()
     window.show_page(SETTINGS)
     page = window._settings_page
-    stick, tuner_1, tuner_2 = (
+    stick, tuner_1, tuner_2, rtl_tcp = (
         _device_button(page, name).geometry() for name in receiver_controller.DEVICES.values()
     )
 
-    assert tuner_1.left() - stick.right() > 2 * (tuner_2.left() - tuner_1.right())
+    tuners = tuner_2.left() - tuner_1.right()
+    assert tuner_1.left() - stick.right() > 2 * tuners
+    assert rtl_tcp.left() - tuner_2.right() > 2 * tuners
+    assert rtl_tcp.right() < page.width()
+
+
+def test_rtl_tcp_takes_its_server_and_the_rows_of_the_stick(data_directory, touch_window):
+    window = touch_window(data_directory)
+    window.show()
+    window.show_page(SETTINGS)
+    page = window._settings_page
+    assert not page._rtl_tcp_rows.isVisible()
+
+    _device_button(page, "RTL_TCP").click()
+    assert page._rtl_tcp_rows.isVisible()
+    assert page._rtlsdr_rows.isVisible()
+    assert not page._rspduo_rows.isVisible()
+    assert page._server_host.text() == "Not set"
+
+    page._server_host.click()
+    keyboard = page.keyboard()
+    for character in "radio-pi":
+        keyboard.press(character)
+    keyboard.accept()
+    page._server_port.click()
+    pad = page.number_pad()
+    for key in "1235":
+        pad.press(key)
+    pad._on_accept_clicked()
+
+    settings = window._controller.device_settings
+    assert settings.rtl_tcp_host == "radio-pi"
+    assert settings.rtl_tcp_port == 1235
+    assert (page._server_host.text(), page._server_port.text()) == ("radio-pi", "1235")
+    _device_button(page, "RSPduo Tuner 1").click()
+    assert not page._rtl_tcp_rows.isVisible()
+    assert not page._rtlsdr_rows.isVisible()
 
 
 def test_back_from_a_missing_rspduo_the_stick_plays_on(data_directory, touch_window, fake_workers):

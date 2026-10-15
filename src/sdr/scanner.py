@@ -17,6 +17,7 @@ from sdr.device import DISCARD_AFTER_OPEN_SAMPLES, RETUNE_SETTLE_SAMPLES, open_r
 from sdr.exceptions import DeviceError
 from sdr.rspduo import RspDuoSettings
 from sdr.rspduo_reader import RspDuoReader
+from sdr.rtl_tcp import RtlTcpReader, RtlTcpSettings
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,9 @@ class ChannelScanner(QThread):
 
     With `rspduo` set it scans with that tuner of the RSPduo instead of the stick, read
     through `sdr.rspduo_reader.RspDuoReader` with the same calls; `gain`,
-    `freq_correction_ppm` and `device_index` then do not apply.
+    `freq_correction_ppm` and `device_index` then do not apply. With `rtl_tcp` set it
+    scans with the stick behind that server (`sdr.rtl_tcp.RtlTcpReader`), with the gain
+    and correction given there.
     """
 
     channel_started = pyqtSignal(
@@ -62,6 +65,8 @@ class ChannelScanner(QThread):
         device_index: int = 0,
         rspduo: RspDuoSettings | None = None,
         rspduo_reader_factory: Callable[..., RspDuoReader] = RspDuoReader,
+        rtl_tcp: RtlTcpSettings | None = None,
+        rtl_tcp_reader_factory: Callable[..., RtlTcpReader] = RtlTcpReader,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
@@ -72,6 +77,8 @@ class ChannelScanner(QThread):
         self._device_index = device_index
         self._rspduo = rspduo
         self._rspduo_reader_factory = rspduo_reader_factory
+        self._rtl_tcp = rtl_tcp
+        self._rtl_tcp_reader_factory = rtl_tcp_reader_factory
         self._running = False
 
     def run(self) -> None:
@@ -88,7 +95,8 @@ class ChannelScanner(QThread):
         try:
             # Otherwise services of the channel received last would end up in the
             # service list of the first one (see DISCARD_AFTER_OPEN_SAMPLES). The RSPduo
-            # has discarded its start already; another 0.5 s cost nothing in a scan.
+            # and rtl_tcp have discarded their start already; another 0.5 s cost nothing
+            # in a scan.
             sdr.read_samples(DISCARD_AFTER_OPEN_SAMPLES)
             completed = self._scan_all(sdr)
         except Exception as exc:  # noqa: BLE001 - hardware errors must not crash the thread
@@ -100,12 +108,17 @@ class ChannelScanner(QThread):
                 logger.exception("Failed to close the device")
         self.scan_finished.emit(completed)
 
-    def _open(self, center_freq: int) -> RtlSdr | RspDuoReader:
-        """Opens the stick or the RSPduo, tuned to `center_freq`.
+    def _open(self, center_freq: int) -> RtlSdr | RspDuoReader | RtlTcpReader:
+        """Opens the stick, the RSPduo or the connection to rtl_tcp, tuned to
+        `center_freq`.
 
         Raises:
             DeviceError: if the device is missing, busy or cannot be configured.
         """
+        if self._rtl_tcp is not None:
+            connection = self._rtl_tcp_reader_factory(self._rtl_tcp, center_freq)
+            connection.open()
+            return connection
         if self._rspduo is None:
             return open_rtlsdr(
                 center_freq=center_freq,
@@ -127,7 +140,7 @@ class ChannelScanner(QThread):
         self.cancel()
         self.wait(5000)
 
-    def _scan_all(self, sdr: RtlSdr | RspDuoReader) -> bool:
+    def _scan_all(self, sdr: RtlSdr | RspDuoReader | RtlTcpReader) -> bool:
         total = len(self._channels)
         for index, (channel, freq_mhz) in enumerate(self._channels.items()):
             if not self._running:
@@ -142,7 +155,7 @@ class ChannelScanner(QThread):
         return True
 
     def _scan_channel(
-        self, sdr: RtlSdr | RspDuoReader, channel: str, center_freq: int
+        self, sdr: RtlSdr | RspDuoReader | RtlTcpReader, channel: str, center_freq: int
     ) -> EnsembleInfo | None:
         sdr.center_freq = center_freq
         # Across all 38 channels this costs less than two seconds.

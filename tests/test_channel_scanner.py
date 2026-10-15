@@ -4,8 +4,9 @@ import numpy as np
 from rtlsdr.rtlsdr import LibUSBError
 
 from sdr.device import DISCARD_AFTER_OPEN_SAMPLES, RETUNE_SETTLE_SAMPLES
-from sdr.exceptions import SdrplayError
+from sdr.exceptions import RtlTcpError, SdrplayError
 from sdr.rspduo import RspDuoSettings
+from sdr.rtl_tcp import RtlTcpSettings
 from sdr.scanner import SCAN_BLOCK_SAMPLES, ChannelScanner
 from tests.dab_signal import (
     build_stream,
@@ -179,5 +180,48 @@ def test_scan_reports_an_rspduo_that_cannot_be_opened():
     scanner.run()
 
     assert events["errors"] == ["The RSPduo is busy."]
+    assert events["finished"] == [False]
+    sdr.read_samples.assert_not_called()
+
+
+def test_scan_with_rtl_tcp_reads_through_its_connection():
+    sdr = _fake_sdr("5C")
+    opened = []
+
+    def reader_factory(settings, center_freq):
+        opened.append((settings, center_freq))
+        return sdr
+
+    settings = RtlTcpSettings("radio-pi", gain=29.7)
+    scanner = ChannelScanner(_CHANNELS, rtl_tcp=settings, rtl_tcp_reader_factory=reader_factory)
+    events = {"scanned": [], "errors": [], "finished": []}
+    scanner.channel_scanned.connect(lambda ch, info: events["scanned"].append((ch, info)))
+    scanner.error.connect(events["errors"].append)
+    scanner.scan_finished.connect(events["finished"].append)
+
+    with patch("sdr.device.RtlSdr") as mock_rtlsdr_cls:
+        scanner.run()
+
+    mock_rtlsdr_cls.assert_not_called()
+    assert opened == [(settings, 176_640_000)]
+    assert dict(events["scanned"])["5C"].label == "Test Mux"
+    assert events["finished"] == [True]
+    assert events["errors"] == []
+    sdr.close.assert_called_once()
+
+
+def test_scan_reports_an_rtl_tcp_server_out_of_reach():
+    sdr = MagicMock()
+    sdr.open.side_effect = RtlTcpError("No answer from the rtl_tcp server radio-pi:1234.")
+    scanner = ChannelScanner(
+        _CHANNELS, rtl_tcp=RtlTcpSettings("radio-pi"), rtl_tcp_reader_factory=lambda s, f: sdr
+    )
+    events = {"errors": [], "finished": []}
+    scanner.error.connect(events["errors"].append)
+    scanner.scan_finished.connect(events["finished"].append)
+
+    scanner.run()
+
+    assert events["errors"] == ["No answer from the rtl_tcp server radio-pi:1234."]
     assert events["finished"] == [False]
     sdr.read_samples.assert_not_called()

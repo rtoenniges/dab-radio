@@ -18,6 +18,7 @@ from tests.fake_receiver import (
     FakeChannelScanner,
     FakeRspDuoWorker,
     FakeRtlSdrWorker,
+    FakeRtlTcpWorker,
 )
 from ui import receiver_controller
 from ui.receiver_controller import ReceiverController
@@ -73,13 +74,14 @@ def _collect_garbage_after_each_module():
 
 @pytest.fixture
 def fake_workers(monkeypatch) -> list[FakeRtlSdrWorker]:
-    """The workers the controller creates, of the stick and of the RSPduo, newest last;
+    """The workers the controller creates, of the stick, the RSPduo and rtl_tcp, newest last;
     no device is opened, not even the stick for the gain range, and no pactl is found:
     the player attenuates (`test_audio_outputs` fakes the system volume)."""
     monkeypatch.setattr(receiver_controller, "query_gains", lambda: None)
     monkeypatch.setattr(system_volume, "find_pactl", lambda: None)
     monkeypatch.setattr(receiver_controller, "RtlSdrWorker", FakeRtlSdrWorker)
     monkeypatch.setattr(receiver_controller, "RspDuoWorker", FakeRspDuoWorker)
+    monkeypatch.setattr(receiver_controller, "RtlTcpWorker", FakeRtlTcpWorker)
     FakeRtlSdrWorker.instances = []
     return FakeRtlSdrWorker.instances
 

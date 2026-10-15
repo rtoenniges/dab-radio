@@ -107,8 +107,11 @@ from sdr.rspduo import (
     LNA_GAIN_REDUCTION_DB,
     RspDuoSettings,
 )
+from sdr.rtl_tcp import DEFAULT_PORT as RTL_TCP_DEFAULT_PORT
+from sdr.rtl_tcp import PORT_RANGE as RTL_TCP_PORT_RANGE
+from sdr.rtl_tcp import RtlTcpSettings
 from sdr.scanner import ChannelScanner
-from sdr.worker import RspDuoWorker, RtlSdrWorker
+from sdr.worker import RspDuoWorker, RtlSdrWorker, RtlTcpWorker
 from ui.notifications import NotificationCenter
 
 logger = logging.getLogger(__name__)
@@ -118,7 +121,7 @@ logger = logging.getLogger(__name__)
 APPLICATION_NAME = "dab-radio"
 # Version of the radio (semantic versioning); the same as in pyproject.toml, which
 # `tests/test_version.py` checks.
-APPLICATION_VERSION = "1.1.1"
+APPLICATION_VERSION = "1.2.0"
 ENSEMBLE_CACHE_FILENAME = "ensembles.json"
 # Directory of the stored programme guides, one subdirectory per channel.
 GUIDE_CACHE_DIRECTORY = "programme_guides"
@@ -136,6 +139,8 @@ _SETTINGS_DEVICE = "controls/device"
 _SETTINGS_RSPDUO_LNA = "controls/rspduo_lna_state"
 _SETTINGS_RSPDUO_IF_GAIN_REDUCTION = "controls/rspduo_if_gain_reduction_db"
 _SETTINGS_RSPDUO_PPM = "controls/rspduo_ppm"
+_SETTINGS_RTL_TCP_HOST = "controls/rtl_tcp_host"
+_SETTINGS_RTL_TCP_PORT = "controls/rtl_tcp_port"
 _SETTINGS_AUDIO = "controls/audio"
 # The slider position on the decibel scale (`audio.volume`) and the ceiling under it.
 _SETTINGS_VOLUME = "controls/volume"
@@ -187,12 +192,15 @@ _SETTINGS_STATION_STOP_DELAYS = "recording/station_stop_delays"
 _SETTINGS_RECORDING_ENABLED = "recording/enabled"
 
 # The receivers to choose from: key in the settings -> name in the selection. Either
-# tuner of the RSPduo receives Band III.
+# tuner of the RSPduo receives Band III; rtl_tcp is an RTL-SDR stick elsewhere in the
+# network, served by rtl_tcp (`sdr.rtl_tcp`).
 DEVICE_RTLSDR = "rtlsdr"
+DEVICE_RTL_TCP = "rtltcp"
 DEVICES = {
     DEVICE_RTLSDR: "RTL-SDR",
     "rspduo1": "RSPduo Tuner 1",
     "rspduo2": "RSPduo Tuner 2",
+    DEVICE_RTL_TCP: "RTL_TCP",
 }
 _RSPDUO_TUNERS = {"rspduo1": 1, "rspduo2": 2}
 
@@ -289,7 +297,7 @@ class DeviceSettings:
     start of reception or of a scan."""
 
     device: str = DEVICE_RTLSDR  # a key of `DEVICES`
-    # RTL-SDR
+    # RTL-SDR, here or behind rtl_tcp
     gain_db: float = DEFAULT_GAIN_DB
     agc: bool = False
     ppm: int = 0
@@ -297,14 +305,30 @@ class DeviceSettings:
     lna_state: int = DEFAULT_LNA_STATE
     if_gain_reduction_db: int = DEFAULT_IF_GAIN_REDUCTION_DB
     rspduo_ppm: float = 0.0
+    # rtl_tcp: the server; an empty host is none set
+    rtl_tcp_host: str = ""
+    rtl_tcp_port: int = RTL_TCP_DEFAULT_PORT
 
     @property
     def is_rtlsdr(self) -> bool:
-        return self.device == DEVICE_RTLSDR
+        """An RTL-SDR stick, here or behind rtl_tcp: its gain and correction apply."""
+        return self.device in (DEVICE_RTLSDR, DEVICE_RTL_TCP)
 
     def gain(self) -> str | float:
-        """The gain for `RtlSdrWorker` and `ChannelScanner`: "auto" with AGC."""
+        """The gain for `RtlSdrWorker`, `RtlTcpWorker` and `ChannelScanner`: "auto" with
+        AGC."""
         return "auto" if self.agc else self.gain_db
+
+    def rtl_tcp(self) -> RtlTcpSettings | None:
+        """Server, gain and frequency correction for rtl_tcp; None for another device."""
+        if self.device != DEVICE_RTL_TCP:
+            return None
+        return RtlTcpSettings(
+            host=self.rtl_tcp_host,
+            port=self.rtl_tcp_port,
+            gain=self.gain(),
+            freq_correction_ppm=self.ppm,
+        )
 
     def rspduo(self) -> RspDuoSettings | None:
         """Tuner, gain and frequency correction of the RSPduo; None for the RTL-SDR."""
@@ -699,7 +723,7 @@ class ReceiverController(QObject):
         self._playback: PlaybackState | None = None
 
         self._state = ReceptionState.IDLE
-        self._worker: RtlSdrWorker | RspDuoWorker | None = None
+        self._worker: RtlSdrWorker | RspDuoWorker | RtlTcpWorker | None = None
         self._scanner: ChannelScanner | None = None
         self._sample_count = 0
         self._center_freq_hz = 0.0
@@ -1038,6 +1062,13 @@ class ReceiverController(QObject):
         device = self._device_settings.device
         return DEVICES.get(device, device)
 
+    def _device_text(self) -> str:
+        """The receiver for the status line: its name, rtl_tcp with the server."""
+        rtl_tcp = self._device_settings.rtl_tcp()
+        if rtl_tcp is not None and rtl_tcp.host:
+            return f"{DEVICES[DEVICE_RTL_TCP]} {rtl_tcp.server}"
+        return self.device_name
+
     @property
     def state(self) -> ReceptionState:
         return self._state
@@ -1244,6 +1275,10 @@ class ReceiverController(QObject):
                 *IF_GAIN_REDUCTION_RANGE_DB,
             ),
             rspduo_ppm=_clamp(self._stored(_SETTINGS_RSPDUO_PPM, 0.0), *FREQ_CORRECTION_RANGE_PPM),
+            rtl_tcp_host=self._stored(_SETTINGS_RTL_TCP_HOST, "").strip(),
+            rtl_tcp_port=_clamp(
+                self._stored(_SETTINGS_RTL_TCP_PORT, RTL_TCP_DEFAULT_PORT), *RTL_TCP_PORT_RANGE
+            ),
         )
 
     def _load_observer(self) -> Observer:
@@ -1269,11 +1304,20 @@ class ReceiverController(QObject):
         """Stores the device settings; they take effect at the next start. After
         reception ended with an error of the device, another device starts it again
         right away (switching back from a tuner of an RSPduo not plugged in plays on);
-        the error shown belongs to the device left."""
+        the error shown belongs to the device left. Another rtl_tcp server counts as
+        another device."""
+        before = self._device_settings
         resume = (
             self._resume_on_device_change
             and self._state is ReceptionState.IDLE
-            and settings.device != self._device_settings.device
+            and (
+                settings.device != before.device
+                or (
+                    settings.device == DEVICE_RTL_TCP
+                    and (settings.rtl_tcp_host, settings.rtl_tcp_port)
+                    != (before.rtl_tcp_host, before.rtl_tcp_port)
+                )
+            )
         )
         self._device_settings = settings
         values = {
@@ -1284,6 +1328,8 @@ class ReceiverController(QObject):
             _SETTINGS_RSPDUO_LNA: settings.lna_state,
             _SETTINGS_RSPDUO_IF_GAIN_REDUCTION: settings.if_gain_reduction_db,
             _SETTINGS_RSPDUO_PPM: settings.rspduo_ppm,
+            _SETTINGS_RTL_TCP_HOST: settings.rtl_tcp_host,
+            _SETTINGS_RTL_TCP_PORT: settings.rtl_tcp_port,
         }
         for key, value in values.items():
             self._settings.setValue(key, value)
@@ -2347,8 +2393,7 @@ class ReceiverController(QObject):
         self._scan_done = 0
         self._scan_failed = False
         self._set_state(ReceptionState.SCANNING)
-        device = DEVICES[self._device_settings.device]
-        self._set_status(tr("Scan: connecting to {device}...").format(device=device))
+        self._set_status(tr("Scan: connecting to {device}...").format(device=self._device_text()))
 
         settings = self._device_settings
         self._scanner = ChannelScanner(
@@ -2357,6 +2402,7 @@ class ReceiverController(QObject):
             gain=settings.gain(),
             freq_correction_ppm=settings.ppm,
             rspduo=settings.rspduo(),
+            rtl_tcp=settings.rtl_tcp(),
         )
         self._scanner.channel_started.connect(self._on_scan_channel_started)
         self._scanner.channel_progress.connect(self._on_scan_progress)
@@ -2483,21 +2529,24 @@ class ReceiverController(QObject):
         self._sample_count = 0
         self._set_state(ReceptionState.CONNECTING)
         settings = self._device_settings
-        self._set_status(tr("Connecting to {device}...").format(device=DEVICES[settings.device]))
+        self._set_status(tr("Connecting to {device}...").format(device=self._device_text()))
         self._reset_live()
 
         self._center_freq_hz = self._frequency_mhz * 1e6
         rspduo = settings.rspduo()
-        if rspduo is None:
+        rtl_tcp = settings.rtl_tcp()
+        if rspduo is not None:
+            self._worker = RspDuoWorker(center_freq=self._center_freq_hz, settings=rspduo)
+            self._worker.overload_changed.connect(self._on_overload_changed)
+        elif rtl_tcp is not None:
+            self._worker = RtlTcpWorker(center_freq=self._center_freq_hz, settings=rtl_tcp)
+        else:
             self._worker = RtlSdrWorker(
                 center_freq=self._center_freq_hz,
                 sample_rate=SAMPLE_RATE,
                 gain=settings.gain(),
                 freq_correction_ppm=settings.ppm,
             )
-        else:
-            self._worker = RspDuoWorker(center_freq=self._center_freq_hz, settings=rspduo)
-            self._worker.overload_changed.connect(self._on_overload_changed)
         self._worker.connected.connect(self._on_connected)
         # Resets the signal processing within the sample stream, at the start and at
         # every channel change (see `DspWorker.restart_stream`).

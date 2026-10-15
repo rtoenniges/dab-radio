@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QLineEdit,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
@@ -40,6 +41,7 @@ from dsp.superframe import SUPERFRAME_SECONDS, SuperframeResult
 from dsp.tii import TII_AVERAGED_FRAMES, TiiResult
 from i18n import available_languages, tr, tr_context, tr_noop, tr_plural
 from sdr.rspduo import FREQ_CORRECTION_RANGE_PPM, IF_GAIN_REDUCTION_RANGE_DB, LNA_GAIN_REDUCTION_DB
+from sdr.rtl_tcp import PORT_RANGE
 from ui.atmosphere_tab import AtmosphereTab
 from ui.corrections_tab import CorrectionsTab
 from ui.data_tab import DataTab
@@ -52,7 +54,7 @@ from ui.ofdm_tab import OfdmTab
 from ui.programme_tab import ProgrammeTab
 from ui.receiver_controller import (
     CLIPPING_WARNING_THRESHOLD,
-    DEVICE_RTLSDR,
+    DEVICE_RTL_TCP,
     DEVICES,
     FREQUENCY_RANGE_MHZ,
     LOAD_WARNING_THRESHOLD,
@@ -264,11 +266,12 @@ class MainWindow(QMainWindow):
         self._device_combo.setCurrentIndex(self._device_combo.findData(settings.device))
         self._device_combo.setToolTip(
             tr(
-                "Receiver: an RTL-SDR stick or one of the two tuners of the SDRplay RSPduo. "
-                "The RSPduo runs via the SDRplay API, whose service “SDRplay API Service” "
-                "must be running. It receives in single tuner mode and so occupies the whole "
-                "device: as long as the radio receives, no other program can use the second "
-                "tuner. Can only be changed while no reception is running."
+                "Receiver: an RTL-SDR stick, one of the two tuners of the SDRplay RSPduo, or "
+                "an RTL-SDR stick elsewhere in the network, served by rtl_tcp. The RSPduo "
+                "runs via the SDRplay API, whose service “SDRplay API Service” must be "
+                "running. It receives in single tuner mode and so occupies the whole device: "
+                "as long as the radio receives, no other program can use the second tuner. "
+                "Can only be changed while no reception is running."
             )
         )
         self._device_combo.currentIndexChanged.connect(self._on_device_changed)
@@ -336,6 +339,29 @@ class MainWindow(QMainWindow):
         rspduo_layout.addWidget(self._rspduo_ppm_spin)
         self._rspduo_controls = QWidget()
         self._rspduo_controls.setLayout(rspduo_layout)
+
+        # rtl_tcp: the server, then the stick's own controls.
+        self._rtl_tcp_host = QLineEdit(settings.rtl_tcp_host)
+        self._rtl_tcp_host.setPlaceholderText(tr("Name or IP address"))
+        self._rtl_tcp_host.setToolTip(
+            tr(
+                "The computer on which rtl_tcp serves the stick, e.g. a Raspberry Pi near "
+                "the antenna (rtl_tcp -a 0.0.0.0). The samples need about 33 Mbit/s: a "
+                "cable is safe, Wi-Fi only with a good connection."
+            )
+        )
+        self._rtl_tcp_port = QSpinBox()
+        self._rtl_tcp_port.setRange(*PORT_RANGE)
+        self._rtl_tcp_port.setValue(settings.rtl_tcp_port)
+        self._rtl_tcp_port.setToolTip(tr("Port of rtl_tcp, 1234 unless set otherwise."))
+        rtl_tcp_layout = QHBoxLayout()
+        rtl_tcp_layout.setContentsMargins(0, 0, 0, 0)
+        rtl_tcp_layout.addWidget(QLabel(tr("Server:")))
+        rtl_tcp_layout.addWidget(self._rtl_tcp_host)
+        rtl_tcp_layout.addWidget(QLabel(tr("Port:")))
+        rtl_tcp_layout.addWidget(self._rtl_tcp_port)
+        self._rtl_tcp_controls = QWidget()
+        self._rtl_tcp_controls.setLayout(rtl_tcp_layout)
         self._on_device_changed()
 
         # Translators: the switch for the sound of the selected station.
@@ -369,6 +395,8 @@ class MainWindow(QMainWindow):
             self._lna_combo.currentIndexChanged,
             self._if_gain_reduction_spin.valueChanged,
             self._rspduo_ppm_spin.valueChanged,
+            self._rtl_tcp_host.editingFinished,
+            self._rtl_tcp_port.editingFinished,
         ):
             changed.connect(self._on_device_settings_changed)
 
@@ -388,6 +416,7 @@ class MainWindow(QMainWindow):
         receiver_row = QHBoxLayout()
         receiver_row.addWidget(QLabel(tr("Device:")))
         receiver_row.addWidget(self._device_combo)
+        receiver_row.addWidget(self._rtl_tcp_controls)
         receiver_row.addWidget(self._rtlsdr_controls)
         receiver_row.addWidget(self._rspduo_controls)
         receiver_row.addWidget(self._dc_checkbox)
@@ -736,9 +765,11 @@ class MainWindow(QMainWindow):
         self._frequency_spin.setEnabled(self._channel_combo.isEnabled() and channel is None)
 
     def _on_device_changed(self, _index: int = 0) -> None:
-        rtlsdr = self._device_combo.currentData() == DEVICE_RTLSDR
-        self._rtlsdr_controls.setVisible(rtlsdr)
-        self._rspduo_controls.setVisible(not rtlsdr)
+        device = self._device_combo.currentData()
+        rspduo = DeviceSettings(device=device).rspduo() is not None
+        self._rtl_tcp_controls.setVisible(device == DEVICE_RTL_TCP)
+        self._rtlsdr_controls.setVisible(not rspduo)
+        self._rspduo_controls.setVisible(rspduo)
 
     def _on_agc_toggled(self, checked: bool) -> None:
         self._gain_spin.setEnabled(not checked)
@@ -753,6 +784,8 @@ class MainWindow(QMainWindow):
                 lna_state=self._lna_combo.currentData(),
                 if_gain_reduction_db=self._if_gain_reduction_spin.value(),
                 rspduo_ppm=self._rspduo_ppm_spin.value(),
+                rtl_tcp_host=self._rtl_tcp_host.text().strip(),
+                rtl_tcp_port=self._rtl_tcp_port.value(),
             )
         )
 
@@ -804,6 +837,8 @@ class MainWindow(QMainWindow):
         self._lna_combo.setEnabled(enabled)
         self._if_gain_reduction_spin.setEnabled(enabled)
         self._rspduo_ppm_spin.setEnabled(enabled)
+        self._rtl_tcp_host.setEnabled(enabled)
+        self._rtl_tcp_port.setEnabled(enabled)
         self._start_stop_button.setEnabled(enabled)
 
     def _set_tuning_enabled(self, enabled: bool) -> None:

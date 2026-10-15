@@ -2,7 +2,7 @@
 # Brought up to date by src/i18n/update_catalogs.py.
 msgid ""
 msgstr ""
-"Project-Id-Version: dab-radio 1.1.0\n"
+"Project-Id-Version: dab-radio 1.2.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
 "POT-Creation-Date: 2026-10-10 16:51+0000\n"
 "PO-Revision-Date: 2026-10-10 16:51+0000\n"
@@ -2700,6 +2700,75 @@ msgstr ""
 msgid "Reading from the RSPduo cancelled."
 msgstr "Lesen vom RSPduo abgebrochen."
 
+#: src/sdr/rtl_tcp.py
+msgid "No rtl_tcp server set."
+msgstr "Kein rtl_tcp-Server eingestellt."
+
+#: src/sdr/rtl_tcp.py
+#, python-brace-format
+msgid "rtl_tcp server {server} not found."
+msgstr "rtl_tcp-Server {server} nicht gefunden."
+
+#: src/sdr/rtl_tcp.py
+#, python-brace-format
+msgid "{server} refuses the connection. Is rtl_tcp running there?"
+msgstr "{server} lehnt die Verbindung ab. Läuft dort rtl_tcp?"
+
+#: src/sdr/rtl_tcp.py
+#, python-brace-format
+msgid "No answer from the rtl_tcp server {server}."
+msgstr "Keine Antwort vom rtl_tcp-Server {server}."
+
+#: src/sdr/rtl_tcp.py
+#, python-brace-format
+msgid "Could not connect to the rtl_tcp server {server}: {error}"
+msgstr "Keine Verbindung zum rtl_tcp-Server {server}: {error}"
+
+#: src/sdr/rtl_tcp.py
+#, python-brace-format
+msgid "The rtl_tcp server {server} closed the connection."
+msgstr "Der rtl_tcp-Server {server} hat die Verbindung beendet."
+
+#: src/sdr/rtl_tcp.py
+#, python-brace-format
+msgid ""
+"The rtl_tcp server {server} sends nothing. It serves one program at a "
+"time; is another one connected to it?"
+msgstr ""
+"Der rtl_tcp-Server {server} sendet nichts. Er bedient nur ein Programm "
+"zugleich; ist schon ein anderes mit ihm verbunden?"
+
+#: src/sdr/rtl_tcp.py
+#, python-brace-format
+msgid "The connection to the rtl_tcp server was lost: {error}"
+msgstr "Die Verbindung zum rtl_tcp-Server ist abgebrochen: {error}"
+
+#: src/sdr/rtl_tcp.py
+#, python-brace-format
+msgid "{server} is not an rtl_tcp server."
+msgstr "{server} ist kein rtl_tcp-Server."
+
+#: src/sdr/rtl_tcp.py
+msgid ""
+"The rtl_tcp server no longer delivers samples. Please check the network "
+"and restart reception."
+msgstr ""
+"Der rtl_tcp-Server liefert keine Abtastwerte mehr. Bitte das Netzwerk "
+"prüfen und den Empfang neu starten."
+
+#: src/sdr/rtl_tcp.py
+msgid "The rtl_tcp server closed the connection."
+msgstr "Der rtl_tcp-Server hat die Verbindung beendet."
+
+#: src/sdr/rtl_tcp.py
+msgid "Reading from the rtl_tcp server cancelled."
+msgstr "Lesen vom rtl_tcp-Server abgebrochen."
+
+#: src/sdr/rtl_tcp.py
+#, python-brace-format
+msgid "Sending to the rtl_tcp server failed: {error}"
+msgstr "Senden an den rtl_tcp-Server fehlgeschlagen: {error}"
+
 #: src/sdr/scanner.py
 #, python-brace-format
 msgid "Error during the scan: {error}"
@@ -2728,6 +2797,11 @@ msgstr "Fehler beim Lesen der IQ-Samples: {error}"
 #, python-brace-format
 msgid "RSPduo {serial}, tuner {tuner} ready @ {frequency} MHz, {rate} MSps"
 msgstr "RSPduo {serial}, Tuner {tuner} bereit @ {frequency} MHz, {rate} MSps"
+
+#: src/sdr/worker.py
+#, python-brace-format
+msgid "rtl_tcp {server} ({tuner}) ready @ {frequency} MHz, {rate} MSps"
+msgstr "rtl_tcp {server} ({tuner}) bereit @ {frequency} MHz, {rate} MSps"
 
 #: src/storage/volumes.py
 msgid ""
@@ -4341,7 +4415,7 @@ msgstr ""
 msgid "Off."
 msgstr "Aus."
 
-#: src/ui/gnss_tab.py
+#: src/ui/gnss_tab.py src/ui/main_window.py
 msgid "Port:"
 msgstr "Port:"
 
@@ -4743,18 +4817,20 @@ msgstr ""
 
 #: src/ui/main_window.py
 msgid ""
-"Receiver: an RTL-SDR stick or one of the two tuners of the SDRplay "
-"RSPduo. The RSPduo runs via the SDRplay API, whose service “SDRplay API "
-"Service” must be running. It receives in single tuner mode and so "
-"occupies the whole device: as long as the radio receives, no other "
-"program can use the second tuner. Can only be changed while no reception "
-"is running."
+"Receiver: an RTL-SDR stick, one of the two tuners of the SDRplay RSPduo, "
+"or an RTL-SDR stick elsewhere in the network, served by rtl_tcp. The "
+"RSPduo runs via the SDRplay API, whose service “SDRplay API Service” must"
+" be running. It receives in single tuner mode and so occupies the whole "
+"device: as long as the radio receives, no other program can use the "
+"second tuner. Can only be changed while no reception is running."
 msgstr ""
-"Empfänger: ein RTL-SDR-Stick oder einer der beiden Tuner des SDRplay "
-"RSPduo. Das RSPduo läuft über die SDRplay API, deren Dienst „SDRplay API "
-"Service“ laufen muss. Es empfängt im Einzeltunerbetrieb und belegt dabei "
-"das ganze Gerät: Solange das Radio empfängt, kann kein anderes Programm "
-"den zweiten Tuner nutzen. Nur änderbar, solange kein Empfang läuft."
+"Empfänger: ein RTL-SDR-Stick, einer der beiden Tuner des SDRplay RSPduo "
+"oder ein RTL-SDR-Stick an einem anderen Rechner im Netzwerk, "
+"bereitgestellt von rtl_tcp. Das RSPduo läuft über die SDRplay API, deren "
+"Dienst „SDRplay API Service“ laufen muss. Es empfängt im "
+"Einzeltunerbetrieb und belegt damit das ganze Gerät: Solange das Radio "
+"empfängt, kann kein anderes Programm den zweiten Tuner nutzen. Nur "
+"änderbar, solange kein Empfang läuft."
 
 #: src/ui/main_window.py
 msgid ""
@@ -4806,6 +4882,28 @@ msgstr "LNA-Stufe:"
 #: src/ui/main_window.py
 msgid "IF gain reduction:"
 msgstr "ZF-Absenkung:"
+
+#: src/ui/main_window.py
+msgid "Name or IP address"
+msgstr "Name oder IP-Adresse"
+
+#: src/ui/main_window.py
+msgid ""
+"The computer on which rtl_tcp serves the stick, e.g. a Raspberry Pi near "
+"the antenna (rtl_tcp -a 0.0.0.0). The samples need about 33 Mbit/s: a "
+"cable is safe, Wi-Fi only with a good connection."
+msgstr ""
+"Der Rechner, an dem rtl_tcp den Stick bereitstellt, etwa ein Raspberry Pi"
+" nahe der Antenne (rtl_tcp -a 0.0.0.0). Die Abtastwerte brauchen rund 33 "
+"Mbit/s: Kabel ist sicher, WLAN nur mit guter Verbindung."
+
+#: src/ui/main_window.py
+msgid "Port of rtl_tcp, 1234 unless set otherwise."
+msgstr "Port von rtl_tcp, 1234, sofern nicht anders eingestellt."
+
+#: src/ui/main_window.py
+msgid "Server:"
+msgstr "Server:"
 
 #. the switch for the sound of the selected station.
 #: src/ui/main_window.py
@@ -8400,7 +8498,7 @@ msgstr "Topic-Präfix"
 msgid "Broker address"
 msgstr "Adresse des Brokers"
 
-#: src/ui/touch/mqtt_view.py
+#: src/ui/touch/mqtt_view.py src/ui/touch/settings_page.py
 msgid "Name or IP address, without port"
 msgstr "Name oder IP-Adresse, ohne Port"
 
@@ -8783,6 +8881,10 @@ msgid "currently {name}"
 msgstr "zurzeit {name}"
 
 #: src/ui/touch/settings_page.py
+msgid "Server"
+msgstr "Server"
+
+#: src/ui/touch/settings_page.py
 msgid "Gain"
 msgstr "Verstärkung"
 
@@ -8918,6 +9020,14 @@ msgstr "Länge (Westen negativ)"
 #: src/ui/touch/settings_page.py
 msgid "Height above the ellipsoid"
 msgstr "Höhe über dem Ellipsoid"
+
+#: src/ui/touch/settings_page.py
+msgid "rtl_tcp server"
+msgstr "rtl_tcp-Server"
+
+#: src/ui/touch/settings_page.py
+msgid "rtl_tcp port"
+msgstr "rtl_tcp-Port"
 
 #: src/ui/touch/signal_page.py
 msgid "Overview"
