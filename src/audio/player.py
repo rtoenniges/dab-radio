@@ -587,10 +587,15 @@ class AudioPlayer(QObject):
 
         # Drop the oldest first so that the delay stays capped. The yardstick is the
         # TOTAL audio queued ahead, not only this intermediate buffer: the lion's
-        # share sits in the sound card's buffer.
+        # share sits in the sound card's buffer. Whole frames only (every channel of a
+        # sample, two bytes each): a cut through one shifts all later samples by a byte
+        # or swaps the channels, and the sound card plays loud noise until another cut
+        # happens to shift them back. Heard with rtl_tcp over Wi-Fi, whose samples
+        # arrive in bursts and so build backlogs often.
         excess = self._queued_seconds() - MAX_QUEUED_SECONDS
         if excess > 0 and self._bytes_per_second:
-            drop = min(len(self._buffer), int(excess * self._bytes_per_second))
+            frame = 2 * channels
+            drop = min(len(self._buffer), int(excess * self._bytes_per_second)) // frame * frame
             if drop > 0:
                 del self._buffer[:drop]
                 self.status_changed.emit(

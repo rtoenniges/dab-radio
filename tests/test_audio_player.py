@@ -165,6 +165,22 @@ def test_latency_is_capped_by_dropping_the_oldest_audio(player, fake_decoder):
     assert player._queued_seconds() <= MAX_QUEUED_SECONDS + seconds_per_unit
 
 
+def test_the_backlog_is_cut_in_whole_frames(player, fake_decoder, monkeypatch):
+    """A cut through a frame shifts every later sample by a byte: loud noise, until
+    another cut happens to shift it back."""
+    # One byte more than a second of audio may stay: the cut would be odd.
+    monkeypatch.setattr(
+        "audio.player.MAX_QUEUED_SECONDS", 1.0 + 1 / FORMAT_48K_STEREO.sample_rate / 4
+    )
+    player.process_superframe(_superframe())
+    units = int(3 / (1920 / FORMAT_48K_STEREO.sample_rate))
+
+    player.process_superframe(_superframe(units=tuple(b"au" for _ in range(units))))
+
+    assert len(player._buffer) % 4 == 0
+    assert player._queued_seconds() <= 1.0 + 1920 / FORMAT_48K_STEREO.sample_rate
+
+
 def test_disabling_the_sound_clears_the_buffer(player, fake_decoder):
     player.process_superframe(_superframe(units=(b"a", b"b")))
     assert player._queued_seconds() > 0
