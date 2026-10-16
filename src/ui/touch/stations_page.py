@@ -243,10 +243,13 @@ class StationsPage(QWidget):
         none_known = not self._directory.all_stations()
         no_favourites = self._directory.filter == FAVOURITES and not self._shown
         self._empty_label.setText(tr(_EMPTY) if none_known else tr(_NO_FAVOURITES))
-        self._grid_area.setVisible(not (none_known or no_favourites))
-        # During the first scan the spinner stands in for the note that none are known.
+        # During a scan the spinner stands in for the note that none are known. The empty
+        # grid keeps its place then: with neither shown, nothing in the layout stretched,
+        # and it spread the filters and the bottom row apart evenly, onto the spinner.
         scanning = self._controller.state is ReceptionState.SCANNING
-        self._empty_label.setVisible((none_known or no_favourites) and not scanning)
+        note = (none_known or no_favourites) and not scanning
+        self._empty_label.setVisible(note)
+        self._grid_area.setVisible(not note)
 
     def _show_stars(self) -> None:
         favourites = self._controller.favourites

@@ -1420,6 +1420,30 @@ def test_a_spinner_turns_over_the_tiles_while_the_scan_runs(
     assert not page._spinner.isVisible()
 
 
+def test_the_first_scan_keeps_the_filters_on_top_and_the_scan_button_at_the_bottom(
+    tmp_path, touch_window, fake_scanners
+):
+    """No stations known yet, and the spinner stands in for the note that says so: the
+    empty grid keeps the space between them, else the layout spread both rows apart
+    evenly and the filters came down onto the spinner."""
+    window = touch_window(tmp_path)
+    window.show()
+    window.show_page(STATIONS)
+    page = window._stations_page
+    _spin(20)
+    chips_top = page._chips_area.geometry().top()
+    bottom_row_bottom = page._bottom_row.geometry().bottom()
+
+    page._scan_button.click()
+    _spin(20)
+    assert page._spinner.isVisible() and page._empty_label.isHidden()
+    assert page._chips_area.geometry().top() == chips_top
+    assert page._bottom_row.geometry().bottom() == bottom_row_bottom
+    spinner = page._spinner.geometry()
+    assert spinner.top() > page._chips_area.geometry().bottom()
+    assert spinner.bottom() < page._bottom_row.geometry().top()
+
+
 def test_a_second_tap_on_the_menu_shown_turns_back_to_its_first_page(data_directory, touch_window):
     window = touch_window(data_directory)
     window.show()
