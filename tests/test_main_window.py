@@ -131,11 +131,12 @@ def test_the_side_panel_names_the_other_channels_of_the_selected_service(
 def test_device_settings_are_handed_to_the_controller(data_directory, window_on):
     window = window_on(data_directory)
 
-    window._device_combo.setCurrentIndex(window._device_combo.findData("rspduo2"))
+    window._device_combo.setCurrentIndex(window._device_combo.findData("rspduo"))
+    window._tuner_combo.setCurrentIndex(window._tuner_combo.findData(2))
     window._lna_combo.setCurrentIndex(3)
 
     settings = window._controller.device_settings
-    assert settings.device == "rspduo2"
+    assert settings.device == "rspduo"
     assert settings.lna_state == 3
     assert settings.rspduo().tuner == 2
     assert not window._rtlsdr_controls.isVisibleTo(window)

@@ -58,6 +58,7 @@ from ui.receiver_controller import (
     DEVICES,
     FREQUENCY_RANGE_MHZ,
     LOAD_WARNING_THRESHOLD,
+    RSPDUO_TUNERS,
     RTLSDR_PPM_RANGE,
     AnnouncementVisit,
     DeviceSettings,
@@ -65,6 +66,7 @@ from ui.receiver_controller import (
     ReceptionState,
     describe_other_channels,
     describe_stored,
+    rspduo_tuner_name,
     volume_text,
 )
 from ui.service_list import LOGO_SIZE, SID_ROLE, ServiceListDelegate, service_item, show_logos
@@ -266,15 +268,25 @@ class MainWindow(QMainWindow):
         self._device_combo.setCurrentIndex(self._device_combo.findData(settings.device))
         self._device_combo.setToolTip(
             tr(
-                "Receiver: an RTL-SDR stick, one of the two tuners of the SDRplay RSPduo, or "
-                "an RTL-SDR stick elsewhere in the network, served by rtl_tcp. The RSPduo "
-                "runs via the SDRplay API, whose service “SDRplay API Service” must be "
-                "running. It receives in single tuner mode and so occupies the whole device: "
-                "as long as the radio receives, no other program can use the second tuner. "
-                "Can only be changed while no reception is running."
+                "Receiver: an RTL-SDR stick, the SDRplay RSPduo, or an RTL-SDR stick "
+                "elsewhere in the network, served by rtl_tcp. The RSPduo runs via the SDRplay "
+                "API, whose service “SDRplay API Service” must be running. Can only be "
+                "changed while no reception is running."
             )
         )
         self._device_combo.currentIndexChanged.connect(self._on_device_changed)
+
+        self._tuner_combo = QComboBox()
+        for tuner in RSPDUO_TUNERS:
+            self._tuner_combo.addItem(rspduo_tuner_name(tuner), tuner)
+        self._tuner_combo.setCurrentIndex(self._tuner_combo.findData(settings.rspduo_tuner))
+        self._tuner_combo.setToolTip(
+            tr(
+                "The tuner of the RSPduo with the antenna. It receives in single tuner mode "
+                "and so occupies the whole device: as long as the radio receives, no other "
+                "program can use the other tuner."
+            )
+        )
 
         self._lna_combo = QComboBox()
         for state, reduction in enumerate(LNA_GAIN_REDUCTION_DB):
@@ -331,6 +343,8 @@ class MainWindow(QMainWindow):
 
         rspduo_layout = QHBoxLayout()
         rspduo_layout.setContentsMargins(0, 0, 0, 0)
+        rspduo_layout.addWidget(QLabel(tr("Tuner:")))
+        rspduo_layout.addWidget(self._tuner_combo)
         rspduo_layout.addWidget(QLabel(tr("LNA state:")))
         rspduo_layout.addWidget(self._lna_combo)
         rspduo_layout.addWidget(QLabel(tr("IF gain reduction:")))
@@ -392,6 +406,7 @@ class MainWindow(QMainWindow):
             self._gain_spin.valueChanged,
             self._agc_checkbox.toggled,
             self._ppm_spin.valueChanged,
+            self._tuner_combo.currentIndexChanged,
             self._lna_combo.currentIndexChanged,
             self._if_gain_reduction_spin.valueChanged,
             self._rspduo_ppm_spin.valueChanged,
@@ -781,6 +796,7 @@ class MainWindow(QMainWindow):
                 gain_db=self._gain_spin.value(),
                 agc=self._agc_checkbox.isChecked(),
                 ppm=self._ppm_spin.value(),
+                rspduo_tuner=self._tuner_combo.currentData(),
                 lna_state=self._lna_combo.currentData(),
                 if_gain_reduction_db=self._if_gain_reduction_spin.value(),
                 rspduo_ppm=self._rspduo_ppm_spin.value(),
@@ -834,6 +850,7 @@ class MainWindow(QMainWindow):
         self._agc_checkbox.setEnabled(enabled)
         self._gain_spin.setEnabled(enabled and not self._agc_checkbox.isChecked())
         self._ppm_spin.setEnabled(enabled)
+        self._tuner_combo.setEnabled(enabled)
         self._lna_combo.setEnabled(enabled)
         self._if_gain_reduction_spin.setEnabled(enabled)
         self._rspduo_ppm_spin.setEnabled(enabled)

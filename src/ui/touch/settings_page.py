@@ -3,14 +3,15 @@ where there is one, its state in a line beneath (the device, the output playing,
 network, the headphones, the folder of the recordings, whether the recorder runs, the
 broker); on the right the rows of the chosen one on cards (`ui.touch.cards`).
 
-SDR (device, gain, frequency correction, corrections), Display (language, colour
-scheme, the load in the navigation rail, the level beside the volume slider of the
-radio page, the constellation as points or as a density, when the screen dims and goes
-off, `ui.touch.backlight`; the listener's position), Audio (the output, `audio.outputs`;
-the ceiling of the volume, `audio.volume`; the equalizer: on or off, the way to it, for
-all stations or per station, deleting all its settings; switching to announcements),
-Wi-Fi (`ui.touch.wifi_view`), Bluetooth (`ui.touch.bluetooth_view`), Storage (the USB
-drives and the directory for the recordings, `ui.touch.storage_view`), Recording
+SDR (device with the tuner of the RSPduo or the server of rtl_tcp, gain, frequency
+correction, corrections), Display (language, colour scheme, the load in the navigation
+rail, the level beside the volume slider of the radio page, the constellation as points
+or as a density, when the screen dims and goes off, `ui.touch.backlight`; the
+listener's position), Audio (the output, `audio.outputs`; the ceiling of the volume,
+`audio.volume`; the equalizer: on or off, the way to it, for all stations or per
+station, deleting all its settings; switching to announcements), Wi-Fi
+(`ui.touch.wifi_view`), Bluetooth (`ui.touch.bluetooth_view`), Storage (the USB drives
+and the directory for the recordings, `ui.touch.storage_view`), Recording
 (`ui.touch.recording_view`) and MQTT (the radio at the broker of a smart home,
 `ui.touch.mqtt_view`). A setting with several choices shows the one in effect, a tap
 opens the sheet with all of them. Sub-pages of rows are swiped up and down where they
@@ -46,15 +47,16 @@ from storage.volumes import VolumeManager, free_space
 from ui.language import restart_question, store_language, stored_language
 from ui.receiver_controller import (
     APPLICATION_VERSION,
-    DEVICE_RTL_TCP,
     DEVICES,
     HEIGHT_RANGE_M,
     LATITUDE_RANGE,
     LONGITUDE_RANGE,
+    RSPDUO_TUNERS,
     RTLSDR_PPM_RANGE,
     DeviceSettings,
     ReceiverController,
     ReceptionState,
+    rspduo_tuner_name,
 )
 from ui.touch import cards
 from ui.touch.backlight import TIMEOUT_CHOICES_S, ScreenDimmer
@@ -203,11 +205,15 @@ def coordinate_text(value: float, positive: str, negative: str) -> str:
 
 
 def sdr_state(settings: DeviceSettings) -> str:
-    """The device, and the server of rtl_tcp: "RTL_TCP · 192.168.2.55"."""
+    """The device, with the tuner of the RSPduo or the server of rtl_tcp:
+    "RSPduo · Tuner 2", "RTL_TCP · 192.168.2.55"."""
     name = DEVICES[settings.device]
-    if settings.rtl_tcp() is None:
-        return name
-    return join(STATE_SEPARATOR, [name, settings.rtl_tcp_host or tr(NO_HOST)])
+    rspduo = settings.rspduo()
+    if rspduo is not None:
+        return join(STATE_SEPARATOR, [name, rspduo_tuner_name(rspduo.tuner)])
+    if settings.rtl_tcp() is not None:
+        return join(STATE_SEPARATOR, [name, settings.rtl_tcp_host or tr(NO_HOST)])
+    return name
 
 
 def audio_state(controller: ReceiverController) -> str:
@@ -454,16 +460,16 @@ class SettingsPage(QWidget):
 
         # --- SDR: the device, its own rows (only those of the chosen one are shown),
         # and what applies to every device.
-        self._device = ChoiceRow(
-            tr("Device"),
-            list(DEVICES.items()),
-            subtitle=tr(_HINT),
-            # The stick, the two tuners of the RSPduo and a stick behind rtl_tcp, in
-            # groups: three devices, not four.
-            gaps=("rspduo1", DEVICE_RTL_TCP),
-        )
+        self._device = ChoiceRow(tr("Device"), list(DEVICES.items()), subtitle=tr(_HINT))
         self._device.set_current(settings.device)
         self._device.chosen.connect(self._on_device_chosen)
+
+        # The tuner of the RSPduo with the antenna.
+        self._tuner = ChoiceRow(
+            tr("Tuner"), [(tuner, rspduo_tuner_name(tuner)) for tuner in RSPDUO_TUNERS]
+        )
+        self._tuner.set_current(settings.rspduo_tuner)
+        self._tuner.chosen.connect(self._on_device_settings_changed)
 
         # The rtl_tcp server: name or address over the keyboard, the port over the pad.
         self._keyboard: Keyboard | None = None
@@ -525,7 +531,7 @@ class SettingsPage(QWidget):
         self._iq.setChecked(controller.iq_correction)
         self._iq.toggled.connect(controller.set_iq_correction)
         sdr_page = self._subpage(
-            Card(tr("Device"), [self._device, *self._rtl_tcp_rows]),
+            Card(tr("Device"), [self._device, self._tuner, *self._rtl_tcp_rows]),
             Card(tr("Tuner"), [*self._rtlsdr_rows, *self._rspduo_rows]),
             Card(
                 tr("Correction"),
@@ -941,6 +947,7 @@ class SettingsPage(QWidget):
 
     def _show_device_rows(self) -> None:
         settings = DeviceSettings(device=self._device.current())
+        self._tuner.setVisible(settings.rspduo() is not None)
         for row in self._rtl_tcp_rows:
             row.setVisible(settings.rtl_tcp() is not None)
         for row in self._rtlsdr_rows:
@@ -1001,6 +1008,7 @@ class SettingsPage(QWidget):
                 gain_db=self._gain.value(),
                 agc=self._agc.isChecked(),
                 ppm=self._ppm.value(),
+                rspduo_tuner=self._tuner.current(),
                 lna_state=self._lna.value(),
                 if_gain_reduction_db=self._if_gain_reduction.value(),
                 rspduo_ppm=self._rspduo_ppm.value(),
@@ -1021,6 +1029,7 @@ class SettingsPage(QWidget):
         free = state in (ReceptionState.IDLE, ReceptionState.RECEIVING)
         rows: tuple[Row, ...] = (
             self._device,
+            self._tuner,
             *self._rtl_tcp_rows,
             *self._rtlsdr_rows,
             *self._rspduo_rows,

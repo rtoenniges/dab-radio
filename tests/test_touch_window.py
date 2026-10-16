@@ -1056,7 +1056,7 @@ def test_a_device_change_during_reception_restarts_it(data_directory, touch_wind
     assert controller.state is ReceptionState.CONNECTING
 
 
-def test_the_stick_stands_apart_from_the_tuners_of_the_rspduo(data_directory, touch_window):
+def test_the_rspduo_is_one_device_with_its_tuner_beneath(data_directory, touch_window):
     window = touch_window(data_directory)
     window.show()
     window.show_page(SETTINGS)
@@ -1064,12 +1064,24 @@ def test_the_stick_stands_apart_from_the_tuners_of_the_rspduo(data_directory, to
     page._device.open()
     sheet = page._device.sheet()
     assert sheet.isVisible() and sheet.panel.width() <= window.width()
-    rows = {row.key: row.geometry() for row in sheet.rows}
-    stick, tuner_1, tuner_2, rtl_tcp = (rows[key] for key in receiver_controller.DEVICES)
+    assert [row.name.text() for row in sheet.rows] == ["RTL-SDR", "RSPduo", "RTL_TCP"]
+    assert not page._tuner.isVisible()
 
-    tuners = tuner_2.top() - tuner_1.bottom()
-    assert tuner_1.top() - stick.bottom() > 2 * tuners
-    assert rtl_tcp.top() - tuner_2.bottom() > 2 * tuners
+    sheet.rows[1].click()
+    assert page._tuner.isVisible() and page._tuner.text() == "Tuner 1"
+    assert page._lna.isVisible() and not page._gain.isVisible()
+    page._tuner.open()
+    sheet = page._tuner.sheet()
+    assert [row.name.text() for row in sheet.rows] == ["Tuner 1", "Tuner 2"]
+    sheet.rows[1].click()
+
+    settings = window._controller.device_settings
+    assert (settings.device, settings.rspduo_tuner) == ("rspduo", 2)
+    assert page._tuner.text() == "Tuner 2"
+    assert page._categories.rows[SDR].state.text() == "RSPduo · Tuner 2"
+
+    page._device.choose("rtlsdr")
+    assert not page._tuner.isVisible()
 
 
 def test_rtl_tcp_takes_its_server_and_the_rows_of_the_stick(data_directory, touch_window):
@@ -1100,7 +1112,7 @@ def test_rtl_tcp_takes_its_server_and_the_rows_of_the_stick(data_directory, touc
     assert settings.rtl_tcp_host == "radio-pi"
     assert settings.rtl_tcp_port == 1235
     assert (page._server_host.text(), page._server_port.text()) == ("radio-pi", "1235")
-    page._device.choose("rspduo1")
+    page._device.choose("rspduo")
     assert not page._server_host.isVisible()
     assert not page._gain.isVisible()
     assert page._lna.isVisible()
@@ -1116,7 +1128,7 @@ def test_back_from_a_missing_rspduo_the_stick_plays_on(data_directory, touch_win
     controller.start_reception()
     fake_workers[-1].connected.emit("Verbunden.")
 
-    page._device.choose("rspduo1")
+    page._device.choose("rspduo")
     _spin(50)
     fake_workers[0].stopped.emit()
     assert fake_workers[-1].rspduo.tuner == 1

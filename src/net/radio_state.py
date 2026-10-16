@@ -574,6 +574,7 @@ class RadioStateModel(QObject):
         controller.status_changed.connect(self._on_status)
         controller.error_occurred.connect(self._on_error)
         controller.tuning_changed.connect(lambda *_: self._refresh("receiver"))
+        controller.device_settings_changed.connect(lambda: self._refresh("receiver"))
         controller.scan_progress.connect(self._on_scan_progress)
         controller.service_list_changed.connect(self._on_service_list)
         controller.service_list_completed.connect(self._on_service_list)

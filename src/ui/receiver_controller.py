@@ -105,6 +105,7 @@ from sdr.rspduo import (
     FREQ_CORRECTION_RANGE_PPM,
     IF_GAIN_REDUCTION_RANGE_DB,
     LNA_GAIN_REDUCTION_DB,
+    TUNERS,
     RspDuoSettings,
 )
 from sdr.rtl_tcp import DEFAULT_PORT as RTL_TCP_DEFAULT_PORT
@@ -136,6 +137,7 @@ _SETTINGS_DC_CORRECTION = "controls/dc_correction"
 _SETTINGS_IQ_CORRECTION = "controls/iq_correction"
 _SETTINGS_PPM = "controls/ppm"
 _SETTINGS_DEVICE = "controls/device"
+_SETTINGS_RSPDUO_TUNER = "controls/rspduo_tuner"
 _SETTINGS_RSPDUO_LNA = "controls/rspduo_lna_state"
 _SETTINGS_RSPDUO_IF_GAIN_REDUCTION = "controls/rspduo_if_gain_reduction_db"
 _SETTINGS_RSPDUO_PPM = "controls/rspduo_ppm"
@@ -191,18 +193,22 @@ _SETTINGS_STOP_DELAY = "recording/stop_delay_s"
 _SETTINGS_STATION_STOP_DELAYS = "recording/station_stop_delays"
 _SETTINGS_RECORDING_ENABLED = "recording/enabled"
 
-# The receivers to choose from: key in the settings -> name in the selection. Either
-# tuner of the RSPduo receives Band III; rtl_tcp is an RTL-SDR stick elsewhere in the
-# network, served by rtl_tcp (`sdr.rtl_tcp`).
+# The receivers to choose from: key in the settings -> name in the selection. The
+# RSPduo receives Band III on either tuner (`DeviceSettings.rspduo_tuner`); rtl_tcp is
+# an RTL-SDR stick elsewhere in the network, served by rtl_tcp (`sdr.rtl_tcp`).
 DEVICE_RTLSDR = "rtlsdr"
+DEVICE_RSPDUO = "rspduo"
 DEVICE_RTL_TCP = "rtltcp"
 DEVICES = {
     DEVICE_RTLSDR: "RTL-SDR",
-    "rspduo1": "RSPduo Tuner 1",
-    "rspduo2": "RSPduo Tuner 2",
+    DEVICE_RSPDUO: "RSPduo",
     DEVICE_RTL_TCP: "RTL_TCP",
 }
-_RSPDUO_TUNERS = {"rspduo1": 1, "rspduo2": 2}
+# The tuners of the RSPduo, as labelled on it.
+RSPDUO_TUNERS = tuple(TUNERS)
+# Up to 1.3.1 each tuner was a device of its own; one of them stored stands for the
+# RSPduo with that tuner.
+_RSPDUO_TUNER_DEVICES = {"rspduo1": 1, "rspduo2": 2}
 
 # Fixed gain by default, no AGC. Both gain controls of the RTL-SDR hurt DAB: the null
 # symbol every 96 ms is a gap the control runs into, so the level moves within the
@@ -302,6 +308,7 @@ class DeviceSettings:
     agc: bool = False
     ppm: int = 0
     # RSPduo
+    rspduo_tuner: int = 1  # as labelled on it, see `RSPDUO_TUNERS`
     lna_state: int = DEFAULT_LNA_STATE
     if_gain_reduction_db: int = DEFAULT_IF_GAIN_REDUCTION_DB
     rspduo_ppm: float = 0.0
@@ -313,6 +320,17 @@ class DeviceSettings:
     def is_rtlsdr(self) -> bool:
         """An RTL-SDR stick, here or behind rtl_tcp: its gain and correction apply."""
         return self.device in (DEVICE_RTLSDR, DEVICE_RTL_TCP)
+
+    @property
+    def receiver(self) -> tuple[object, ...]:
+        """What receives: the device, the RSPduo with its tuner, rtl_tcp with its server.
+        Another one after an error starts reception again
+        (`ReceiverController.set_device_settings`)."""
+        if self.device == DEVICE_RSPDUO:
+            return (self.device, self.rspduo_tuner)
+        if self.device == DEVICE_RTL_TCP:
+            return (self.device, self.rtl_tcp_host, self.rtl_tcp_port)
+        return (self.device,)
 
     def gain(self) -> str | float:
         """The gain for `RtlSdrWorker`, `RtlTcpWorker` and `ChannelScanner`: "auto" with
@@ -331,16 +349,20 @@ class DeviceSettings:
         )
 
     def rspduo(self) -> RspDuoSettings | None:
-        """Tuner, gain and frequency correction of the RSPduo; None for the RTL-SDR."""
-        tuner = _RSPDUO_TUNERS.get(self.device)
-        if tuner is None:
+        """Tuner, gain and frequency correction of the RSPduo; None for another device."""
+        if self.device != DEVICE_RSPDUO:
             return None
         return RspDuoSettings(
-            tuner=tuner,
+            tuner=self.rspduo_tuner,
             lna_state=self.lna_state,
             if_gain_reduction_db=self.if_gain_reduction_db,
             freq_correction_ppm=self.rspduo_ppm,
         )
+
+
+def rspduo_tuner_name(tuner: int) -> str:
+    """A tuner of the RSPduo as labelled on it: "Tuner 2"."""
+    return f"Tuner {tuner}"
 
 
 def describe_stored(info: EnsembleInfo) -> str:
@@ -572,6 +594,8 @@ class ReceiverController(QObject):
     guide_stored = pyqtSignal(str, float, bool)
     guide_store_failed = pyqtSignal(str)  # the reason, from the OSError
     observer_changed = pyqtSignal(object)  # dab.gnss.Observer: the listener's position
+    # The device or one of its settings changed (`device_settings`).
+    device_settings_changed = pyqtSignal()
     favourites_changed = pyqtSignal()  # a station was marked as favourite or unmarked
     # The equalizer in effect changed: switched, set, per station or not, or (while per
     # station) another station selected.
@@ -1058,15 +1082,23 @@ class ReceiverController(QObject):
 
     @property
     def device_name(self) -> str:
-        """The name of the receiver chosen, as the surfaces show it (`DEVICES`)."""
-        device = self._device_settings.device
-        return DEVICES.get(device, device)
+        """The name of the receiver chosen (`DEVICES`), the RSPduo with its tuner in
+        brackets: "RSPduo(2)"."""
+        settings = self._device_settings
+        name = DEVICES.get(settings.device, settings.device)
+        rspduo = settings.rspduo()
+        return name if rspduo is None else f"{name}({rspduo.tuner})"
 
     def _device_text(self) -> str:
-        """The receiver for the status line: its name, rtl_tcp with the server."""
-        rtl_tcp = self._device_settings.rtl_tcp()
+        """The receiver for the status line: its name, the RSPduo with its tuner, rtl_tcp
+        with the server."""
+        settings = self._device_settings
+        rtl_tcp = settings.rtl_tcp()
         if rtl_tcp is not None and rtl_tcp.host:
             return f"{DEVICES[DEVICE_RTL_TCP]} {rtl_tcp.server}"
+        rspduo = settings.rspduo()
+        if rspduo is not None:
+            return f"{DEVICES[DEVICE_RSPDUO]} {rspduo_tuner_name(rspduo.tuner)}"
         return self.device_name
 
     @property
@@ -1260,8 +1292,12 @@ class ReceiverController(QObject):
         """The stored device settings, each clamped to what can be set: the stored gain
         may come from a stick with a different tuner, and the file may be edited by hand."""
         device = self._stored(_SETTINGS_DEVICE, DEVICE_RTLSDR)
+        tuner = self._stored(_SETTINGS_RSPDUO_TUNER, RSPDUO_TUNERS[0])
+        if device in _RSPDUO_TUNER_DEVICES:
+            device, tuner = DEVICE_RSPDUO, _RSPDUO_TUNER_DEVICES[device]
         return DeviceSettings(
             device=device if device in DEVICES else DEVICE_RTLSDR,
+            rspduo_tuner=tuner if tuner in RSPDUO_TUNERS else RSPDUO_TUNERS[0],
             gain_db=_clamp(self._stored(_SETTINGS_GAIN, DEFAULT_GAIN_DB), *self._gain_range_db),
             agc=self._stored(_SETTINGS_AGC, False),
             ppm=_clamp(self._stored(_SETTINGS_PPM, 0), *RTLSDR_PPM_RANGE),
@@ -1304,20 +1340,12 @@ class ReceiverController(QObject):
         """Stores the device settings; they take effect at the next start. After
         reception ended with an error of the device, another device starts it again
         right away (switching back from a tuner of an RSPduo not plugged in plays on);
-        the error shown belongs to the device left. Another rtl_tcp server counts as
-        another device."""
-        before = self._device_settings
+        the error shown belongs to the device left. Another tuner of the RSPduo or
+        another rtl_tcp server counts as another device (`DeviceSettings.receiver`)."""
         resume = (
             self._resume_on_device_change
             and self._state is ReceptionState.IDLE
-            and (
-                settings.device != before.device
-                or (
-                    settings.device == DEVICE_RTL_TCP
-                    and (settings.rtl_tcp_host, settings.rtl_tcp_port)
-                    != (before.rtl_tcp_host, before.rtl_tcp_port)
-                )
-            )
+            and settings.receiver != self._device_settings.receiver
         )
         self._device_settings = settings
         values = {
@@ -1325,6 +1353,7 @@ class ReceiverController(QObject):
             _SETTINGS_GAIN: settings.gain_db,
             _SETTINGS_AGC: settings.agc,
             _SETTINGS_PPM: settings.ppm,
+            _SETTINGS_RSPDUO_TUNER: settings.rspduo_tuner,
             _SETTINGS_RSPDUO_LNA: settings.lna_state,
             _SETTINGS_RSPDUO_IF_GAIN_REDUCTION: settings.if_gain_reduction_db,
             _SETTINGS_RSPDUO_PPM: settings.rspduo_ppm,
@@ -1333,6 +1362,7 @@ class ReceiverController(QObject):
         }
         for key, value in values.items():
             self._settings.setValue(key, value)
+        self.device_settings_changed.emit()
         if resume:
             self.start_reception()
 

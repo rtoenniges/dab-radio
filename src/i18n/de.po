@@ -2,7 +2,7 @@
 # Brought up to date by src/i18n/update_catalogs.py.
 msgid ""
 msgstr ""
-"Project-Id-Version: dab-radio 1.3.0\n"
+"Project-Id-Version: dab-radio 1.3.1\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
 "POT-Creation-Date: 2026-10-10 16:51+0000\n"
 "PO-Revision-Date: 2026-10-10 16:51+0000\n"
@@ -4815,20 +4815,25 @@ msgstr ""
 
 #: src/ui/main_window.py
 msgid ""
-"Receiver: an RTL-SDR stick, one of the two tuners of the SDRplay RSPduo, "
-"or an RTL-SDR stick elsewhere in the network, served by rtl_tcp. The "
-"RSPduo runs via the SDRplay API, whose service “SDRplay API Service” must"
-" be running. It receives in single tuner mode and so occupies the whole "
-"device: as long as the radio receives, no other program can use the "
-"second tuner. Can only be changed while no reception is running."
+"Receiver: an RTL-SDR stick, the SDRplay RSPduo, or an RTL-SDR stick "
+"elsewhere in the network, served by rtl_tcp. The RSPduo runs via the "
+"SDRplay API, whose service “SDRplay API Service” must be running. Can "
+"only be changed while no reception is running."
 msgstr ""
-"Empfänger: ein RTL-SDR-Stick, einer der beiden Tuner des SDRplay RSPduo "
-"oder ein RTL-SDR-Stick an einem anderen Rechner im Netzwerk, "
-"bereitgestellt von rtl_tcp. Das RSPduo läuft über die SDRplay API, deren "
-"Dienst „SDRplay API Service“ laufen muss. Es empfängt im "
+"Empfänger: ein RTL-SDR-Stick, das SDRplay RSPduo oder ein RTL-SDR-Stick "
+"an einem anderen Rechner im Netzwerk, bereitgestellt von rtl_tcp. Das "
+"RSPduo läuft über die SDRplay API, deren Dienst „SDRplay API Service“ "
+"laufen muss. Nur änderbar, solange kein Empfang läuft."
+
+#: src/ui/main_window.py
+msgid ""
+"The tuner of the RSPduo with the antenna. It receives in single tuner "
+"mode and so occupies the whole device: as long as the radio receives, no "
+"other program can use the other tuner."
+msgstr ""
+"Der Tuner des RSPduo, an dem die Antenne hängt. Er empfängt im "
 "Einzeltunerbetrieb und belegt damit das ganze Gerät: Solange das Radio "
-"empfängt, kann kein anderes Programm den zweiten Tuner nutzen. Nur "
-"änderbar, solange kein Empfang läuft."
+"empfängt, kann kein anderes Programm den anderen Tuner nutzen."
 
 #: src/ui/main_window.py
 msgid ""
@@ -4872,6 +4877,10 @@ msgstr "Gain:"
 #: src/ui/main_window.py
 msgid "PPM correction:"
 msgstr "PPM-Korrektur:"
+
+#: src/ui/main_window.py
+msgid "Tuner:"
+msgstr "Tuner:"
 
 #: src/ui/main_window.py
 msgid "LNA state:"
@@ -8947,6 +8956,10 @@ msgid "Device"
 msgstr "Gerät"
 
 #: src/ui/touch/settings_page.py
+msgid "Tuner"
+msgstr "Tuner"
+
+#: src/ui/touch/settings_page.py
 msgid "Server"
 msgstr "Server"
 
@@ -8965,10 +8978,6 @@ msgstr "LNA-Stufe"
 #: src/ui/touch/settings_page.py
 msgid "IF gain reduction"
 msgstr "ZF-Absenkung"
-
-#: src/ui/touch/settings_page.py
-msgid "Tuner"
-msgstr "Tuner"
 
 #: src/ui/touch/settings_page.py
 msgid "Correction"

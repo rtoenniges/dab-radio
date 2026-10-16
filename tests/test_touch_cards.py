@@ -189,16 +189,15 @@ def test_a_card_without_a_heading_hides_the_label(window):
 def test_a_choice_row_shows_the_choice_and_opens_the_sheet(window):
     row = ChoiceRow(
         "Device",
-        [("rtlsdr", "RTL-SDR"), ("rspduo1", "RSPduo Tuner 1"), ("rtltcp", "RTL_TCP")],
+        [("rtlsdr", "RTL-SDR"), ("rspduo", "RSPduo"), ("rtltcp", "RTL_TCP")],
         subtitle="A change restarts the reception.",
         hint="The stick, or a stick elsewhere.",
-        gaps=("rspduo1", "rtltcp"),
     )
     _shown(window, row)
     chosen: list[object] = []
     row.chosen.connect(chosen.append)
-    row.set_current("rspduo1")
-    assert row.text() == "RSPduo Tuner 1" and row.current() == "rspduo1"
+    row.set_current("rspduo")
+    assert row.text() == "RSPduo" and row.current() == "rspduo"
     assert chosen == []
 
     row.click()
@@ -206,13 +205,8 @@ def test_a_choice_row_shows_the_choice_and_opens_the_sheet(window):
     assert sheet.isVisible()
     assert sheet.title.text() == "Device"
     assert sheet.hint.text() == "The stick, or a stick elsewhere."
-    assert [r.name.text() for r in sheet.rows] == ["RTL-SDR", "RSPduo Tuner 1", "RTL_TCP"]
+    assert [r.name.text() for r in sheet.rows] == ["RTL-SDR", "RSPduo", "RTL_TCP"]
     assert [bool(r.property("selected")) for r in sheet.rows] == [False, True, False]
-    # The groups stand apart.
-    first, second, third = (r.geometry() for r in sheet.rows)
-    assert second.top() - first.bottom() > 2 * (third.top() - second.bottom()) or (
-        second.top() - first.bottom() == third.top() - second.bottom()
-    )
 
     sheet.rows[2].click()
     assert not sheet.isVisible()
@@ -275,6 +269,7 @@ def test_the_list_marks_the_category_chosen_and_shows_its_state(window):
 
 def test_the_states_name_what_each_category_stands_at(make_controller, data_directory):
     assert sdr_state(DeviceSettings(device="rtlsdr")) == "RTL-SDR"
+    assert sdr_state(DeviceSettings(device="rspduo", rspduo_tuner=2)) == "RSPduo · Tuner 2"
     assert sdr_state(DeviceSettings(device="rtltcp", rtl_tcp_host="pi")) == "RTL_TCP · pi"
     assert sdr_state(DeviceSettings(device="rtltcp", rtl_tcp_host="")) == "RTL_TCP · Not set"
 

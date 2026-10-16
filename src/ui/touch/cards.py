@@ -311,7 +311,6 @@ class ChoiceRow(Row):
         choices: Sequence[tuple[object, str]],
         subtitle: str = "",
         hint: str = "",
-        gaps: Sequence[object] = (),
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(title, subtitle, value="", chevron=True, parent=parent)
@@ -320,7 +319,6 @@ class ChoiceRow(Row):
         self._details: dict[object, str] = {}
         self._current: object = None
         self._hint = hint
-        self._gaps = list(gaps)
         self._sheet: ChoiceSheet | None = None
         self.set_choices(choices)
         self.tapped.connect(self.open)
@@ -365,7 +363,6 @@ class ChoiceRow(Row):
             self.choose,
             self._hint,
             self._details,
-            self._gaps,
         )
 
     def _show(self) -> None:

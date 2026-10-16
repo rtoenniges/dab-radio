@@ -67,6 +67,7 @@ def test_stored_settings_are_clamped_to_what_can_be_set(data_directory, make_con
     settings = _settings(data_directory)
     settings.setValue("controls/gain_db", 80.0)  # from a stick with another tuner
     settings.setValue("controls/rspduo_lna_state", 42)
+    settings.setValue("controls/rspduo_tuner", 3)
     settings.setValue("controls/device", "hackrf")
     settings.setValue("controls/channel", "99Z")
     settings.sync()
@@ -563,7 +564,9 @@ def test_the_rspduo_reporting_overload_overloads_the_receiver(
     data_directory, make_controller, fake_workers
 ):
     controller = make_controller(data_directory)
-    controller.set_device_settings(replace(controller.device_settings, device="rspduo2"))
+    controller.set_device_settings(
+        replace(controller.device_settings, device="rspduo", rspduo_tuner=2)
+    )
     controller.start_reception()
     worker = fake_workers[-1]
     controller.dsp_worker.stream_restarted.emit(worker.tuning)
@@ -681,7 +684,7 @@ def test_another_device_after_an_error_starts_reception_again(
     on the play button; the gain alone does not start it, nor a second change."""
     controller = make_controller(data_directory)
     stick = controller.device_settings
-    controller.set_device_settings(replace(stick, device="rspduo1"))
+    controller.set_device_settings(replace(stick, device="rspduo"))
     controller.start_reception()
     assert fake_workers[-1].rspduo.tuner == 1
     fake_workers[-1].error.emit("No RSPduo found.")
@@ -696,7 +699,7 @@ def test_another_device_after_an_error_starts_reception_again(
     fake_workers[-1].connected.emit("Connected.")
     controller.stop_reception()  # by hand: no error to recover from
     fake_workers[-1].stopped.emit()
-    controller.set_device_settings(replace(stick, device="rspduo2"))
+    controller.set_device_settings(replace(stick, device="rspduo", rspduo_tuner=2))
     assert len(fake_workers) == 2
 
 
@@ -710,7 +713,7 @@ def test_another_device_after_a_failed_scan_starts_nothing(
     fake_scanners[-1].error.emit("No RTL-SDR found.")
     fake_scanners[-1].scan_finished.emit(False)
 
-    controller.set_device_settings(replace(controller.device_settings, device="rspduo1"))
+    controller.set_device_settings(replace(controller.device_settings, device="rspduo"))
 
     assert len(fake_workers) == 1
     assert controller.state is ReceptionState.IDLE
@@ -775,6 +778,52 @@ def test_another_rtl_tcp_server_after_an_error_starts_reception_again(
     assert len(fake_workers) == 2
     assert fake_workers[-1].rtl_tcp.port == 1235
     assert controller.state is ReceptionState.CONNECTING
+
+
+def test_the_tuner_of_the_rspduo_is_stored(data_directory, make_controller):
+    controller = make_controller(data_directory, start=False)
+    controller.set_device_settings(
+        replace(controller.device_settings, device="rspduo", rspduo_tuner=2)
+    )
+
+    stored = make_controller(data_directory, start=False).device_settings
+
+    assert (stored.device, stored.rspduo_tuner) == ("rspduo", 2)
+    assert stored.rspduo().tuner == 2
+
+
+@pytest.mark.parametrize(("device", "tuner"), [("rspduo1", 1), ("rspduo2", 2)])
+def test_a_tuner_stored_as_a_device_is_the_rspduo_with_that_tuner(
+    data_directory, make_controller, device, tuner
+):
+    """Up to 1.3.1 each tuner of the RSPduo was a device of its own."""
+    settings = _settings(data_directory)
+    settings.setValue("controls/device", device)
+    settings.sync()
+
+    stored = make_controller(data_directory, start=False).device_settings
+
+    assert (stored.device, stored.rspduo_tuner) == ("rspduo", tuner)
+
+
+def test_another_tuner_after_an_error_starts_reception_again(
+    data_directory, make_controller, fake_workers
+):
+    controller = make_controller(data_directory)
+    statuses = _Recorder(controller.status_changed)
+    first = replace(controller.device_settings, device="rspduo")
+    controller.set_device_settings(first)
+    controller.start_reception()
+    assert statuses.last == ("Connecting to RSPduo Tuner 1...",)
+    fake_workers[-1].error.emit("RSPduo: tuner 1 is not available.")
+
+    controller.set_device_settings(replace(first, lna_state=3))
+    assert len(fake_workers) == 1
+    controller.set_device_settings(replace(first, rspduo_tuner=2))
+
+    assert len(fake_workers) == 2
+    assert fake_workers[-1].rspduo.tuner == 2
+    assert statuses.last == ("Connecting to RSPduo Tuner 2...",)
 
 
 def _receive_5c_data(controller, worker, figs=FIGS_5C) -> list:

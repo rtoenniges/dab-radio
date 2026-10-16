@@ -19,8 +19,6 @@ SHEET_WIDTH = 640
 SHEET_MAX_WIDTH = 1200
 # The sheet with the choices of a setting: wide enough for the names of the outputs.
 CHOICE_SHEET_WIDTH = 760
-# Added before a choice that begins a group (the stick, the tuners of the RSPduo).
-CHOICE_GROUP_GAP = 16
 CHECK_MARK = "✓"
 
 
@@ -207,11 +205,9 @@ class ChoiceSheet(Overlay):
         choose: Callable[[object], None],
         hint: str = "",
         details: Mapping[object, str] | None = None,
-        gaps: Sequence[object] = (),
     ) -> None:
         """`choices`: key and name of each; `current`: the key in effect; `choose`: what
-        a tap on a choice does, with its key; `details`: a line beneath a name; `gaps`:
-        the keys that begin a group, set apart by a wider gap."""
+        a tap on a choice does, with its key; `details`: a line beneath a name."""
         self.title.setText(title)
         self._cancel.setText(tr("Cancel"))
         self.hint.setText(hint)
@@ -225,8 +221,6 @@ class ChoiceSheet(Overlay):
         self.rows = []
         details = details or {}
         for key, text in choices:
-            if key in gaps:
-                self._rows_layout.addSpacing(CHOICE_GROUP_GAP)
             row = _ChoiceRow(key, text, details.get(key, ""), key == current)
             row.tapped.connect(lambda k=key: self._pick(k))
             self._rows_layout.addWidget(row)

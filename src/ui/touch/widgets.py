@@ -54,10 +54,6 @@ LONG_PRESS_MS = 500
 REPEAT_DELAY_MS = 400
 REPEAT_INTERVAL_MS = 120
 
-# Added where a group of choices begins in a row of them: 40 px between the buttons in
-# all, five times the gap within a group.
-CHOICE_GROUP_GAP = 32
-
 # The spinner turns its arc by this angle at this interval: a turn in 1.2 s at 25
 # frames per second, smooth enough without costing the Raspberry Pi much.
 SPINNER_STEP_DEGREES = 12
@@ -333,9 +329,7 @@ class Stepper(QWidget):
 
 
 class ChoiceButtons(QWidget):
-    """A row of buttons of which exactly one is chosen, in place of a drop-down list;
-    a wider gap before each key in `gaps` sets groups apart (the stick and the two
-    tuners of the RSPduo)."""
+    """A row of buttons of which exactly one is chosen, in place of a drop-down list."""
 
     chosen = pyqtSignal(object)
 
@@ -344,7 +338,6 @@ class ChoiceButtons(QWidget):
         choices: Sequence[tuple[object, str]],
         parent: QWidget | None = None,
         role: str | None = None,
-        gaps: Sequence[object] = (),
     ) -> None:
         super().__init__(parent)
         self._group = QButtonGroup(self)
@@ -354,8 +347,6 @@ class ChoiceButtons(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
         for key, text in choices:
-            if key in gaps:
-                layout.addSpacing(CHOICE_GROUP_GAP)
             button = QPushButton(text)
             if role is not None:
                 set_role(button, role)  # e.g. "chip"

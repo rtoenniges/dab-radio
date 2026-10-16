@@ -7,6 +7,15 @@ All notable changes to the radio. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Devices: The RSPduo is one device; its tuner is a setting of its own
+- MQTT: The device names the tuner of the RSPduo, e.g. "RSPduo(2)"
+
+### Fixed
+
+- MQTT: The device changed only with the next start of reception
+
 ## [1.3.1] - 2026-10-16
 
 ### Fixed

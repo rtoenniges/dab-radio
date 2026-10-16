@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import os
 import threading
+from dataclasses import replace
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -116,6 +117,22 @@ def radio(data_directory, make_controller):
     model = RadioStateModel(controller, throttle_ms=50)
     controller.start()
     return model, controller
+
+
+def test_the_device_names_the_tuner_of_the_rspduo_and_follows_a_change(radio):
+    """Also without reception, which a change of the device does not start."""
+    model, controller = radio
+    changes: list[str] = []
+    model.changed.connect(changes.append)
+
+    controller.set_device_settings(replace(controller.device_settings, device="rspduo"))
+    assert model.section("receiver")["device"] == "RSPduo(1)"
+    controller.set_device_settings(replace(controller.device_settings, rspduo_tuner=2))
+    assert model.section("receiver")["device"] == "RSPduo(2)"
+    controller.set_device_settings(replace(controller.device_settings, lna_state=3))
+
+    assert changes == ["receiver", "receiver"]
+    assert controller.state is ReceptionState.IDLE
 
 
 def test_sections_after_start_show_the_stored_list(radio):
