@@ -1,0 +1,51 @@
+# Publishes a release on GitHub for each version tag, with the notes of its section in
+# CHANGELOG.md (tools/release_notes.py). A tag pushed without its section fails here.
+#
+# Run by hand (Actions > Release > Run workflow) to publish or update the releases of
+# tags pushed before, for example after correcting the changelog: the notes then come
+# from the changelog of the branch chosen there. Without tags it goes through all.
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: "Tags, separated by spaces (empty: all version tags)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency: release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # All tags, to tell the newest, which GitHub shows as the latest release.
+          fetch-depth: 0
+
+      - name: Publish the releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAGS: ${{ github.event_name == 'push' && github.ref_name || inputs.tags }}
+        run: |
+          newest=$(git tag --list 'v*.*.*' --sort=version:refname | tail -n 1)
+          tags=${TAGS:-$(git tag --list 'v*.*.*' --sort=version:refname)}
+          for tag in $tags; do
+            python3 tools/release_notes.py "$tag" > notes.md
+            latest=false
+            if [ "$tag" = "$newest" ]; then latest=true; fi
+            if gh release view "$tag" > /dev/null 2>&1; then
+              gh release edit "$tag" --title "Version ${tag#v}" --notes-file notes.md --latest="$latest"
+            else
+              gh release create "$tag" --verify-tag --title "Version ${tag#v}" --notes-file notes.md --latest="$latest"
+            fi
+            echo "$tag: published (latest: $latest)"
+          done
