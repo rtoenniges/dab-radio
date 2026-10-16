@@ -34,7 +34,8 @@
 #      which the radio sets the volume of the sink), BlueZ, NetworkManager, UDisks2
 #      with ntfs-3g, the audio decoders libfaad2 and libmpg123, the libraries the Qt
 #      of the PyQt6 wheel loads from the system (EGL, GL, xkbcommon, fontconfig, D-Bus,
-#      Wayland, libpulse), and the udev rule of the rtl-sdr package for the stick.
+#      Wayland, libpulse, XRandR), and the udev rule of the rtl-sdr package for the
+#      stick; with the boot splash Plymouth and fontconfig.
 #   2. the account: dabradio where it is missing, in the groups video (backlight),
 #      render (GPU), plugdev (USB stick and RTL-SDR), netdev (WLAN), bluetooth and
 #      audio. The data of the account the radio ran as before (the user of the unit in
@@ -778,7 +779,9 @@ resolve_account() {
 
 # --- 1. packages ---------------------------------------------------------------------
 # Checked against a set-up Pi on 09.10.2026 (dry run): apt wanted only rtl-sdr; Qt
-# loaded without libopengl0, so it is not listed.
+# loaded without libopengl0, so it is not listed. A fresh Raspberry Pi OS Lite lacked
+# libxrandr2 (16.10.2026): Qt's media backend, the ffmpeg plugin, links it, and
+# QMediaDevices loads that backend.
 dpkg_state() { dpkg-query -W -f '${binary:Package} ${Version} ${db:Status-Abbrev}\n'; }
 
 step_packages() {
@@ -790,12 +793,16 @@ step_packages() {
         libfaad2 libmpg123-0
         libpulse0 libegl1 libgl1 libgles2 libxkbcommon0 libfontconfig1 libfreetype6
         libdbus-1-3 libwayland-client0 libwayland-cursor0 libwayland-egl1 fonts-dejavu-core
+        libxrandr2
         rtl-sdr
         git curl ca-certificates
     "
-    if [ "$SPLASH" = on ]; then
-        PACKAGES="$PACKAGES plymouth"
-    fi
+    # Debian's initramfs hook of Plymouth calls fc-match and fc-cache for any theme
+    # with pictures, but plymouth does not depend on fontconfig: on a fresh Raspberry
+    # Pi OS Lite the hook stopped with status 127 (16.10.2026).
+    case $SPLASH in
+        on|theme) PACKAGES="$PACKAGES plymouth fontconfig" ;;
+    esac
     if [ "$DRY_RUN" -eq 1 ]; then
         say "asking apt what it would install (package lists as they are; a run updates them first)"
         out=$(mktemp)
@@ -1152,7 +1159,9 @@ step_python() {
 # libpulse from the system; a missing one shows up here, not at the first start. Only
 # what the radio loads is checked: the modules it imports and the plugins cage makes it
 # use. The wheel also carries plugins of modules it does not ship (QML, WebEngine, SQL
-# drivers) and the X11 platform, whose libraries are missing without harm.
+# drivers), the X11 platform and the GStreamer media backend, whose libraries are
+# missing without harm: of the media backends Qt loads its default, ffmpeg (the
+# GStreamer one only with QT_MEDIA_BACKEND=gstreamer).
 step_qt() {
     step_begin Qt
     qt=$(find "$INSTALL_DIR/.venv" -type d -path '*/PyQt6/Qt6' -print -quit 2>/dev/null || true)
@@ -1166,7 +1175,7 @@ step_qt() {
             "$qt"/lib/libQt6Widgets.so.6 "$qt"/lib/libQt6DBus.so.6 \
             "$qt"/lib/libQt6Multimedia.so.6 "$qt"/lib/libQt6OpenGL.so.6 \
             "$qt"/plugins/platforms/libqwayland*.so "$qt"/plugins/wayland-*/*.so \
-            "$qt"/plugins/multimedia/*.so "$qt"/plugins/imageformats/*.so; do
+            "$qt"/plugins/multimedia/libffmpegmediaplugin.so "$qt"/plugins/imageformats/*.so; do
             [ -e "$lib" ] || continue
             ldd "$lib" 2>/dev/null | grep 'not found' || true
         done | sort -u
@@ -1246,22 +1255,30 @@ step_unit() {
 # on the DSI connector the display is on. The video= words of the DSI connectors are the
 # script's: the first becomes the one of the display, any further one goes (left from
 # the other socket, before the cable moved); those of other connectors stay.
-step_splash() {
-    step_begin "Boot splash"
-    cmdline=
+#
+# Where cmdline.txt is, and with neither --splash nor --no-splash, whether a splash is
+# on: then it stays on and gets the theme of this checkout, cmdline.txt stays as it is
+# (SPLASH=theme). Found before the packages, which bring what its initramfs needs.
+find_splash() {
+    CMDLINE=
     for dir in "$(/usr/lib/raspberrypi-sys-mods/get_fw_loc 2>/dev/null || true)" \
         /boot/firmware /boot; do
         if [ -n "$dir" ] && [ -f "$dir/cmdline.txt" ]; then
-            cmdline=$dir/cmdline.txt
+            CMDLINE=$dir/cmdline.txt
             break
         fi
     done
-    # With neither --splash nor --no-splash, a splash that is on stays on and gets the
-    # theme of this checkout; cmdline.txt stays as it is (SPLASH=theme).
-    if [ -z "$SPLASH" ] && [ -n "$cmdline" ] \
+    if [ -z "$SPLASH" ] && [ -n "$CMDLINE" ] \
         && [ "$(plymouth-set-default-theme 2>/dev/null || true)" = dab-radio ] \
-        && tr ' ' '\n' < "$cmdline" | grep -qx splash; then
+        && tr ' ' '\n' < "$CMDLINE" | grep -qx splash; then
         SPLASH=theme
+    fi
+}
+
+step_splash() {
+    step_begin "Boot splash"
+    cmdline=$CMDLINE
+    if [ "$SPLASH" = theme ]; then
         say "the boot splash is on; its theme is brought up to date (--no-splash turns it off)"
     fi
     if [ -z "$SPLASH" ]; then
@@ -1375,6 +1392,8 @@ step_splash() {
         | grep -q 'plymouth/themes/dab-radio/dab-radio\.script$'; then
         rebuild=1
     fi
+    # Plymouth's hook warns there that label-pango.so is missing (plymouth-label); the
+    # theme draws pictures only, no text.
     if [ "$rebuild" -eq 1 ]; then
         needs_reboot "boot splash"
         if [ "$DRY_RUN" -eq 1 ]; then
@@ -1452,6 +1471,7 @@ install_radio() {
     fi
     step_checkout "$@"
     resolve_account
+    find_splash
     step_packages
     step_account
     step_data
