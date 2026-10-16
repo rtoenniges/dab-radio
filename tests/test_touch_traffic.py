@@ -36,9 +36,11 @@ from tests.tpeg_vectors import (
     TFP_FREE,
 )
 from ui.receiver_controller import ReceiverController
+from ui.touch import traffic_view
 from ui.touch.services_page import TRAFFIC
 from ui.touch.theme import DARK, LIGHT, THEMES
 from ui.touch.traffic_view import (
+    BUILD_PAUSE_MS,
     FLOW,
     MAP,
     MESSAGES,
@@ -46,6 +48,8 @@ from ui.touch.traffic_view import (
     SHOW_WIDTH,
     STREAM,
     _MapPage,
+    _MessageRow,
+    _RowList,
 )
 from ui.touch.window import SERVICES, TouchWindow
 
@@ -140,6 +144,13 @@ def _mouse(widget, start: QPointF, end: QPointF, steps: int = 8) -> None:
             point = start + (end - start) * (step / steps)
             send(QEvent.Type.MouseMove, point, Qt.MouseButton.NoButton, left)
     send(QEvent.Type.MouseButtonRelease, end, left, Qt.MouseButton.NoButton)
+
+
+@pytest.fixture(autouse=True)
+def whole_lists(monkeypatch):
+    """The lists filled in one slice, however slow the machine; the tests of the
+    slices set their own."""
+    monkeypatch.setattr(traffic_view, "BUILD_SLICE_SECONDS", 60.0)
 
 
 @pytest.fixture(scope="module")
@@ -557,3 +568,113 @@ def test_without_the_location_table_the_flow_page_says_how_to_import_it() -> Non
     assert "import_tmc_locations" in page.note.text()
     assert not page.list.isVisible()
     assert page.status.text() == "TMC location table missing"
+
+
+def _wait_until(condition, seconds: float = 2.0) -> bool:
+    for _ in range(round(seconds * 200)):
+        if condition():
+            return True
+        QTest.qWait(5)
+    return condition()
+
+
+def _row_list() -> _RowList:
+    rows = _RowList(_MessageRow)
+    rows.resize(600, 400)
+    rows.show()
+    return rows
+
+
+def _show_index(row, index: int) -> None:
+    row.title.setText(f"Message {index}")
+
+
+def _laid_out(rows: _RowList) -> list:
+    """The keys of the rows in the layout, top to bottom."""
+    layout = rows._layout
+    widgets = [layout.itemAt(i).widget() for i in range(layout.count())]
+    return [w.key for w in widgets if isinstance(w, _MessageRow)]
+
+
+def test_a_long_list_fills_in_slices_the_first_rows_first(monkeypatch) -> None:
+    monkeypatch.setattr(traffic_view, "BUILD_SLICE_SECONDS", 0.0)  # a row a slice
+    rows = _row_list()
+    keys = [("m", i) for i in range(5)]
+    rows.fill(keys, _show_index, "… and 3 more")
+    assert rows.order == keys[:1] and not rows.complete
+    assert not rows.rest.isVisibleTo(rows)
+    assert _wait_until(lambda: rows.complete)
+    assert rows.order == keys == _laid_out(rows)
+    assert rows.rest.isVisibleTo(rows) and rows.rest.text() == "… and 3 more"
+    APP.processEvents()
+    tops = [rows.rows[key].y() for key in keys]
+    assert tops == sorted(set(tops))
+
+    # A new order with a new row first: the rows there move at once, and the slices
+    # show them anew.
+    again = [("m", 9), *reversed(keys)]
+    rows.fill(again, _show_index, "")
+    assert rows.order == again == _laid_out(rows)
+    assert not rows.complete
+    assert _wait_until(lambda: rows.complete)
+    assert rows.rows[keys[0]].title.text() == "Message 5"
+    assert not rows.rest.isVisibleTo(rows)
+
+
+def test_a_row_not_made_yet_opens_and_the_rest_waits_for_it(monkeypatch) -> None:
+    monkeypatch.setattr(traffic_view, "BUILD_SLICE_SECONDS", 0.0)
+    rows = _row_list()
+    keys = [("m", i) for i in range(6)]
+    rows.fill(keys, _show_index, "")
+    # Made with those before it.
+    rows.open(keys[3])
+    assert rows.order == keys[:4] == _laid_out(rows)
+    assert rows.rows[keys[3]].is_open
+    QTest.qWait(3 * BUILD_PAUSE_MS)
+    assert rows.order == keys[:4] and rows.paused
+    # Closed, the next filling makes the rest.
+    rows.rows[keys[3]].set_open(False)
+    rows.fill(keys, _show_index, "")
+    assert _wait_until(lambda: rows.complete)
+    assert rows.order == keys
+
+
+def test_the_lists_fill_while_the_map_is_shown(window) -> None:
+    window, view, _tpeg = window
+    assert view.current_page() == MAP
+    _draw(window)
+    assert [key[1] for key in view.page(MESSAGES).order] == [1745, 2554, 1371]
+    assert len(view.page(FLOW).rows) == 1
+
+
+def test_an_open_message_holds_the_rows_still_to_come(window, monkeypatch) -> None:
+    window, view, _tpeg = window
+    view.show_page(MESSAGES)
+    _draw(window)
+    messages = view.page(MESSAGES)
+    model = window._traffic_model
+    stored = model.get(messages.order[0])
+    for message_id in range(9000, 9010):
+        management = dataclasses.replace(stored.message.management, message_id=message_id)
+        model._store.add(
+            dataclasses.replace(stored.message, management=management), stored.frame, NOW
+        )
+    model._changed()
+    monkeypatch.setattr(traffic_view, "BUILD_SLICE_SECONDS", 0.0)
+    _draw(window)
+    assert not messages.list.complete
+    row = messages.rows[messages.order[0]]
+    QTest.mouseClick(row, Qt.MouseButton.LeftButton)
+    assert row.is_open
+    QTest.qWait(3 * BUILD_PAUSE_MS)
+    assert messages.list.paused
+    made = len(messages.rows)
+    _draw(window)
+    assert len(messages.rows) == made
+    assert messages.status.text() == "List paused while a message is open"
+
+    QTest.mouseClick(row, Qt.MouseButton.LeftButton)
+    _draw(window)
+    assert _wait_until(lambda: messages.list.complete)
+    assert len(messages.order) == 13
+    assert messages.status.text() == "by distance from the location"

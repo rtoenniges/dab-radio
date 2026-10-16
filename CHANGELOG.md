@@ -11,6 +11,10 @@ All notable changes to the radio. The format follows
 
 - Touch UI: The card "Radio page" in the display settings is now called "Details"
 
+### Fixed
+
+- Touch UI: The first swipe from the traffic map to the messages or the flow stalled
+
 ## [1.4.0] - 2026-10-16
 
 ### Changed

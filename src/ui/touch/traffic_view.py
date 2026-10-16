@@ -76,6 +76,13 @@ REDRAW_SECONDS = 2.0
 # messages are rarely of interest at a radio.
 MAX_ROWS = 200
 MAX_FLOW_ROWS = 100
+# New rows of a list are made for this long at a time (seconds), at least one, then the
+# GUI goes on for `BUILD_PAUSE_MS`. Qt polishes the widgets of a row with the style sheet
+# as it shows them, 2.5 ms a row at the PC (2026-10-16): the 200 messages made at once
+# stopped the swipe that had just turned to their list for half a second, on the Pi for
+# longer.
+BUILD_SLICE_SECONDS = 0.008
+BUILD_PAUSE_MS = 16
 MARKER_SIZE = 14
 # A tap selects the nearest symbol within this distance (pixels).
 TAP_REACH = 32
@@ -728,52 +735,127 @@ class _RowList(QScrollArea):
     """Rows by key in a given order, reused from one filling to the next; one open at a
     time. The pager scrolls it.
 
-    While a row is open the pages leave the list alone (`holding`): rows coming in above
-    it, or moving with a new order, would push it away while it is read."""
+    A filling takes slices of `BUILD_SLICE_SECONDS`, the first rows first, so that new
+    rows come in a few at a time while the GUI goes on (a swipe, the map); `complete`
+    tells when they are all there.
+
+    While a row is open the pages leave the list alone (`holding`), and the filling
+    waits (`paused`): rows coming in above it, or moving with a new order, would push it
+    away while it is read."""
 
     def __init__(self, make_row: Callable[[Key], _Row]) -> None:
         super().__init__()
         self._make_row = make_row
         self.rows: dict[Key, _Row] = {}
-        self.order: list[Key] = []
+        self.order: list[Key] = []  # the rows in the layout, in their order
+        self._opened: Key | None = None  # the row `open` scrolls to
+        # The filling: the keys, how to show a row, the text beneath, the next index.
+        self._keys: list[Key] = []
+        self._show: Callable[[_Row, int], None] = lambda row, index: None
+        self._rest_text = ""
+        self._next = 0
+        self._building = QTimer(self)
+        self._building.setSingleShot(True)
+        self._building.setInterval(BUILD_PAUSE_MS)
+        self._building.timeout.connect(self._go_on)
         self._list = set_role(QWidget(), "transparent")
         self._layout = QVBoxLayout(self._list)
         self._layout.setContentsMargins(0, 0, 0, 0)
         self._layout.setSpacing(4)
-        self._layout.addStretch()
         self.rest = set_role(QLabel(), "muted")
         self.rest.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.rest.hide()
+        # The rows go before these two.
+        self._layout.addWidget(self.rest)
+        self._layout.addStretch()
         self.setWidgetResizable(True)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setWidget(self._list)
 
-    def fill(self, keys: list[Key], show: Callable[[_Row, int], None], rest: str) -> list[_Row]:
-        """Rows for `keys` in their order; `show(row, index)` fills each; `rest` beneath."""
+    def fill(self, keys: list[Key], show: Callable[[_Row, int], None], rest: str) -> None:
+        """Rows for `keys` in their order; `show(row, index)` fills each; `rest` beneath
+        once all are there. The rows of other keys go at once, the first slice of the
+        filling is done on return."""
         for key in set(self.rows) - set(keys):
             row = self.rows.pop(key)
             self._layout.removeWidget(row)
             row.deleteLater()
-        for index, key in enumerate(keys):
-            row = self.rows.get(key)
-            if row is None:
-                row = self._make_row(key)
-                row.opened.connect(self.close_others)
-                self.rows[key] = row
-            show(row, index)
-        if keys != self.order:
-            # In the new order, before the stretch at the end.
-            for key in keys:
-                self._layout.removeWidget(self.rows[key])
-            self._layout.removeWidget(self.rest)
-            for index, key in enumerate(keys):
-                self._layout.insertWidget(index, self.rows[key])
-                self.rows[key].show()
-            self._layout.insertWidget(len(keys), self.rest)
-            self.order = list(keys)
-        self.rest.setText(rest)
-        self.rest.setVisible(bool(rest))
-        return [self.rows[key] for key in keys]
+        self._keys = list(keys)
+        self._show = show
+        self._rest_text = rest
+        self._next = 0
+        self._arrange()
+        self._build()
+
+    @property
+    def complete(self) -> bool:
+        """The last filling is done."""
+        return self._next >= len(self._keys)
+
+    @property
+    def paused(self) -> bool:
+        """The last filling waits for the open row to close; filling anew goes on."""
+        return not self.complete and not self._building.isActive()
+
+    def _arrange(self) -> None:
+        """The rows there in the order of the keys, moving only those out of place."""
+        order = [key for key in self._keys if key in self.rows]
+        placed = [key for key in self.order if key in self.rows]
+        for index, key in enumerate(order):
+            if placed[index] == key:
+                continue
+            placed.remove(key)
+            placed.insert(index, key)
+            row = self.rows[key]
+            self._layout.removeWidget(row)
+            self._layout.insertWidget(index, row)
+        self.order = order
+
+    def _go_on(self) -> None:
+        if not self.holding:
+            self._build()
+
+    def _build(self, through: int = -1) -> None:
+        """Shows rows from `_next` on, making those missing, for a slice of time and at
+        least through index `through`; goes on after a pause while some are left. Qt
+        polishes a row as it is shown, which is most of its cost, so that is done in
+        the slice too.
+
+        Showing a widget lays out its visible parents at once, here the whole list for
+        each row (1.4 ms a row at the start, 4.3 ms at 200 rows, PC): while the slice
+        runs the layout of the list is off, and it is laid out once at its end, so that
+        the scroll area knows its height as it did before."""
+        deadline = time.perf_counter() + BUILD_SLICE_SECONDS
+        self._layout.setEnabled(False)
+        try:
+            while self._next < len(self._keys):
+                index = self._next
+                key = self._keys[index]
+                row = self.rows.get(key)
+                new = row is None
+                if new:
+                    row = self._make_row(key)
+                    row.opened.connect(self.close_others)
+                    self.rows[key] = row
+                self._show(row, index)
+                if new:
+                    # The keys before it all have their rows: it goes at its index.
+                    self.order.insert(index, key)
+                    self._layout.insertWidget(index, row)
+                    row.show()
+                self._next += 1
+                if index >= through and time.perf_counter() >= deadline:
+                    break
+        finally:
+            self._layout.setEnabled(True)
+        self._layout.activate()
+        complete = self.complete
+        self.rest.setText(self._rest_text if complete else "")
+        self.rest.setVisible(complete and bool(self._rest_text))
+        if complete:
+            self._building.stop()
+        else:
+            self._building.start()
 
     @property
     def holding(self) -> bool:
@@ -786,13 +868,23 @@ class _RowList(QScrollArea):
                 row.set_open(False)
 
     def open(self, key: Key) -> None:
-        """Opens a row (closing the others) and scrolls it into view."""
+        """Opens a row (closing the others) and scrolls it into view; one the filling
+        has not reached yet is made first, with those before it."""
+        if key not in self.rows and key in self._keys:
+            self._build(through=self._keys.index(key))
         row = self.rows.get(key)
         if row is None:
             return
         row.set_open(True)
         self.close_others(key)
-        QTimer.singleShot(0, lambda: self.ensureWidgetVisible(row, 0, 40))
+        self._opened = key
+        # A bound method: PyQt drops it if the list is gone by then.
+        QTimer.singleShot(0, self._scroll_to_opened)
+
+    def _scroll_to_opened(self) -> None:
+        row = self.rows.get(self._opened)
+        if row is not None:
+            self.ensureWidgetVisible(row, 0, 40)
 
 
 class _MessagesPage(Page):
@@ -830,15 +922,16 @@ class _MessagesPage(Page):
         model = self._model
         entries = model.entries()
         holding = self.list.holding
+        news = self._dirty or self.list.paused
         if not entries:
             self.status.setText(_status(model))
-        elif holding and self._dirty:
+        elif holding and news:
             # Translators: the list of messages waits with news while one is read.
             self.status.setText(tr("List paused while a message is open"))
         else:
             self.status.setText(tr("by distance from the location") + _held_since(model))
         now = time.monotonic()
-        due = self._dirty and (self._drawn_at is None or now - self._drawn_at >= REDRAW_SECONDS)
+        due = news and (self._drawn_at is None or now - self._drawn_at >= REDRAW_SECONDS)
         if not due or holding:
             return
         self._drawn_at = now
@@ -911,9 +1004,10 @@ class _FlowPage(Page):
         flows = model.flows()
         disturbed = [f for f in flows if f.worst >= DISTURBED]
         holding = self.list.holding
+        news = self._dirty or self.list.paused
         if not located:
             self.status.setText(tr("TMC location table missing"))
-        elif holding and self._dirty:
+        elif holding and news:
             self.status.setText(tr("List paused while a stretch is open"))
         elif flows:
             free = len(flows) - len(disturbed)
@@ -926,7 +1020,7 @@ class _FlowPage(Page):
         else:
             self.status.setText(_status(model))
         now = time.monotonic()
-        due = self._dirty and (self._drawn_at is None or now - self._drawn_at >= REDRAW_SECONDS)
+        due = news and (self._drawn_at is None or now - self._drawn_at >= REDRAW_SECONDS)
         if not due or not located or holding:
             return
         self._drawn_at = now
@@ -1163,9 +1257,15 @@ class TrafficView(QWidget):
         self._map.show_flow(key)
 
     def render(self) -> None:
-        """Draws the page shown; called by the window at its plot rate."""
+        """Draws the page shown, and fills the two lists also while they are not, so
+        that their rows are there before a swipe brings them; called by the window at
+        its plot rate."""
         self._model.expire()
-        self._pages[self.current_page()].render()
+        current = self.current_page()
+        self._pages[current].render()
+        for key in (MESSAGES, FLOW):
+            if key != current:
+                self._pages[key].render()
 
     def apply_theme(self, theme: Theme) -> None:
         self._pager.set_theme(theme)
