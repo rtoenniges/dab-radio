@@ -370,6 +370,9 @@ def stylesheet(theme: Theme) -> str:
     QPushButton[role="accent"] {{ background: {t.accent}; color: {t.on_accent}; }}
     QPushButton[role="accent"]:disabled {{ background: {t.surface}; color: {t.outline}; }}
     QLabel[role="error"] {{ color: {t.danger}; font-size: {SMALL_FONT_PX}px; }}
+    QLabel[role="accent"] {{ color: {t.accent}; }}
+    QLabel[role="danger"] {{ color: {t.danger}; }}
+    QWidget[role="row"][dimmed="true"] QLabel {{ color: {t.outline}; }}
     QLabel[alert="true"] {{ color: {t.danger}; font-weight: bold; }}
     QPushButton[role="value"] {{ font-size: {LARGE_FONT_PX}px; min-width: 200px; }}
     QPushButton[role="value"][placeholder="true"] {{ color: {t.muted}; }}

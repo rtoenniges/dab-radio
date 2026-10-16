@@ -1,44 +1,48 @@
-"""The settings page, in sub-pages chosen by chips at the top: SDR (device, gain,
-frequency correction, corrections), Display (colour scheme, the load in the navigation
-rail, the level beside the volume slider of the radio page, the constellation as points
-or as a density, when the screen dims and goes off,
-`ui.touch.backlight`; the listener's position), Audio (the output, `audio.outputs`; the
-ceiling of the volume, `audio.volume`; the equalizer: on or off, the way to it, for all
-stations or per station, deleting all its settings; switching to announcements), Wi-Fi
-(`ui.touch.wifi_view`), Bluetooth (`ui.touch.bluetooth_view`), Storage (the USB
+"""The settings page: the categories as a list on the left, each with its symbol and,
+where there is one, its state in a line beneath (the device, the output playing, the
+network, the headphones, the folder of the recordings, whether the recorder runs, the
+broker); on the right the rows of the chosen one on cards (`ui.touch.cards`).
+
+SDR (device, gain, frequency correction, corrections), Display (language, colour
+scheme, the load in the navigation rail, the level beside the volume slider of the
+radio page, the constellation as points or as a density, when the screen dims and goes
+off, `ui.touch.backlight`; the listener's position), Audio (the output, `audio.outputs`;
+the ceiling of the volume, `audio.volume`; the equalizer: on or off, the way to it, for
+all stations or per station, deleting all its settings; switching to announcements),
+Wi-Fi (`ui.touch.wifi_view`), Bluetooth (`ui.touch.bluetooth_view`), Storage (the USB
 drives and the directory for the recordings, `ui.touch.storage_view`), Recording
 (`ui.touch.recording_view`) and MQTT (the radio at the broker of a smart home,
-`ui.touch.mqtt_view`). The sub-pages of
-rows are swiped up and down where they are taller than the page. The way out of full
-screen is on every sub-page, the version of the radio beside it in the bottom row."""
+`ui.touch.mqtt_view`). A setting with several choices shows the one in effect, a tap
+opens the sheet with all of them. Sub-pages of rows are swiped up and down where they
+are taller than the page. The way out of full screen is in the bottom row, the version
+of the radio beside it, and what a sub-page has to say (errors, hints)."""
 
 from __future__ import annotations
 
 from dataclasses import replace
 
-from PyQt6.QtCore import QSize, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QMouseEvent, QPainter, QPaintEvent
 from PyQt6.QtWidgets import (
-    QButtonGroup,
-    QGridLayout,
     QHBoxLayout,
     QLabel,
     QPushButton,
     QScrollArea,
     QScroller,
     QStackedWidget,
-    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 from audio.volume import CEILING_RANGE_DB
 from dab.gnss import Observer
-from i18n import available_languages, tr, tr_noop
+from i18n import available_languages, join, tr, tr_noop, tr_plural
 from net.bluetooth import BluetoothManager
-from net.wifi import WifiManager
+from net.mqtt import MqttBridge
+from net.wifi import BAND_AUTOMATIC, WifiManager, band_name
 from sdr.rspduo import FREQ_CORRECTION_RANGE_PPM, IF_GAIN_REDUCTION_RANGE_DB, LNA_GAIN_REDUCTION_DB
 from sdr.rtl_tcp import PORT_RANGE as RTL_TCP_PORT_RANGE
-from storage.volumes import VolumeManager
+from storage.volumes import VolumeManager, free_space
 from ui.language import restart_question, store_language, stored_language
 from ui.receiver_controller import (
     APPLICATION_VERSION,
@@ -52,17 +56,28 @@ from ui.receiver_controller import (
     ReceiverController,
     ReceptionState,
 )
+from ui.touch import cards
 from ui.touch.backlight import TIMEOUT_CHOICES_S, ScreenDimmer
-from ui.touch.bluetooth_view import BluetoothView
-from ui.touch.icons import symbol_icon
+from ui.touch.bluetooth_view import BluetoothView, battery_text
+from ui.touch.cards import (
+    Card,
+    ChoiceRow,
+    Row,
+    Toggle,
+    action_row,
+    stepper_row,
+    switch_row,
+    value_row,
+)
+from ui.touch.icons import symbol_pixmap
 from ui.touch.keyboard import Keyboard
 from ui.touch.mqtt_view import NO_HOST, MqttView, valid_host
 from ui.touch.number_pad import NumberPad, format_number
 from ui.touch.overlay import ActionSheet
 from ui.touch.recording_view import RecordingView
-from ui.touch.storage_view import StorageView
-from ui.touch.theme import DARK, LIGHT, THEMES, TOUCH_TARGET, Theme
-from ui.touch.widgets import ChipRow, ChoiceButtons, EdgeFades, Stepper, set_role
+from ui.touch.storage_view import StorageView, directory_text, free_text
+from ui.touch.theme import DARK, LIGHT, THEMES, Theme
+from ui.touch.widgets import EdgeFades, ElidedLabel, Stepper, TapWidget, repolish, set_role
 from ui.touch.wifi_view import WifiView
 
 # Neither the stick nor the RSPduo takes a new gain while running, so a change during
@@ -70,13 +85,25 @@ from ui.touch.wifi_view import WifiView
 # has rested this long, not for every step of a held button.
 RESTART_DELAY_MS = 1200
 # Restyling the whole window for the other colour scheme holds the GUI thread for a
-# moment (0.3 s on the Pi, 0.16 s on the PC, measured 2026-10-13 off screen), and the
-# tapped button would only light up with the new scheme, as if the tap had been lost.
-# It is drawn first, and the scheme follows this much later.
+# moment (0.3 s on the Pi, 0.16 s on the PC, measured 2026-10-13 off screen); the
+# sheet with the choice closes first, and the scheme follows this much later.
 THEME_FEEDBACK_MS = 50
 
-LABEL_WIDTH = 220
+# The list of categories on the left.
+LIST_WIDTH = 300
+CATEGORY_ICON = 28
+CATEGORY_ICON_LEFT = 16
+CATEGORY_ROW_HEIGHT = 68
+# Between the parts of a state in the list ("WLAN-0815 · 5 GHz").
+STATE_SEPARATOR = " · "
+
 _HINT = tr_noop("Changes to the device briefly restart a running reception.")
+_AGC_HINT = tr_noop("The stick sets its gain itself.")
+_DC_HINT = tr_noop("Removes the DC offset of the samples.")
+_IQ_HINT = tr_noop("Balances amplitude and phase of I and Q.")
+_LANGUAGE_HINT = tr_noop("Takes effect with the next start.")
+_SCREEN_HINT = tr_noop("After the last touch.")
+_LOCATION_HINT = tr_noop("For the sky and the corrections of GEPOS.")
 _PER_STATION_HINT = tr_noop(
     "Per station, every station keeps its own on/off and sound; "
     "one without a setting of its own sounds like all stations."
@@ -91,7 +118,9 @@ _OUTPUT_HINT = tr_noop(
     "Automatic follows the system, so headphones as soon as they are connected. "
     "Volume and maximum apply per output."
 )
-OUTPUT_ICON = QSize(28, 28)
+_ANNOUNCEMENT_HINT = tr_noop(
+    "For an announcement from another ensemble the radio tunes there and returns afterwards."
+)
 _NO_BACKLIGHT_HINT = tr_noop(
     "There is no backlight to switch here; "
     "on the Raspberry Pi the setting applies to the Touch Display 2."
@@ -105,9 +134,8 @@ _DENSITY_HINT = tr_noop(
     "The density counts all carriers of all symbols; at weak reception the four "
     "phases can still be made out in it."
 )
-EQUALIZER_ICON = QSize(40, 40)
 
-# The sub-pages in the order of their chips: key, name.
+# The categories in the order of the list: key, name, symbol (`ui.touch.icons`).
 SDR = "sdr"
 DISPLAY = "display"
 AUDIO = "audio"
@@ -116,16 +144,17 @@ BLUETOOTH = "bluetooth"
 STORAGE = "storage"
 RECORDING = "recording"
 MQTT = "mqtt"
-_SUBPAGES = (
-    (SDR, "SDR"),
-    (DISPLAY, tr_noop("Display")),
-    (AUDIO, tr_noop("Audio")),
-    (WIFI, tr_noop("Wi-Fi")),
-    (BLUETOOTH, "Bluetooth"),
-    (STORAGE, tr_noop("Storage")),
-    (RECORDING, tr_noop("Recording")),
-    (MQTT, "MQTT"),
+_CATEGORIES = (
+    (SDR, "SDR", "antenna"),
+    (DISPLAY, tr_noop("Display"), "screen"),
+    (AUDIO, tr_noop("Audio"), "loudspeaker"),
+    (WIFI, tr_noop("Wi-Fi"), "wifi"),
+    (BLUETOOTH, "Bluetooth", "bluetooth"),
+    (STORAGE, tr_noop("Storage"), "usb"),
+    (RECORDING, tr_noop("Recording"), "record"),
+    (MQTT, "MQTT", "home"),
 )
+_SUBPAGES = tuple((key, name) for key, name, _symbol in _CATEGORIES)
 
 
 def _ppm(value: float) -> str:
@@ -170,84 +199,213 @@ def coordinate_text(value: float, positive: str, negative: str) -> str:
     return f"{format_number(abs(value), COORDINATE_DECIMALS)}° {hemisphere}"
 
 
-class _OutputRow(QWidget):
-    """The outputs to choose from, "Automatic" first (the default of the system);
-    beside them the output in use, where it is not the one chosen. Made anew as outputs
-    come and go (`ReceiverController.audio_outputs_changed`)."""
+# --- The states in the list ---------------------------------------------------------------
+
+
+def sdr_state(settings: DeviceSettings) -> str:
+    """The device, and the server of rtl_tcp: "RTL_TCP · 192.168.2.55"."""
+    name = DEVICES[settings.device]
+    if settings.rtl_tcp() is None:
+        return name
+    return join(STATE_SEPARATOR, [name, settings.rtl_tcp_host or tr(NO_HOST)])
+
+
+def audio_state(controller: ReceiverController) -> str:
+    """The output playing; "" while none is."""
+    in_use = controller.audio_output_in_use
+    return in_use.name if in_use is not None else ""
+
+
+def wifi_state(wifi: WifiManager) -> str:
+    """The network and the band: "WLAN-0815 · 5 GHz"; "" where the Wi-Fi cannot be set
+    here (a PC)."""
+    if not wifi.available:
+        return ""
+    if wifi.activity:
+        return wifi.activity
+    ssid = wifi.connected_ssid
+    if ssid:
+        band = wifi.connected_band
+        parts = [ssid, band_name(band)] if band and band != BAND_AUTOMATIC else [ssid]
+        return join(STATE_SEPARATOR, parts)
+    if wifi.device is not None and wifi.device.connecting:
+        return tr("Connecting …")
+    if not wifi.enabled:
+        return tr("Off")
+    return tr("Not connected")
+
+
+def bluetooth_state(bluetooth: BluetoothManager) -> str:
+    """The device connected and its battery: "Jabra Elite 10 · Battery 50 %"; "" where
+    Bluetooth cannot be set here (a PC)."""
+    if not bluetooth.available:
+        return ""
+    if bluetooth.activity:
+        return bluetooth.activity
+    device = bluetooth.connected_device if bluetooth.powered else None
+    if device is not None:
+        battery = battery_text(device)
+        return join(STATE_SEPARATOR, [device.name, battery]) if battery else device.name
+    if not bluetooth.powered:
+        return tr("Off")
+    return tr("Not connected")
+
+
+def storage_state(controller: ReceiverController, volumes: VolumeManager) -> str:
+    """The folder of the recordings and the space left on its drive: "USB-STICK ›
+    Aufnahmen · 12 GB free of 31 GB"."""
+    directory = controller.recording_directory
+    text = directory_text(directory, volumes.volume_of(directory))
+    if directory is None:
+        return text
+    if not controller.recording_directory_available:
+        return join(STATE_SEPARATOR, [text, tr("Drive not mounted")])
+    space = free_text(free_space(directory))
+    return join(STATE_SEPARATOR, [text, space]) if space else text
+
+
+def recording_state(controller: ReceiverController) -> str:
+    """Whether the recorder runs and how many titles the ring keeps: "On · 10 titles"."""
+    if not controller.recording_enabled:
+        return tr("Off")
+    count = controller.ring_size
+    titles = tr_plural("{count} title", "{count} titles", count).format(count=count)
+    return join(STATE_SEPARATOR, [tr("On"), titles])
+
+
+def mqtt_state(bridge: MqttBridge | None) -> str:
+    """The connection as it stands, as the sub-page tells it."""
+    return bridge.status.message if bridge is not None else ""
+
+
+# --- The list ----------------------------------------------------------------------------
+
+
+class _CategoryRow(TapWidget):
+    """A category: its symbol (painted, in the accent colour while chosen), its name and
+    its state beneath. It lights up while pressed."""
+
+    def __init__(self, key: str, name: str, symbol: str) -> None:
+        super().__init__()
+        self.key = key
+        self.symbol = symbol
+        set_role(self, "row")
+        self.setProperty("selected", False)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        self.setMinimumHeight(CATEGORY_ROW_HEIGHT)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(CATEGORY_ICON_LEFT + CATEGORY_ICON + 14, 0, 12, 0)
+        texts = set_role(QWidget(), "transparent")
+        column = QVBoxLayout(texts)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(0)
+        self.name = QLabel(name)
+        column.addWidget(self.name)
+        self.state = set_role(ElidedLabel(), "small")
+        self.state.hide()
+        column.addWidget(self.state)
+        layout.addWidget(texts, stretch=1)
+
+    def set_state(self, text: str) -> None:
+        self.state.setText(text)
+        self.state.setVisible(bool(text))
+
+    def set_selected(self, selected: bool) -> None:
+        if bool(self.property("selected")) == selected:
+            return
+        self.setProperty("selected", selected)
+        for widget in (self, self.name, self.state):
+            repolish(widget)
+        self.update()
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._set_pressed(True)
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        self._set_pressed(False)
+        super().mouseReleaseEvent(event)
+
+    def _set_pressed(self, pressed: bool) -> None:
+        self.setProperty("pressed", pressed)
+        repolish(self)
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        super().paintEvent(event)
+        color = cards.theme().color("accent" if self.property("selected") else "text")
+        pixmap = symbol_pixmap(self.symbol, color, CATEGORY_ICON, self.devicePixelRatioF())
+        painter = QPainter(self)
+        painter.drawPixmap(CATEGORY_ICON_LEFT, (self.height() - CATEGORY_ICON) // 2, pixmap)
+        painter.end()
+
+
+class CategoryList(QWidget):
+    """The categories one below the other; a tap reports the key (`chosen`)."""
+
+    chosen = pyqtSignal(str)
+
+    def __init__(
+        self, categories: tuple[tuple[str, str, str], ...], parent: QWidget | None = None
+    ) -> None:
+        super().__init__(parent)
+        set_role(self, "transparent")
+        self.setFixedWidth(LIST_WIDTH)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        self.rows: dict[str, _CategoryRow] = {}
+        for key, name, symbol in categories:
+            row = _CategoryRow(key, tr(name), symbol)
+            row.tapped.connect(lambda k=key: self.chosen.emit(k))
+            layout.addWidget(row)
+            self.rows[key] = row
+        layout.addStretch()
+        self._current = ""
+
+    def current(self) -> str:
+        return self._current
+
+    def set_current(self, key: str) -> None:
+        """Marks `key` as chosen without reporting it."""
+        self._current = key
+        for row_key, row in self.rows.items():
+            row.set_selected(row_key == key)
+
+    def set_state(self, key: str, text: str) -> None:
+        self.rows[key].set_state(text)
+
+    def apply_theme(self, theme: Theme) -> None:
+        self.update()  # the symbols take their colour from `cards.theme()`
+
+
+class _OutputRow(ChoiceRow):
+    """The outputs to choose from, "Automatic" first (the default of the system); a
+    line beneath names the output in use where it is not the one chosen. Made anew as
+    outputs come and go (`ReceiverController.audio_outputs_changed`)."""
 
     def __init__(self, controller: ReceiverController, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
+        super().__init__(tr("Output"), [], hint=tr(_OUTPUT_HINT), parent=parent)
         self._controller = controller
-        self._theme = THEMES[DARK]
-        self._group = QButtonGroup(self)
-        self._group.setExclusive(True)
-        self._buttons: list[QPushButton] = []
-        self._keys: list[str] = []
-        self._bluetooth: list[bool] = []
-        self._in_use = set_role(QLabel(), "muted")
-        self._layout = QHBoxLayout(self)
-        self._layout.setContentsMargins(0, 0, 0, 0)
-        self._layout.setSpacing(8)
-        self._layout.addWidget(self._in_use)
-        self._layout.addStretch()
-        self._group.idClicked.connect(self._on_clicked)
+        self.chosen.connect(controller.set_audio_output)
         controller.audio_outputs_changed.connect(self.refresh)
         self.refresh()
 
     def keys(self) -> list[str]:
-        """The ids of the buttons, "" for "Automatic"."""
-        return list(self._keys)
-
-    def buttons(self) -> list[QPushButton]:
-        return list(self._buttons)
-
-    def apply_theme(self, theme: Theme) -> None:
-        self._theme = theme
-        self._show_icons()
+        """The ids to choose from, "" for "Automatic"."""
+        return [key for key, _name in self.choices()]
 
     def refresh(self) -> None:
         controller = self._controller
         outputs = controller.audio_outputs
-        keys = ["", *(output.id for output in outputs)]
-        names = [tr("Automatic"), *(output.name for output in outputs)]
-        bluetooth = [False, *(output.bluetooth for output in outputs)]
-        if keys != self._keys or [b.text() for b in self._buttons] != names:
-            self._rebuild(keys, names, bluetooth)
+        choices = [("", tr("Automatic")), *((output.id, output.name) for output in outputs)]
+        details = {output.id: "Bluetooth" for output in outputs if output.bluetooth}
+        self.set_choices(choices, details)
         choice = controller.audio_output_choice
-        for key, button in zip(self._keys, self._buttons, strict=True):
-            button.setChecked(key == choice)
+        self.set_current(choice)
         in_use = controller.audio_output_in_use
         shown = in_use is not None and (choice == "" or choice != in_use.id)
-        self._in_use.setText(tr("currently {name}").format(name=in_use.name) if shown else "")
-        self._in_use.setVisible(shown)
-
-    def _rebuild(self, keys: list[str], names: list[str], bluetooth: list[bool]) -> None:
-        for button in self._buttons:
-            self._group.removeButton(button)
-            self._layout.removeWidget(button)
-            button.deleteLater()
-        self._buttons = []
-        self._keys = keys
-        self._bluetooth = bluetooth
-        for index, name in enumerate(names):
-            button = QPushButton(name)
-            button.setCheckable(True)
-            self._group.addButton(button, index)
-            self._layout.insertWidget(index, button)
-            self._buttons.append(button)
-        self._show_icons()
-
-    def _show_icons(self) -> None:
-        """The Bluetooth rune on the buttons of Bluetooth devices, in the colour of the
-        scheme (the chosen button draws its text in the colour on the accent)."""
-        text, on_accent = self._theme.color("text"), self._theme.color("on_accent")
-        for button, is_bluetooth in zip(self._buttons, self._bluetooth, strict=True):
-            if is_bluetooth:
-                button.setIconSize(OUTPUT_ICON)
-                button.setIcon(symbol_icon("bluetooth", text, OUTPUT_ICON, on_accent))
-
-    def _on_clicked(self, index: int) -> None:
-        self._controller.set_audio_output(self._keys[index])
+        self.set_subtitle(tr("currently {name}").format(name=in_use.name) if shown else "")
 
 
 class SettingsPage(QWidget):
@@ -255,7 +413,7 @@ class SettingsPage(QWidget):
     load_shown_chosen = pyqtSignal(bool)
     volume_figure_shown_chosen = pyqtSignal(bool)
     constellation_density_chosen = pyqtSignal(bool)  # True: density, False: points
-    equalizer_requested = pyqtSignal()  # the button with the symbol of the equalizer
+    equalizer_requested = pyqtSignal()  # the row "Adjust sound"
     recordings_requested = pyqtSignal()  # "Show recordings" under "Recording"
     quit_requested = pyqtSignal()
     # Start anew in the language chosen (`main.restart`).
@@ -294,9 +452,16 @@ class SettingsPage(QWidget):
         self._volumes = volumes if volumes is not None else VolumeManager(self)
         self._volumes.watch()
 
-        # The stick, the two tuners of the RSPduo and a stick behind rtl_tcp, in groups:
-        # three devices, not four.
-        self._device = ChoiceButtons(list(DEVICES.items()), gaps=("rspduo1", DEVICE_RTL_TCP))
+        # --- SDR: the device, its own rows (only those of the chosen one are shown),
+        # and what applies to every device.
+        self._device = ChoiceRow(
+            tr("Device"),
+            list(DEVICES.items()),
+            subtitle=tr(_HINT),
+            # The stick, the two tuners of the RSPduo and a stick behind rtl_tcp, in
+            # groups: three devices, not four.
+            gaps=("rspduo1", DEVICE_RTL_TCP),
+        )
         self._device.set_current(settings.device)
         self._device.chosen.connect(self._on_device_chosen)
 
@@ -304,22 +469,16 @@ class SettingsPage(QWidget):
         self._keyboard: Keyboard | None = None
         self._rtl_tcp_host = settings.rtl_tcp_host
         self._rtl_tcp_port = settings.rtl_tcp_port
-        self._server_host = set_role(QPushButton(), "value")
-        self._server_host.clicked.connect(self._edit_server_host)
-        self._server_port = set_role(QPushButton(), "value")
-        self._server_port.clicked.connect(self._edit_server_port)
-        server = QHBoxLayout()
-        server.setSpacing(8)
-        server.addWidget(self._server_host)
-        server.addWidget(self._server_port)
-        server.addStretch()
-        self._rtl_tcp_rows = self._rows((tr("Server"), server))
+        self._server_host = value_row(tr("Server"))
+        self._server_host.tapped.connect(self._edit_server_host)
+        self._server_port = value_row(tr("Port"))
+        self._server_port.tapped.connect(self._edit_server_port)
+        self._rtl_tcp_rows = (self._server_host, self._server_port)
         self._show_server()
 
         self._gain = Stepper(controller.gain_steps_db, lambda gain: f"{gain:.1f} dB")
         self._gain.set_value(settings.gain_db)
-        self._agc = QPushButton("AGC")
-        self._agc.setCheckable(True)
+        self._agc = Toggle()
         self._agc.setChecked(settings.agc)
         self._agc.toggled.connect(self._gain.setDisabled)
         self._gain.setDisabled(settings.agc)
@@ -339,16 +498,15 @@ class SettingsPage(QWidget):
         self._rspduo_ppm = Stepper(ppm_steps, _ppm)
         self._rspduo_ppm.set_value(settings.rspduo_ppm)
 
-        gain_row = QHBoxLayout()
-        gain_row.setSpacing(24)
-        gain_row.addWidget(self._gain)
-        gain_row.addWidget(self._agc)
-        gain_row.addStretch()
-        self._rtlsdr_rows = self._rows((tr("Gain"), gain_row), (tr("PPM correction"), self._ppm))
-        self._rspduo_rows = self._rows(
-            (tr("LNA state"), self._lna),
-            (tr("IF gain reduction"), self._if_gain_reduction),
-            (tr("PPM correction"), self._rspduo_ppm),
+        self._rtlsdr_rows = (
+            stepper_row(tr("Gain"), self._gain),
+            switch_row("AGC", self._agc, tr(_AGC_HINT)),
+            stepper_row(tr("PPM correction"), self._ppm),
+        )
+        self._rspduo_rows = (
+            stepper_row(tr("LNA state"), self._lna),
+            stepper_row(tr("IF gain reduction"), self._if_gain_reduction),
+            stepper_row(tr("PPM correction"), self._rspduo_ppm),
         )
         for stepper in (
             self._gain,
@@ -360,69 +518,99 @@ class SettingsPage(QWidget):
             stepper.value_changed.connect(self._on_device_settings_changed)
         self._agc.toggled.connect(self._on_device_settings_changed)
 
-        self._dc = QPushButton(tr("DC correction"))
-        self._dc.setCheckable(True)
+        self._dc = Toggle()
         self._dc.setChecked(controller.dc_correction)
         self._dc.toggled.connect(controller.set_dc_correction)
-        self._iq = QPushButton(tr("IQ correction"))
-        self._iq.setCheckable(True)
+        self._iq = Toggle()
         self._iq.setChecked(controller.iq_correction)
         self._iq.toggled.connect(controller.set_iq_correction)
-        corrections = QHBoxLayout()
-        corrections.setSpacing(8)
-        corrections.addWidget(self._dc)
-        corrections.addWidget(self._iq)
-        corrections.addStretch()
+        sdr_page = self._subpage(
+            Card(tr("Device"), [self._device, *self._rtl_tcp_rows]),
+            Card(tr("Tuner"), [*self._rtlsdr_rows, *self._rspduo_rows]),
+            Card(
+                tr("Correction"),
+                [
+                    switch_row(tr("DC correction"), self._dc, tr(_DC_HINT)),
+                    switch_row(tr("IQ correction"), self._iq, tr(_IQ_HINT)),
+                ],
+            ),
+        )
 
-        # On the sub-page "Audio". Only does something when an announcement for the
-        # selected service runs in another subchannel; the service itself stays
-        # selected throughout.
-        self._announcement_switch = QPushButton(tr("Switch to the station of the announcement"))
-        self._announcement_switch.setCheckable(True)
-        self._announcement_switch.setChecked(controller.announcement_switching)
-        self._announcement_switch.toggled.connect(controller.set_announcement_switching)
-
-        # Each language by its own name; it takes effect in a new start, which the page
-        # offers right away (`ui.language`).
-        self._language = ChoiceButtons(list(available_languages().items()))
+        # --- Display. Each language by its own name; it takes effect in a new start,
+        # which the page offers right away (`ui.language`).
+        self._language = ChoiceRow(
+            tr("Language"), list(available_languages().items()), subtitle=tr(_LANGUAGE_HINT)
+        )
         self._language.set_current(stored_language(controller.settings))
         self._language.chosen.connect(self._on_language_chosen)
-        self._theme = ChoiceButtons([(DARK, tr("Dark")), (LIGHT, tr("Light"))])
+        self._theme = ChoiceRow(tr("Appearance"), [(DARK, tr("Dark")), (LIGHT, tr("Light"))])
         self._theme.chosen.connect(self._on_theme_chosen)
         self._theme_shown = DARK  # the scheme of the window, `set_theme`
-        # The scheme is reported only once the tap shows (`THEME_FEEDBACK_MS`); a
-        # second tap in between counts instead.
+        # The scheme is reported only once the sheet has closed (`THEME_FEEDBACK_MS`);
+        # a second choice in between counts instead.
         self._theme_delay = QTimer(self)
         self._theme_delay.setSingleShot(True)
         self._theme_delay.setInterval(THEME_FEEDBACK_MS)
         self._theme_delay.timeout.connect(self._report_theme)
         # The figures above the clock in the navigation rail; `clicked`, not `toggled`,
         # so that the window setting the stored choice is not reported back.
-        self._load_shown = QPushButton(tr("Show in the menu bar"))
-        self._load_shown.setCheckable(True)
+        self._load_shown = Toggle()
         self._load_shown.clicked.connect(self.load_shown_chosen)
         # The level beside the volume slider on the radio page, likewise.
-        self._volume_figure_shown = QPushButton(tr("Show beside the slider"))
-        self._volume_figure_shown.setCheckable(True)
+        self._volume_figure_shown = Toggle()
         self._volume_figure_shown.clicked.connect(self.volume_figure_shown_chosen)
         # How the constellation is drawn, on the signal page and on the radio page.
-        self._constellation = ChoiceButtons([(False, tr("Point cloud")), (True, tr("Density"))])
+        self._constellation = ChoiceRow(
+            tr("Constellation"),
+            [(False, tr("Point cloud")), (True, tr("Density"))],
+            subtitle=tr(_DENSITY_HINT),
+        )
         self._constellation.chosen.connect(
             lambda density: self.constellation_density_chosen.emit(density)
         )
         # When the screen dims and when it goes off, each after the last touch; where
-        # neither can happen (a PC, the udev rule missing) a line says why.
+        # neither can happen (a PC, the udev rule missing) the line says why.
         self._dim_after = Stepper(TIMEOUT_CHOICES_S, timeout_text)
         self._dim_after.set_value(self._screen.dim_after_s)
         self._dim_after.value_changed.connect(self._screen.set_dim_after)
         self._off_after = Stepper(TIMEOUT_CHOICES_S, timeout_text)
         self._off_after.set_value(self._screen.off_after_s)
         self._off_after.value_changed.connect(self._screen.set_off_after)
-        self._backlight_hint = set_role(QLabel(backlight_hint(self._screen)), "small")
-        self._backlight_hint.setVisible(bool(self._backlight_hint.text()))
+        # Translators: when the screen dims, under the heading "Screen".
+        dim_row = stepper_row(tr("Dim"), self._dim_after)
+        dim_row.set_subtitle(backlight_hint(self._screen) or tr(_SCREEN_HINT))
+        self._backlight_hint = dim_row.subtitle
+        # Translators: when the screen goes off, under the heading "Screen".
+        off_row = stepper_row(tr("Switch off"), self._off_after)
 
-        # The ceiling of the volume: what 100 % of the slider gives, for loudspeakers
-        # that take less than the amplifier delivers.
+        # The listener's position, for the sky and the corrections of GEPOS; each value
+        # opens the number pad.
+        self._number_pad: NumberPad | None = None
+        self._latitude = value_row(tr("Latitude"), subtitle=tr(_LOCATION_HINT))
+        self._latitude.tapped.connect(self._edit_latitude)
+        self._longitude = value_row(tr("Longitude"))
+        self._longitude.tapped.connect(self._edit_longitude)
+        self._height = value_row(tr("Height"))
+        self._height.tapped.connect(self._edit_height)
+        self._show_observer(controller.observer)
+        controller.observer_changed.connect(self._show_observer)
+        display_page = self._subpage(
+            # Translators: the heading over language and colour scheme.
+            Card(tr("Interface"), [self._language, self._theme]),
+            Card(
+                tr("Radio page"),
+                [
+                    switch_row(tr("Load in the menu bar"), self._load_shown),
+                    switch_row(tr("Level beside the volume slider"), self._volume_figure_shown),
+                    self._constellation,
+                ],
+            ),
+            Card(tr("Screen"), [dim_row, off_row]),
+            Card(tr("Location"), [self._latitude, self._longitude, self._height]),
+        )
+
+        # --- Audio. The ceiling of the volume: what 100 % of the slider gives, for
+        # loudspeakers that take less than the amplifier delivers.
         low, high = CEILING_RANGE_DB
         self._volume_ceiling = Stepper(
             range(low, high + 1), lambda db: f"{db} dB".replace("-", "−")
@@ -432,141 +620,108 @@ class SettingsPage(QWidget):
         controller.volume_changed.connect(
             lambda: self._volume_ceiling.set_value(self._controller.volume_ceiling_db)
         )
-
-        # The equalizer: on or off for the station playing (or all of them), the way to
-        # it beside; for all stations or per station on a row of its own.
-        self._equalizer_switch = set_role(QPushButton(tr("Off")), "switch")
-        self._equalizer_switch.setCheckable(True)
+        # The equalizer: on or off for the station playing (or all of them), for all
+        # stations or per station, the way to it, and deleting all its settings.
+        self._equalizer_switch = Toggle()
         self._equalizer_switch.clicked.connect(controller.set_equalizer_enabled)
-        self._equalizer_button = QToolButton()
-        self._equalizer_button.setFixedSize(TOUCH_TARGET, TOUCH_TARGET)
-        self._equalizer_button.setIconSize(EQUALIZER_ICON)
-        self._equalizer_button.setToolTip(tr("Open the equalizer"))
-        self._equalizer_button.clicked.connect(self.equalizer_requested)
-        equalizer = QHBoxLayout()
-        equalizer.setSpacing(8)
-        equalizer.addWidget(self._equalizer_switch)
-        equalizer.addWidget(self._equalizer_button)
-        equalizer.addStretch()
-        self._equalizer_scope = ChoiceButtons(
-            [(False, tr("All stations")), (True, tr("Per station"))]
+        self._equalizer_scope = ChoiceRow(
+            tr("Applies to"),
+            [(False, tr("All stations")), (True, tr("Per station"))],
+            subtitle=tr(_PER_STATION_HINT),
         )
         self._equalizer_scope.chosen.connect(controller.set_equalizer_per_station)
-        self._equalizer_reset = QPushButton(tr("Delete all sound settings"))
-        self._equalizer_reset.clicked.connect(self._ask_equalizer_reset)
+        self._equalizer_button = action_row(tr("Adjust sound"))
+        self._equalizer_button.tapped.connect(self.equalizer_requested)
+        self._equalizer_reset = action_row(tr("Delete all sound settings"), danger=True)
+        self._equalizer_reset.tapped.connect(self._ask_equalizer_reset)
         # Where the audio goes: the default of the system or one output for good.
         self._output_row = _OutputRow(controller)
         self._sheet: ActionSheet | None = None
         self._show_equalizer()
         controller.equalizer_changed.connect(self._show_equalizer)
+        # Only does something when an announcement for the selected service runs in
+        # another subchannel; the service itself stays selected throughout.
+        self._announcement_switch = Toggle()
+        self._announcement_switch.setChecked(controller.announcement_switching)
+        self._announcement_switch.toggled.connect(controller.set_announcement_switching)
+        audio_page = self._subpage(
+            Card(
+                tr("Output"),
+                [
+                    self._output_row,
+                    stepper_row(tr("Maximum volume"), self._volume_ceiling, tr(_CEILING_HINT)),
+                ],
+            ),
+            Card(
+                tr("Sound"),
+                [
+                    switch_row(tr("Equalizer"), self._equalizer_switch),
+                    self._equalizer_scope,
+                    self._equalizer_button,
+                    self._equalizer_reset,
+                ],
+            ),
+            Card(
+                tr("Announcements"),
+                [
+                    switch_row(
+                        tr("Switch to the station of the announcement"),
+                        self._announcement_switch,
+                        tr(_ANNOUNCEMENT_HINT),
+                    )
+                ],
+            ),
+        )
 
-        # The listener's position, for the sky and the corrections of GEPOS; each value
-        # opens the number pad.
-        self._number_pad: NumberPad | None = None
-        self._latitude = set_role(QPushButton(), "value")
-        self._latitude.clicked.connect(self._edit_latitude)
-        self._longitude = set_role(QPushButton(), "value")
-        self._longitude.clicked.connect(self._edit_longitude)
-        self._height = set_role(QPushButton(), "value")
-        self._height.clicked.connect(self._edit_height)
-        position = QHBoxLayout()
-        position.setSpacing(8)
-        for button in (self._latitude, self._longitude, self._height):
-            position.addWidget(button)
-        position.addStretch()
-        self._show_observer(controller.observer)
-        controller.observer_changed.connect(self._show_observer)
-
-        # The device on top, then its own rows (only those of the chosen one are shown),
-        # then what applies to every device.
-        self._stack = QStackedWidget()
-        self._stack.addWidget(
-            self._subpage(
-                self._rows((tr("Device"), self._device)),
-                self._rtl_tcp_rows,
-                self._rtlsdr_rows,
-                self._rspduo_rows,
-                self._rows((tr("Correction"), corrections)),
-            )
-        )
-        self._stack.addWidget(
-            self._subpage(
-                self._rows(
-                    (tr("Language"), self._language),
-                    (tr("Appearance"), self._theme),
-                    (tr("Load"), self._load_shown),
-                    (tr("Volume"), self._volume_figure_shown),
-                    (tr("Constellation"), self._constellation),
-                    ("", set_role(QLabel(tr(_DENSITY_HINT)), "small")),
-                    (tr("Dim screen"), self._dim_after),
-                    (tr("Screen off"), self._off_after),
-                ),
-                self._backlight_hint,
-                self._rows((tr("Location"), position)),
-            )
-        )
-        self._stack.addWidget(
-            self._subpage(
-                self._rows(
-                    (tr("Output"), self._output_row),
-                    ("", set_role(QLabel(tr(_OUTPUT_HINT)), "small")),
-                    (tr("Maximum volume"), self._volume_ceiling),
-                    ("", set_role(QLabel(tr(_CEILING_HINT)), "small")),
-                    (tr("Equalizer"), equalizer),
-                    (tr("Applies to"), self._equalizer_scope),
-                    ("", set_role(QLabel(tr(_PER_STATION_HINT)), "small")),
-                    (tr("Reset"), self._equalizer_reset),
-                    (tr("Announcements"), self._announcement_switch),
-                )
-            )
-        )
-        self._wifi_view = WifiView(self._wifi, LABEL_WIDTH)
-        self._stack.addWidget(self._wifi_view)
-        self._bluetooth_view = BluetoothView(
-            self._bluetooth, LABEL_WIDTH, connect=controller.connect_bluetooth
-        )
-        self._stack.addWidget(self._bluetooth_view)
-        self._storage_view = StorageView(controller, self._volumes, LABEL_WIDTH)
-        self._stack.addWidget(self._storage_view)
-        self._recording_view = RecordingView(controller, LABEL_WIDTH)
+        # --- The sub-pages with lists keep their height; the rest scroll.
+        self._wifi_view = WifiView(self._wifi)
+        self._bluetooth_view = BluetoothView(self._bluetooth, connect=controller.connect_bluetooth)
+        self._storage_view = StorageView(controller, self._volumes)
+        self._recording_view = RecordingView(controller)
         self._recording_view.recordings_requested.connect(self.recordings_requested)
-        self._stack.addWidget(self._recording_view)
-        # Seven rows and two hints: more than the page is high, so it scrolls.
-        self._mqtt_view = MqttView(controller.mqtt_bridge, LABEL_WIDTH)
-        self._stack.addWidget(self._subpage(self._mqtt_view))
-        self._subpage_chips = ChoiceButtons(
-            [(key, tr(name)) for key, name in _SUBPAGES], role="chip"
-        )
-        self._subpage_chips.chosen.connect(self.show_subpage)
-        # Swiped sideways where it is wider than the page, as more sub-pages come.
-        self._chips_area = ChipRow(self._subpage_chips)
-        # The version of the radio, small in the bottom row beside the way out: the
-        # eight chips need the whole width (seen in a render, 10.10.2026).
+        self._recording_view.changed.connect(self._show_states)
+        self._mqtt_view = MqttView(controller.mqtt_bridge)
+        self._stack = QStackedWidget()
+        for page in (
+            sdr_page,
+            display_page,
+            audio_page,
+            self._wifi_view,
+            self._bluetooth_view,
+            self._storage_view,
+            self._subpage(self._recording_view),
+            self._subpage(self._mqtt_view),
+        ):
+            self._stack.addWidget(page)
+
+        self._categories = CategoryList(_CATEGORIES)
+        self._categories.chosen.connect(self.show_subpage)
+        body = QHBoxLayout()
+        body.setSpacing(24)
+        body.addWidget(self._categories)
+        body.addWidget(self._stack, stretch=1)
+
+        # The version of the radio, small in the bottom row beside the way out; before
+        # them what the sub-page shown has to say.
         self._version = set_role(
             QLabel(tr("Version {version}").format(version=APPLICATION_VERSION)), "small"
         )
-        top = QHBoxLayout()
-        top.addWidget(self._chips_area, stretch=1)
-
-        self._hint = set_role(QLabel(tr(_HINT)), "small")
         quit_button = set_role(QPushButton(tr("Quit radio")), "danger")
         quit_button.clicked.connect(self.quit_requested)
         bottom = QHBoxLayout()
-        bottom.addWidget(self._hint)
         bottom.addWidget(self._wifi_view.message)
         bottom.addWidget(self._bluetooth_view.message)
         bottom.addWidget(self._storage_view.message)
-        bottom.addStretch()  # keeps the button on the right where the hint is hidden
+        bottom.addStretch()  # keeps the button on the right where the messages are hidden
         bottom.addWidget(self._version)
         bottom.addSpacing(16)
         bottom.addWidget(quit_button)
 
-        # The margins of the services page, so that the chips of both stand alike.
+        # The margins of the services page, so that the lists of both stand alike.
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 16, 24, 16)
         layout.setSpacing(16)
-        layout.addLayout(top)
-        layout.addWidget(self._stack, stretch=1)
+        layout.addLayout(body, stretch=1)
         layout.addLayout(bottom)
         self.show_subpage(SDR)
 
@@ -578,6 +733,17 @@ class SettingsPage(QWidget):
         controller.state_changed.connect(self._on_state_changed)
         self._show_device_rows()
         self._on_state_changed(controller.state)
+
+        # The states in the list follow what they tell of.
+        self._wifi.changed.connect(self._show_states)
+        self._bluetooth.changed.connect(self._show_states)
+        self._volumes.changed.connect(self._show_states)
+        controller.audio_outputs_changed.connect(self._show_states)
+        controller.recording_directory_changed.connect(self._show_states)
+        controller.recording_enabled_changed.connect(self._show_states)
+        if controller.mqtt_bridge is not None:
+            controller.mqtt_bridge.status_changed.connect(self._show_states)
+        self._show_states()
 
     @staticmethod
     def _subpage(*parts: QWidget) -> QScrollArea:
@@ -599,29 +765,10 @@ class SettingsPage(QWidget):
         EdgeFades(area, Qt.Orientation.Vertical)
         return area
 
-    @staticmethod
-    def _rows(*rows: tuple[str, QWidget | QHBoxLayout]) -> QWidget:
-        widget = QWidget()
-        grid = QGridLayout(widget)
-        grid.setContentsMargins(0, 0, 0, 0)
-        grid.setHorizontalSpacing(16)
-        grid.setVerticalSpacing(12)
-        for row, (name, content) in enumerate(rows):
-            label = set_role(QLabel(name), "muted")
-            label.setFixedWidth(LABEL_WIDTH)
-            grid.addWidget(label, row, 0)
-            if isinstance(content, QHBoxLayout):
-                grid.addLayout(content, row, 1)
-            else:
-                grid.addWidget(content, row, 1, alignment=Qt.AlignmentFlag.AlignLeft)
-        return widget
-
     def show_subpage(self, key: str) -> None:
         index = next(i for i, (subpage, _name) in enumerate(_SUBPAGES) if subpage == key)
         self._stack.setCurrentIndex(index)
-        self._subpage_chips.set_current(key)
-        # Only the device restarts the reception.
-        self._hint.setVisible(key == SDR)
+        self._categories.set_current(key)
         self._wifi_view.message.setVisible(key == WIFI)
         self._bluetooth_view.message.setVisible(key == BLUETOOTH)
         self._storage_view.message.setVisible(key == STORAGE)
@@ -629,9 +776,23 @@ class SettingsPage(QWidget):
     def current_subpage(self) -> str:
         return _SUBPAGES[self._stack.currentIndex()][0]
 
+    def _show_states(self, *_args: object) -> None:
+        """The line beneath each category in the list."""
+        controller = self._controller
+        states = {
+            SDR: sdr_state(controller.device_settings),
+            AUDIO: audio_state(controller),
+            WIFI: wifi_state(self._wifi),
+            BLUETOOTH: bluetooth_state(self._bluetooth),
+            STORAGE: storage_state(controller, self._volumes),
+            RECORDING: recording_state(controller),
+            MQTT: mqtt_state(controller.mqtt_bridge),
+        }
+        for key, text in states.items():
+            self._categories.set_state(key, text)
+
     def _on_theme_chosen(self, _key: str) -> None:
-        # Drawn now, not when the event loop gets to it: the restyling may come first.
-        self._theme.repaint()
+        # Not now, when the event loop gets to it: the sheet closes first.
         self._theme_delay.start()
 
     def _report_theme(self) -> None:
@@ -643,15 +804,16 @@ class SettingsPage(QWidget):
     def set_theme(self, key: str) -> None:
         self._theme_shown = key
         self._theme.set_current(key)
-        self._wifi_view.apply_theme(THEMES[key])
-        self._bluetooth_view.apply_theme(THEMES[key])
-        self._storage_view.apply_theme(THEMES[key])
-        self._mqtt_view.apply_theme(THEMES[key])
-        self._output_row.apply_theme(THEMES[key])
+        theme = THEMES[key]
+        cards.set_theme(theme)
+        self._categories.apply_theme(theme)
+        self._wifi_view.apply_theme(theme)
+        self._bluetooth_view.apply_theme(theme)
+        self._storage_view.apply_theme(theme)
+        self._mqtt_view.apply_theme(theme)
         if self._keyboard is not None:
-            self._keyboard.apply_theme(THEMES[key])
-        text = THEMES[key].color("text")
-        self._equalizer_button.setIcon(symbol_icon("equalizer", text, EQUALIZER_ICON))
+            self._keyboard.apply_theme(theme)
+        self.update()  # the switches, chevrons and lines take the new colours
 
     def set_load_shown(self, shown: bool) -> None:
         """Marks the choice without reporting it."""
@@ -690,9 +852,7 @@ class SettingsPage(QWidget):
     # --- Equalizer --------------------------------------------------------------------
 
     def _show_equalizer(self) -> None:
-        enabled = self._controller.equalizer_enabled
-        self._equalizer_switch.setChecked(enabled)
-        self._equalizer_switch.setText(tr("On") if enabled else tr("Off"))
+        self._equalizer_switch.setChecked(self._controller.equalizer_enabled)
         self._equalizer_scope.set_current(self._controller.equalizer_per_station)
 
     def action_sheet(self) -> ActionSheet:
@@ -781,9 +941,12 @@ class SettingsPage(QWidget):
 
     def _show_device_rows(self) -> None:
         settings = DeviceSettings(device=self._device.current())
-        self._rtl_tcp_rows.setVisible(settings.rtl_tcp() is not None)
-        self._rtlsdr_rows.setVisible(settings.is_rtlsdr)
-        self._rspduo_rows.setVisible(not settings.is_rtlsdr)
+        for row in self._rtl_tcp_rows:
+            row.setVisible(settings.rtl_tcp() is not None)
+        for row in self._rtlsdr_rows:
+            row.setVisible(settings.is_rtlsdr)
+        for row in self._rspduo_rows:
+            row.setVisible(not settings.is_rtlsdr)
 
     # --- rtl_tcp ----------------------------------------------------------------------
 
@@ -796,6 +959,7 @@ class SettingsPage(QWidget):
 
     def _show_server(self) -> None:
         self._server_host.setText(self._rtl_tcp_host or tr(NO_HOST))
+        self._server_host.set_placeholder(not self._rtl_tcp_host)
         self._server_port.setText(str(self._rtl_tcp_port))
 
     def _edit_server_host(self) -> None:
@@ -844,6 +1008,7 @@ class SettingsPage(QWidget):
                 rtl_tcp_port=self._rtl_tcp_port,
             )
         )
+        self._show_states()
         if receiving:
             self._restart_timer.start()
 
@@ -854,7 +1019,13 @@ class SettingsPage(QWidget):
     def _on_state_changed(self, state: ReceptionState) -> None:
         """The device can be changed except while it is being opened or scans."""
         free = state in (ReceptionState.IDLE, ReceptionState.RECEIVING)
-        for widget in (self._device, self._rtl_tcp_rows, self._rtlsdr_rows, self._rspduo_rows):
-            widget.setEnabled(free)
+        rows: tuple[Row, ...] = (
+            self._device,
+            *self._rtl_tcp_rows,
+            *self._rtlsdr_rows,
+            *self._rspduo_rows,
+        )
+        for row in rows:
+            row.setEnabled(free)
         if free:
             self._gain.setDisabled(self._agc.isChecked())

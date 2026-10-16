@@ -13,7 +13,6 @@ from PyQt6.QtWidgets import QApplication, QWidget
 from net.bluetooth import ADAPTER, DEVICE, BluetoothManager, Reply
 from tests.fake_bluez import BOSE, HCI0, JBL, SONY, FakeBus
 from ui.touch.bluetooth_view import BluetoothView, DeviceEntry, device_entries
-from ui.touch.settings_page import LABEL_WIDTH
 from ui.touch.window import SCREEN_HEIGHT, SCREEN_WIDTH
 
 
@@ -39,7 +38,7 @@ def bus() -> FakeBus:
 @pytest.fixture
 def view(window, bus):
     manager = BluetoothManager(bus=bus)
-    view = BluetoothView(manager, LABEL_WIDTH, window)
+    view = BluetoothView(manager, window)
     view.resize(SCREEN_WIDTH - 200, 520)
     view.show()  # reads everything
     yield view
@@ -64,7 +63,7 @@ def test_the_entries_tell_connected_and_paired():
 
 
 def test_the_sub_page_shows_the_connection_and_the_devices(view):
-    assert view._switch.isChecked() and view._switch.text() == "On"
+    assert view._switch.isChecked()
     assert view._connection.text() == "WH-1000XM4"
     assert view._battery.text() == "Battery 80 %"
     assert view._scan.isEnabled()
@@ -79,7 +78,7 @@ def test_the_sub_page_shows_the_connection_and_the_devices(view):
 
 def test_without_a_system_bus_the_page_says_so(window):
     manager = BluetoothManager(bus=FakeBus(connected=False))
-    view = BluetoothView(manager, LABEL_WIDTH, window)
+    view = BluetoothView(manager, window)
     view.show()
 
     assert view._unavailable.isVisibleTo(view)

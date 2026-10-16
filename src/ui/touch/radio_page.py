@@ -507,6 +507,9 @@ class _SlideArea(QStackedWidget):
 class RadioPage(QWidget):
     stations_requested = pyqtSignal()  # Start pressed with no station chosen yet
     guide_requested = pyqtSignal(int)  # the guide card was tapped: the station's SId
+    # "Back" was tapped on the equalizer or the recordings: whoever opened them
+    # from another page (the settings) can show that page again.
+    subpage_left = pyqtSignal()
 
     def __init__(
         self,
@@ -739,9 +742,9 @@ class RadioPage(QWidget):
         self._gallery = SlideGalleryPage(self._slides)
         self._gallery.back_button.clicked.connect(self.show_player)
         self._equalizer = EqualizerPage(controller)
-        self._equalizer.back_button.clicked.connect(self.show_player)
+        self._equalizer.back_button.clicked.connect(self._leave_subpage)
         self._recordings = RecordingsPage(controller)
-        self._recordings.back_button.clicked.connect(self.show_player)
+        self._recordings.back_button.clicked.connect(self._leave_subpage)
         self._recordings.cut_requested.connect(self.show_cut)
         self._cut_model = CutModel(controller, self)
         self._cut = CutPage(self._cut_model)
@@ -936,6 +939,12 @@ class RadioPage(QWidget):
 
     def show_player(self) -> None:
         self._stack.setCurrentIndex(0)
+
+    def _leave_subpage(self) -> None:
+        """ "Back" on the equalizer or the recordings: the player again, and whoever
+        opened them from another page hears of it (`subpage_left`)."""
+        self.show_player()
+        self.subpage_left.emit()
 
     def show_gallery(self) -> None:
         """The slides received from the station, the one on display chosen."""

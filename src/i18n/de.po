@@ -2,7 +2,7 @@
 # Brought up to date by src/i18n/update_catalogs.py.
 msgid ""
 msgstr ""
-"Project-Id-Version: dab-radio 1.2.0\n"
+"Project-Id-Version: dab-radio 1.3.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
 "POT-Creation-Date: 2026-10-10 16:51+0000\n"
 "PO-Revision-Date: 2026-10-10 16:51+0000\n"
@@ -2306,10 +2306,8 @@ msgid "Removing “{name}” …"
 msgstr "Entferne „{name}“ …"
 
 #. the status of the MQTT connection while it is switched off.
-#: src/net/mqtt.py src/ui/touch/bluetooth_view.py
-#: src/ui/touch/data_services_view.py src/ui/touch/equalizer_view.py
-#: src/ui/touch/mqtt_view.py src/ui/touch/recording_view.py
-#: src/ui/touch/settings_page.py src/ui/touch/wifi_view.py
+#: src/net/mqtt.py src/ui/touch/data_services_view.py
+#: src/ui/touch/equalizer_view.py src/ui/touch/settings_page.py
 msgid "Off"
 msgstr "Aus"
 
@@ -7439,15 +7437,7 @@ msgstr "Gekoppelt"
 msgid "Battery {percent} %"
 msgstr "Akku {percent} %"
 
-#: src/ui/touch/bluetooth_view.py src/ui/touch/data_services_view.py
-#: src/ui/touch/equalizer_view.py src/ui/touch/mqtt_view.py
-#: src/ui/touch/recording_view.py src/ui/touch/settings_page.py
-#: src/ui/touch/wifi_view.py
-msgid "On"
-msgstr "An"
-
-#: src/ui/touch/bluetooth_view.py src/ui/touch/mqtt_view.py
-#: src/ui/touch/wifi_view.py
+#: src/ui/touch/bluetooth_view.py src/ui/touch/wifi_view.py
 msgid "Connection"
 msgstr "Verbindung"
 
@@ -7459,7 +7449,8 @@ msgstr "Geräte"
 msgid "Bluetooth off"
 msgstr "Bluetooth aus"
 
-#: src/ui/touch/bluetooth_view.py src/ui/touch/wifi_view.py
+#: src/ui/touch/bluetooth_view.py src/ui/touch/settings_page.py
+#: src/ui/touch/wifi_view.py
 msgid "Not connected"
 msgstr "Nicht verbunden"
 
@@ -7608,6 +7599,11 @@ msgstr "Subkanal {id}, {bitrate} kbit/s"
 #: src/ui/touch/data_services_view.py
 msgid "Unnamed"
 msgstr "Ohne Namen"
+
+#: src/ui/touch/data_services_view.py src/ui/touch/equalizer_view.py
+#: src/ui/touch/settings_page.py
+msgid "On"
+msgstr "An"
 
 #: src/ui/touch/data_services_view.py
 msgid "All on"
@@ -7768,8 +7764,7 @@ msgstr "Gleichwelle"
 msgid "Overload"
 msgstr "Übersteuerung"
 
-#: src/ui/touch/display_choice.py src/ui/touch/settings_page.py
-#: src/ui/touch/signal_panels.py
+#: src/ui/touch/display_choice.py src/ui/touch/signal_panels.py
 msgid "Load"
 msgstr "Rechenlast"
 
@@ -7912,7 +7907,7 @@ msgstr "Breite"
 msgid "Presets"
 msgstr "Voreinstellung"
 
-#: src/ui/touch/equalizer_view.py
+#: src/ui/touch/equalizer_view.py src/ui/touch/settings_page.py
 msgid "Sound"
 msgstr "Klang"
 
@@ -8460,12 +8455,14 @@ msgstr "Kein Passwort"
 #: src/ui/touch/mqtt_view.py
 msgid ""
 "The radio connects to the broker and opens no port itself; who may "
-"connect and whether it is encrypted is set at the broker. The password is"
-" stored in plain text in the radio's settings."
+"connect and whether it is encrypted is set at the broker."
 msgstr ""
 "Das Radio verbindet sich zum Broker und öffnet selbst keinen Port; wer "
-"darf und ob verschlüsselt, stellt der Broker ein. Das Passwort steht im "
-"Klartext in den Einstellungen des Radios."
+"darf und ob verschlüsselt, stellt der Broker ein."
+
+#: src/ui/touch/mqtt_view.py
+msgid "Stored in plain text in the radio's settings."
+msgstr "Steht im Klartext in den Einstellungen des Radios."
 
 #: src/ui/touch/mqtt_view.py
 msgid ""
@@ -8478,21 +8475,36 @@ msgstr ""
 "Slideshow und mehr erscheinen dort von selbst."
 
 #: src/ui/touch/mqtt_view.py
+msgid "Broker"
+msgstr "Broker"
+
+#: src/ui/touch/mqtt_view.py src/ui/touch/settings_page.py
+msgid "Port"
+msgstr "Port"
+
+#: src/ui/touch/mqtt_view.py
+msgid "User name"
+msgstr "Benutzername"
+
+#: src/ui/touch/mqtt_view.py
+msgid "Password"
+msgstr "Passwort"
+
+#: src/ui/touch/mqtt_view.py
 msgid "Verify certificate"
 msgstr "Zertifikat prüfen"
 
 #: src/ui/touch/mqtt_view.py
-msgid "Broker"
-msgstr "Broker"
-
-#. user name and password at the broker.
-#: src/ui/touch/mqtt_view.py
-msgid "Login"
-msgstr "Anmeldung"
-
-#: src/ui/touch/mqtt_view.py
 msgid "Topic prefix"
 msgstr "Topic-Präfix"
+
+#: src/ui/touch/mqtt_view.py
+msgid "Discovery prefix"
+msgstr "Discovery-Präfix"
+
+#: src/ui/touch/mqtt_view.py
+msgid "Encryption"
+msgstr "Verschlüsselung"
 
 #: src/ui/touch/mqtt_view.py
 msgid "Broker address"
@@ -8529,10 +8541,6 @@ msgstr "Topic-Präfix des Radios"
 #: src/ui/touch/mqtt_view.py
 msgid "Without spaces, + and #; default dabradio"
 msgstr "Ohne Leerzeichen, + und #; Vorgabe dabradio"
-
-#: src/ui/touch/mqtt_view.py
-msgid "Discovery prefix"
-msgstr "Discovery-Präfix"
 
 #: src/ui/touch/mqtt_view.py
 msgid "As set in the smart home; default homeassistant"
@@ -8659,7 +8667,8 @@ msgstr "Kein Empfang"
 msgid "Scan running"
 msgstr "Suchlauf läuft"
 
-#: src/ui/touch/radio_page.py src/ui/touch/wifi_view.py
+#: src/ui/touch/radio_page.py src/ui/touch/settings_page.py
+#: src/ui/touch/wifi_view.py
 msgid "Connecting …"
 msgstr "Verbinde …"
 
@@ -8672,6 +8681,18 @@ msgstr "Suche Sender …"
 #, python-brace-format
 msgid "Reception {quality} · {details}"
 msgstr "Empfang {quality} · {details}"
+
+#: src/ui/touch/recording_view.py
+msgid "How many of the last titles are kept; titles kept for good stay anyway."
+msgstr "Wie viele der letzten Titel bleiben; behaltene bleiben ohnehin."
+
+#: src/ui/touch/recording_view.py
+msgid ""
+"Makes the delays of the station playing the default of every station "
+"without its own."
+msgstr ""
+"Macht die Verzögerungen des spielenden Senders zur Vorgabe für jeden "
+"Sender ohne eigene."
 
 #. the file of a title begins (or ends) right at the Dynamic Label
 #. that names the title; "Dyn. Label" shortened to fit the stepper.
@@ -8703,11 +8724,8 @@ msgstr "{station}, eigener Wert"
 msgid "{station}, default"
 msgstr "{station}, Vorgabe"
 
-#: src/ui/touch/recording_view.py
-msgid "Apply to all"
-msgstr "Für alle übernehmen"
-
 #: src/ui/touch/recording_view.py src/ui/touch/recordings_view.py
+#: src/ui/touch/settings_page.py
 #, python-brace-format
 msgid "{count} title"
 msgid_plural "{count} titles"
@@ -8718,6 +8736,18 @@ msgstr[1] "{count} Titel"
 msgid "Show recordings"
 msgstr "Aufnahmen anzeigen"
 
+#: src/ui/touch/recording_view.py
+msgid "Start delay"
+msgstr "Startverzögerung"
+
+#: src/ui/touch/recording_view.py
+msgid "Stop delay"
+msgstr "Stoppverzögerung"
+
+#: src/ui/touch/recording_view.py
+msgid "Apply to all stations"
+msgstr "Für alle Sender übernehmen"
+
 #: src/ui/touch/recording_view.py src/ui/touch/settings_page.py
 msgid "Recording"
 msgstr "Aufnahme"
@@ -8727,12 +8757,8 @@ msgid "Buffer size"
 msgstr "Puffergröße"
 
 #: src/ui/touch/recording_view.py
-msgid "Start delay"
-msgstr "Startverzögerung"
-
-#: src/ui/touch/recording_view.py
-msgid "Stop delay"
-msgstr "Stoppverzögerung"
+msgid "Delays"
+msgstr "Verzögerungen"
 
 #: src/ui/touch/recordings_view.py
 msgid "No title recorded yet."
@@ -8791,6 +8817,30 @@ msgid "Changes to the device briefly restart a running reception."
 msgstr "Änderungen am Gerät starten einen laufenden Empfang kurz neu."
 
 #: src/ui/touch/settings_page.py
+msgid "The stick sets its gain itself."
+msgstr "Der Stick regelt seine Verstärkung selbst."
+
+#: src/ui/touch/settings_page.py
+msgid "Removes the DC offset of the samples."
+msgstr "Entfernt den Gleichanteil der Abtastwerte."
+
+#: src/ui/touch/settings_page.py
+msgid "Balances amplitude and phase of I and Q."
+msgstr "Gleicht Amplitude und Phase von I und Q an."
+
+#: src/ui/touch/settings_page.py
+msgid "Takes effect with the next start."
+msgstr "Gilt ab dem nächsten Start."
+
+#: src/ui/touch/settings_page.py
+msgid "After the last touch."
+msgstr "Nach der letzten Berührung."
+
+#: src/ui/touch/settings_page.py
+msgid "For the sky and the corrections of GEPOS."
+msgstr "Für den Himmel und die Korrekturen von GEPOS."
+
+#: src/ui/touch/settings_page.py
 msgid ""
 "Per station, every station keeps its own on/off and sound; one without a "
 "setting of its own sounds like all stations."
@@ -8814,6 +8864,14 @@ msgid ""
 msgstr ""
 "Automatisch folgt dem System, also Kopfhörern, sobald sie verbunden sind."
 " Lautstärke und Maximum gelten je Ausgabe."
+
+#: src/ui/touch/settings_page.py
+msgid ""
+"For an announcement from another ensemble the radio tunes there and "
+"returns afterwards."
+msgstr ""
+"Für eine Durchsage aus einem anderen Ensemble stimmt das Radio dorthin um"
+" und kehrt danach zurück."
 
 #: src/ui/touch/settings_page.py
 msgid ""
@@ -8875,10 +8933,18 @@ msgstr "nach {minutes:.0f} min"
 msgid "after {hours:.0f} h"
 msgstr "nach {hours:.0f} h"
 
+#: src/ui/touch/settings_page.py src/ui/touch/storage_view.py
+msgid "Drive not mounted"
+msgstr "Datenträger nicht eingebunden"
+
 #: src/ui/touch/settings_page.py
 #, python-brace-format
 msgid "currently {name}"
 msgstr "zurzeit {name}"
+
+#: src/ui/touch/settings_page.py
+msgid "Device"
+msgstr "Gerät"
 
 #: src/ui/touch/settings_page.py
 msgid "Server"
@@ -8901,48 +8967,8 @@ msgid "IF gain reduction"
 msgstr "ZF-Absenkung"
 
 #: src/ui/touch/settings_page.py
-msgid "Switch to the station of the announcement"
-msgstr "Zum Sender der Durchsage umschalten"
-
-#: src/ui/touch/settings_page.py
-msgid "Dark"
-msgstr "Dunkel"
-
-#: src/ui/touch/settings_page.py
-msgid "Light"
-msgstr "Hell"
-
-#: src/ui/touch/settings_page.py
-msgid "Show in the menu bar"
-msgstr "In der Menüleiste anzeigen"
-
-#: src/ui/touch/settings_page.py
-msgid "Show beside the slider"
-msgstr "Neben dem Regler anzeigen"
-
-#: src/ui/touch/settings_page.py
-msgid "Point cloud"
-msgstr "Punktwolke"
-
-#: src/ui/touch/settings_page.py
-msgid "Density"
-msgstr "Dichte"
-
-#: src/ui/touch/settings_page.py
-msgid "Open the equalizer"
-msgstr "Zum Equalizer"
-
-#: src/ui/touch/settings_page.py
-msgid "Per station"
-msgstr "Pro Sender"
-
-#: src/ui/touch/settings_page.py
-msgid "Delete all sound settings"
-msgstr "Alle Klangeinstellungen löschen"
-
-#: src/ui/touch/settings_page.py
-msgid "Device"
-msgstr "Gerät"
+msgid "Tuner"
+msgstr "Tuner"
 
 #: src/ui/touch/settings_page.py
 msgid "Correction"
@@ -8957,16 +8983,79 @@ msgid "Appearance"
 msgstr "Darstellung"
 
 #: src/ui/touch/settings_page.py
-msgid "Volume"
-msgstr "Lautstärke"
+msgid "Dark"
+msgstr "Dunkel"
 
 #: src/ui/touch/settings_page.py
-msgid "Dim screen"
-msgstr "Bildschirm dimmen"
+msgid "Light"
+msgstr "Hell"
 
 #: src/ui/touch/settings_page.py
-msgid "Screen off"
-msgstr "Bildschirm ausschalten"
+msgid "Point cloud"
+msgstr "Punktwolke"
+
+#: src/ui/touch/settings_page.py
+msgid "Density"
+msgstr "Dichte"
+
+#. when the screen dims, under the heading "Screen".
+#: src/ui/touch/settings_page.py
+msgid "Dim"
+msgstr "Dimmen"
+
+#. when the screen goes off, under the heading "Screen".
+#: src/ui/touch/settings_page.py
+msgid "Switch off"
+msgstr "Ausschalten"
+
+#: src/ui/touch/settings_page.py
+msgid "Latitude"
+msgstr "Breite"
+
+#: src/ui/touch/settings_page.py
+msgid "Longitude"
+msgstr "Länge"
+
+#: src/ui/touch/settings_page.py
+msgid "Height"
+msgstr "Höhe"
+
+#. the heading over language and colour scheme.
+#: src/ui/touch/settings_page.py
+msgid "Interface"
+msgstr "Oberfläche"
+
+#: src/ui/touch/settings_page.py
+msgid "Radio page"
+msgstr "Radio-Seite"
+
+#: src/ui/touch/settings_page.py
+msgid "Load in the menu bar"
+msgstr "Rechenlast in der Menüleiste"
+
+#: src/ui/touch/settings_page.py
+msgid "Level beside the volume slider"
+msgstr "Pegel neben dem Lautstärkeregler"
+
+#: src/ui/touch/settings_page.py
+msgid "Screen"
+msgstr "Bildschirm"
+
+#: src/ui/touch/settings_page.py
+msgid "Applies to"
+msgstr "Gilt für"
+
+#: src/ui/touch/settings_page.py
+msgid "Per station"
+msgstr "Pro Sender"
+
+#: src/ui/touch/settings_page.py
+msgid "Adjust sound"
+msgstr "Klang einstellen"
+
+#: src/ui/touch/settings_page.py
+msgid "Delete all sound settings"
+msgstr "Alle Klangeinstellungen löschen"
 
 #: src/ui/touch/settings_page.py
 msgid "Maximum volume"
@@ -8977,16 +9066,12 @@ msgid "Equalizer"
 msgstr "Equalizer"
 
 #: src/ui/touch/settings_page.py
-msgid "Applies to"
-msgstr "Gilt für"
-
-#: src/ui/touch/settings_page.py
-msgid "Reset"
-msgstr "Zurücksetzen"
-
-#: src/ui/touch/settings_page.py
 msgid "Announcements"
 msgstr "Durchsagen"
+
+#: src/ui/touch/settings_page.py
+msgid "Switch to the station of the announcement"
+msgstr "Zum Sender der Durchsage umschalten"
 
 #: src/ui/touch/settings_page.py
 #, python-brace-format
@@ -9360,16 +9445,12 @@ msgid "{free} free of {total}"
 msgstr "{free} frei von {total}"
 
 #: src/ui/touch/storage_view.py
-msgid "Choose folder"
-msgstr "Ordner wählen"
-
-#: src/ui/touch/storage_view.py
 msgid "Drives"
 msgstr "Datenträger"
 
 #: src/ui/touch/storage_view.py
-msgid "Drive not mounted"
-msgstr "Datenträger nicht eingebunden"
+msgid "Choose folder"
+msgstr "Ordner wählen"
 
 #: src/ui/touch/storage_view.py
 msgid "Eject"
@@ -9585,14 +9666,14 @@ msgstr "nur {band}"
 msgid "{first} and {second}"
 msgstr "{first} und {second}"
 
+#: src/ui/touch/wifi_view.py
+msgid "Networks"
+msgstr "Netze"
+
 #. the button to enter a hidden network by its name.
 #: src/ui/touch/wifi_view.py
 msgid "Manual SSID"
 msgstr "Manuelle SSID"
-
-#: src/ui/touch/wifi_view.py
-msgid "Networks"
-msgstr "Netze"
 
 #: src/ui/touch/wifi_view.py
 msgid "No Wi-Fi device found."

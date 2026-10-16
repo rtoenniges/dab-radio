@@ -1,14 +1,14 @@
 """The sub-page "Storage" of the settings: where the recordings go, and the USB drives
 to put them on.
 
-The first row shows the directory chosen for the recordings
-(`ReceiverController.recording_directory`) with the free space of its drive, or that
-the drive is not there right now; "Choose folder" opens the folder browser
+The card "Recordings" holds the directory chosen for the recordings
+(`ReceiverController.recording_directory`) with the free space of its drive beneath, or
+that the drive is not there right now; a tap on it opens the folder browser
 (`ui.touch.folder_browser`) on the drive the directory lies on, else on the first drive
-mounted. The list beneath holds the USB drives UDisks2 knows (`storage.volumes`): a tap
-on a mounted one offers to choose a folder on it or to eject it, one on a drive not
-mounted mounts it. On the PC the list shows what the system has mounted, and only the
-folder can be chosen there. The ring and the start delay are on the sub-page
+mounted. The list "Drives" beneath holds the USB drives UDisks2 knows (`storage.volumes`):
+a tap on a mounted one offers to choose a folder on it or to eject it, one on a drive
+not mounted mounts it. On the PC the list shows what the system has mounted, and only
+the folder can be chosen there. The ring and the start delay are on the sub-page
 "Recording" (`ui.touch.recording_view`)."""
 
 from __future__ import annotations
@@ -19,7 +19,6 @@ from pathlib import Path
 from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtGui import QHideEvent, QMouseEvent, QShowEvent
 from PyQt6.QtWidgets import (
-    QGridLayout,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -32,6 +31,7 @@ from PyQt6.QtWidgets import (
 from i18n import tr, tr_noop
 from storage.volumes import Volume, VolumeManager, free_space, size_text
 from ui.receiver_controller import ReceiverController
+from ui.touch.cards import Card, Row, heading_label
 from ui.touch.folder_browser import SEPARATOR, FolderBrowser
 from ui.touch.icons import symbol_icon, symbol_pixmap
 from ui.touch.overlay import ActionSheet
@@ -166,16 +166,16 @@ class _VolumeRow(TapWidget):
 
 
 class StorageView(QWidget):
-    """Rows like the other sub-pages: "Recordings", "Drives"; the list fills what
-    the page leaves. `message` (errors, what is missing) is for the settings page to
-    place in its bottom row. Reads the drives anew while shown (`VolumeManager.start`);
-    the state it opens with was read at the start of the radio (`VolumeManager.watch`)."""
+    """The card "Recordings" (the folder, a tap chooses another) and the list "Drives"
+    beneath, which fills what the page leaves, with the button to look again under it.
+    `message` (errors, what is missing) is for the settings page to place in its bottom
+    row. Reads the drives anew while shown (`VolumeManager.start`); the state it opens
+    with was read at the start of the radio (`VolumeManager.watch`)."""
 
     def __init__(
         self,
         controller: ReceiverController,
         volumes: VolumeManager,
-        label_width: int,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -190,14 +190,12 @@ class StorageView(QWidget):
 
         self.message = set_role(QLabel(), "small")
 
-        self._directory = set_role(ElidedLabel(), "large")
-        self._space = set_role(QLabel(), "muted")
-        directory = QHBoxLayout()
-        directory.setSpacing(16)
-        directory.addWidget(self._directory, stretch=1)
-        directory.addWidget(self._space)
-        self._choose = QPushButton(tr("Choose folder"))
-        self._choose.clicked.connect(self._choose_directory)
+        # The directory as the title, the space left beneath; the row opens the browser.
+        self._choose = Row(chevron=True)
+        self._choose.tapped.connect(self._choose_directory)
+        self._directory = self._choose.title
+        self._space = self._choose.subtitle
+
         self._list_layout = QVBoxLayout()
         self._list_layout.setContentsMargins(0, 0, 0, 0)
         self._list_layout.setSpacing(0)
@@ -221,33 +219,27 @@ class StorageView(QWidget):
         panel_layout.setContentsMargins(8, 8, 8, 8)
         panel_layout.addWidget(self._area, stretch=1)
         panel_layout.addWidget(self._empty, stretch=1)
+        drives = set_role(QWidget(), "transparent")
+        drives_layout = QVBoxLayout(drives)
+        drives_layout.setContentsMargins(0, 0, 0, 0)
+        drives_layout.setSpacing(6)
+        drives_layout.addWidget(heading_label(tr("Drives")))
+        drives_layout.addWidget(self._list_panel, stretch=1)
 
         self._refresh_button = QPushButton()
         self._refresh_button.setIconSize(REFRESH_ICON)
         self._refresh_button.clicked.connect(self._on_refresh_clicked)
-        side = QVBoxLayout()
-        side.setSpacing(12)
-        side.addWidget(self._refresh_button, alignment=Qt.AlignmentFlag.AlignLeft)
-        side.addStretch()
+        buttons = QHBoxLayout()
+        buttons.setSpacing(12)
+        buttons.addWidget(self._refresh_button)
+        buttons.addStretch()
 
-        # "Choose folder" shares the third column with the button beside the list, so
-        # that both line up and the free space ends where the list does.
-        grid = QGridLayout(self)
-        grid.setContentsMargins(0, 0, 0, 0)
-        grid.setHorizontalSpacing(16)
-        grid.setVerticalSpacing(12)
-        for row, name in enumerate((tr("Recordings"), tr("Drives"))):
-            label = set_role(QLabel(name), "muted")
-            label.setFixedWidth(label_width)
-            top = Qt.AlignmentFlag.AlignTop if row == 1 else Qt.AlignmentFlag.AlignVCenter
-            grid.addWidget(label, row, 0, alignment=top)
-        left = Qt.AlignmentFlag.AlignLeft
-        grid.addLayout(directory, 0, 1)
-        grid.addWidget(self._choose, 0, 2, alignment=left)
-        grid.addWidget(self._list_panel, 1, 1)
-        grid.addLayout(side, 1, 2)
-        grid.setRowStretch(1, 1)
-        grid.setColumnStretch(1, 1)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+        layout.addWidget(Card(tr("Recordings"), [self._choose]))
+        layout.addWidget(drives, stretch=1)
+        layout.addLayout(buttons)
 
         volumes.changed.connect(self._refresh)
         volumes.failed.connect(self._on_failed)
@@ -315,7 +307,7 @@ class StorageView(QWidget):
         volume = self._volumes.volume_of(directory)
         self._directory.setText(directory_text(directory, volume))
         available = self._controller.recording_directory_available
-        set_role(self._directory, "large" if available else "muted")
+        set_role(self._directory, "" if available else "muted")
         repolish(self._directory)
         if directory is None:
             space = ""

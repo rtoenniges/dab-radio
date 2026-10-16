@@ -190,6 +190,9 @@ class TouchWindow(QMainWindow):
         self._screen = ScreenDimmer(Backlight.find(), controller.settings, self)
         self._settings_page = SettingsPage(controller, screen=self._screen)
         self._theme: Theme = THEMES[DARK]
+        # The page to show again when "Back" leaves a sub-page of the radio page that
+        # was opened from it (the equalizer and the recordings from the settings).
+        self._return_to: str | None = None
         # Devices connecting and going bring the pointer back (see `rehide_cursor`).
         self._bluetooth_connected = self._connected_bluetooth_devices()
         self._settings_page.bluetooth.changed.connect(self._on_bluetooth_changed)
@@ -314,6 +317,7 @@ class TouchWindow(QMainWindow):
 
         self._radio_page.stations_requested.connect(lambda: self.show_page(STATIONS))
         self._radio_page.guide_requested.connect(self._show_guide)
+        self._radio_page.subpage_left.connect(self._on_subpage_left)
         self._settings_page.theme_chosen.connect(self.set_theme)
         self._settings_page.load_shown_chosen.connect(self.set_load_shown)
         self._settings_page.volume_figure_shown_chosen.connect(self.set_volume_figure_shown)
@@ -390,6 +394,7 @@ class TouchWindow(QMainWindow):
         (`show_page`)."""
         if key == self.current_page() and key == SIGNAL:
             self._signal_page.show_first_page()
+        self._return_to = None  # the rail leads elsewhere, "Back" no longer
         self.show_page(key)
 
     def show_page(self, key: str) -> None:
@@ -406,14 +411,25 @@ class TouchWindow(QMainWindow):
         self.show_page(SERVICES)
 
     def _show_equalizer(self) -> None:
-        """The way from the settings to the equalizer, a sub-page of the radio page."""
+        """The way from the settings to the equalizer, a sub-page of the radio page;
+        "Back" there leads to the settings again."""
         self.show_page(RADIO)
+        self._return_to = SETTINGS
         self._radio_page.show_equalizer()
 
     def _show_recordings(self) -> None:
-        """The way from the settings to the recordings, a sub-page of the radio page."""
+        """The way from the settings to the recordings, a sub-page of the radio page;
+        "Back" there leads to the settings again."""
         self.show_page(RADIO)
+        self._return_to = SETTINGS
         self._radio_page.show_recordings()
+
+    def _on_subpage_left(self) -> None:
+        """ "Back" on a sub-page of the radio page leads to the page it was opened from,
+        where that was another page; opened on the radio page, it stays there."""
+        key, self._return_to = self._return_to, None
+        if key is not None:
+            self.show_page(key)
 
     def current_page(self) -> str:
         return self._page_keys[self._stack.currentIndex()]

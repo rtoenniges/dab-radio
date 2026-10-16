@@ -16,7 +16,6 @@ from dataclasses import dataclass
 from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtGui import QHideEvent, QMouseEvent, QShowEvent
 from PyQt6.QtWidgets import (
-    QGridLayout,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -39,6 +38,7 @@ from net.wifi import (
     valid_password,
     valid_ssid,
 )
+from ui.touch.cards import Card, Row, Toggle, heading_label, switch_row
 from ui.touch.icons import symbol_icon, symbol_pixmap
 from ui.touch.ip_settings import IpSettingsDialog
 from ui.touch.keyboard import Keyboard
@@ -196,13 +196,14 @@ class _NetworkRow(TapWidget):
 
 
 class WifiView(QWidget):
-    """Rows like the other sub-pages: "Wi-Fi", "Connection", "Networks"; the list fills
-    what the page leaves. `message` (errors, the missing polkit rule) is for the settings
-    page to place in its bottom row. Reads the Wi-Fi faster while shown, scanning once
-    when opened (`WifiManager.start`); the state it opens with was read at the start of
-    the radio (`WifiManager.watch`)."""
+    """The card "Wi-Fi" (the switch, the connection with its bars, band and address)
+    and the list "Networks" beneath, which fills what the page leaves, with the buttons
+    to search again and to enter a hidden network under it. `message` (errors, the
+    missing polkit rule) is for the settings page to place in its bottom row. Reads the
+    Wi-Fi faster while shown, scanning once when opened (`WifiManager.start`); the state
+    it opens with was read at the start of the radio (`WifiManager.watch`)."""
 
-    def __init__(self, wifi: WifiManager, label_width: int, parent: QWidget | None = None) -> None:
+    def __init__(self, wifi: WifiManager, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._wifi = wifi
         self._theme = THEMES[DARK]
@@ -215,21 +216,25 @@ class WifiView(QWidget):
 
         self.message = set_role(QLabel(), "small")
 
-        self._switch = set_role(QPushButton(tr("Off")), "switch")
-        self._switch.setCheckable(True)
-        self._switch.toggled.connect(lambda on: self._switch.setText(tr("On") if on else tr("Off")))
+        self._switch = Toggle()
         self._switch.clicked.connect(self._on_switch_clicked)
 
-        self._connection = set_role(ElidedLabel(), "large")
+        # The connection: the network's name as the value, its bars beside, the band
+        # and the address beneath the title.
+        self._band = set_role(QLabel(), "small")
+        self._address = set_role(QLabel(), "small")
+        self._details = set_role(QWidget(), "transparent")
+        details = QHBoxLayout(self._details)
+        details.setContentsMargins(0, 0, 0, 0)
+        details.setSpacing(12)
+        details.addWidget(self._band)
+        details.addWidget(self._address)
+        details.addStretch()
         self._connection_bars = SignalBars()
-        self._band = set_role(QLabel(), "muted")
-        self._address = set_role(QLabel(), "muted")
-        connection = QHBoxLayout()
-        connection.setSpacing(16)
-        connection.addWidget(self._connection, stretch=1)
-        connection.addWidget(self._connection_bars)
-        connection.addWidget(self._band)
-        connection.addWidget(self._address)
+        self._connection_row = Row(
+            tr("Connection"), self._details, control=self._connection_bars, value=""
+        )
+        self._connection = self._connection_row.value
 
         self._list_layout = QVBoxLayout()
         self._list_layout.setContentsMargins(0, 0, 0, 0)
@@ -253,6 +258,12 @@ class WifiView(QWidget):
         panel_layout.setContentsMargins(8, 8, 8, 8)
         panel_layout.addWidget(self._area, stretch=1)
         panel_layout.addWidget(self._empty, stretch=1)
+        networks = set_role(QWidget(), "transparent")
+        networks_layout = QVBoxLayout(networks)
+        networks_layout.setContentsMargins(0, 0, 0, 0)
+        networks_layout.setSpacing(6)
+        networks_layout.addWidget(heading_label(tr("Networks")))
+        networks_layout.addWidget(self._list_panel, stretch=1)
 
         self._scan = QPushButton()
         self._scan.setIconSize(REFRESH_ICON)
@@ -260,29 +271,21 @@ class WifiView(QWidget):
         # Translators: the button to enter a hidden network by its name.
         self._hidden = QPushButton(tr("Manual SSID"))
         self._hidden.clicked.connect(self._add_hidden)
-        side = QVBoxLayout()
-        side.setSpacing(12)
-        side.addWidget(self._scan, alignment=Qt.AlignmentFlag.AlignLeft)
-        side.addWidget(self._hidden)
-        side.addStretch()
+        buttons = QHBoxLayout()
+        buttons.setSpacing(12)
+        buttons.addWidget(self._scan)
+        buttons.addWidget(self._hidden)
+        buttons.addStretch()
 
         self._content = set_role(QWidget(), "transparent")
-        grid = QGridLayout(self._content)
-        grid.setContentsMargins(0, 0, 0, 0)
-        grid.setHorizontalSpacing(16)
-        grid.setVerticalSpacing(12)
-        for row, name in enumerate((tr("Wi-Fi"), tr("Connection"), tr("Networks"))):
-            label = set_role(QLabel(name), "muted")
-            label.setFixedWidth(label_width)
-            top = Qt.AlignmentFlag.AlignTop if row == 2 else Qt.AlignmentFlag.AlignVCenter
-            grid.addWidget(label, row, 0, alignment=top)
-        left = Qt.AlignmentFlag.AlignLeft
-        grid.addWidget(self._switch, 0, 1, alignment=left)
-        grid.addLayout(connection, 1, 1)
-        grid.addWidget(self._list_panel, 2, 1)
-        grid.addLayout(side, 2, 2)
-        grid.setRowStretch(2, 1)
-        grid.setColumnStretch(1, 1)
+        content = QVBoxLayout(self._content)
+        content.setContentsMargins(0, 0, 0, 0)
+        content.setSpacing(12)
+        content.addWidget(
+            Card(tr("Wi-Fi"), [switch_row(tr("Wi-Fi"), self._switch), self._connection_row])
+        )
+        content.addWidget(networks, stretch=1)
+        content.addLayout(buttons)
         self._unavailable = set_role(QLabel(tr(_UNAVAILABLE)), "muted")
         self._unavailable.setWordWrap(True)
         self._unavailable.setAlignment(Qt.AlignmentFlag.AlignTop)
@@ -388,7 +391,7 @@ class WifiView(QWidget):
         else:
             text = tr("Not connected")
         self._connection.setText(text)
-        set_role(self._connection, "large" if connected or wifi.activity else "muted")
+        set_role(self._connection, "" if connected or wifi.activity else "muted")
         repolish(self._connection)
         signal = next((n.signal for n in wifi.networks if n.ssid == ssid), None)
         self._connection_bars.set_bars(signal_bars(signal) if signal is not None else None)
@@ -398,6 +401,7 @@ class WifiView(QWidget):
         self._band.setVisible(connected and band != BAND_AUTOMATIC)
         self._address.setText(wifi.address)
         self._address.setVisible(connected and bool(wifi.address))
+        self._details.setVisible(not self._band.isHidden() or not self._address.isHidden())
 
     def _fill_list(self, entries: list[WifiEntry]) -> None:
         for row in self._rows:

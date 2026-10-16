@@ -15,7 +15,6 @@ from PyQt6.QtWidgets import QApplication, QWidget
 from storage.volumes import DRIVE, FILESYSTEM, Volume, VolumeManager
 from tests.fake_udisks import INTENSO_STICK, MOUNT_OPTIONS, SANDISK, STICK, STICK_MOUNT, FakeBus
 from ui.touch.folder_browser import FolderBrowser, list_folders, path_text, valid_folder_name
-from ui.touch.settings_page import LABEL_WIDTH
 from ui.touch.storage_view import (
     StorageView,
     VolumeEntry,
@@ -202,7 +201,7 @@ def bus() -> FakeBus:
 def view(window, bus, make_controller, data_directory):
     controller = make_controller(data_directory)
     manager = VolumeManager(bus=bus)
-    view = StorageView(controller, manager, LABEL_WIDTH, window)
+    view = StorageView(controller, manager, window)
     view.resize(SCREEN_WIDTH - 200, 520)
     view.show()  # reads everything, mounts the Intenso stick
     yield view
@@ -281,7 +280,7 @@ def test_choosing_a_folder_opens_the_browser_on_the_drive_and_stores_the_choice(
 def test_a_tap_on_a_drive_not_mounted_mounts_it(window, bus, make_controller, data_directory):
     controller = make_controller(data_directory)
     manager = VolumeManager(bus=bus, auto_mount=False)
-    view = StorageView(controller, manager, LABEL_WIDTH, window)
+    view = StorageView(controller, manager, window)
     view.show()
     assert not _row(view, "Intenso Speed Line").entry.mounted
 
@@ -294,7 +293,7 @@ def test_a_tap_on_a_drive_not_mounted_mounts_it(window, bus, make_controller, da
 def test_without_a_mounted_drive_choosing_says_so(window, make_controller, data_directory):
     controller = make_controller(data_directory)
     manager = VolumeManager(bus=FakeBus(objects={}))
-    view = StorageView(controller, manager, LABEL_WIDTH, window)
+    view = StorageView(controller, manager, window)
     view.show()
     assert view._empty.text() == "No USB drive found."
 
@@ -312,7 +311,7 @@ def test_without_a_system_bus_the_page_lists_the_system_and_says_so(
     controller = make_controller(data_directory)
     system = [Volume(str(tmp_path), "D:", "Stick", "", "exFAT", 64_000_000_000, str(tmp_path))]
     manager = VolumeManager(bus=FakeBus(connected=False), system=lambda: list(system))
-    view = StorageView(controller, manager, LABEL_WIDTH, window)
+    view = StorageView(controller, manager, window)
     view.show()
 
     assert [e.name for e in view.entries()] == ["Stick"]

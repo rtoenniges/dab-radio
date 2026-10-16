@@ -39,7 +39,6 @@ from tests.fake_nmcli import (
 from ui.touch.ip_settings import IpSettingsDialog
 from ui.touch.keyboard import BACKSPACE, DOT, LAYOUT, MAX_BYTES, SHIFT, Keyboard, Shift
 from ui.touch.number_pad import DECIMAL, SIGN, NumberPad
-from ui.touch.settings_page import LABEL_WIDTH
 from ui.touch.wifi_view import WifiEntry, WifiView, bands_text, wifi_entries
 from ui.touch.window import SCREEN_HEIGHT, SCREEN_WIDTH
 
@@ -231,7 +230,7 @@ def nmcli() -> FakeNmcli:
 @pytest.fixture
 def view(window, nmcli):
     manager = WifiManager(runner=nmcli)
-    view = WifiView(manager, LABEL_WIDTH, window)
+    view = WifiView(manager, window)
     view.resize(SCREEN_WIDTH - 200, 520)
     view.show()  # reads everything
     yield view
@@ -243,7 +242,7 @@ def _row(view: WifiView, ssid: str):
 
 
 def test_the_sub_page_shows_the_connection_and_the_networks(view):
-    assert view._switch.isChecked() and view._switch.text() == "On"
+    assert view._switch.isChecked()
     assert view._connection.text() == "FRITZ!Box 7590 XY"
     assert view._address.text() == "192.168.178.42"
     assert view._band.text() == "2.4 GHz" and not view._band.isHidden()
@@ -377,7 +376,7 @@ def test_switching_the_wlan_off(view, nmcli):
     view._switch.click()
 
     assert ["radio", "wifi", "off"] in nmcli.commands
-    assert not view._switch.isChecked() and view._switch.text() == "Off"
+    assert not view._switch.isChecked()
     assert view.entries() == []
     assert view._empty.text() == "Wi-Fi is off."
     assert not view._scan.isEnabled()
@@ -386,7 +385,7 @@ def test_switching_the_wlan_off(view, nmcli):
 def test_missing_permissions_and_errors_are_shown_beneath(window, nmcli):
     nmcli.answers[PERMISSIONS] = PERMISSIONS_DENIED
     manager = WifiManager(runner=nmcli)
-    view = WifiView(manager, LABEL_WIDTH, window)
+    view = WifiView(manager, window)
     view.show()
     assert "polkit" in view.message.text()
     assert view.message.property("role") == "small"
@@ -399,7 +398,7 @@ def test_missing_permissions_and_errors_are_shown_beneath(window, nmcli):
 
 def test_without_nmcli_the_sub_page_says_where_the_wlan_is_set(window, monkeypatch):
     monkeypatch.setattr(wifi, "find_nmcli", lambda: None)
-    view = WifiView(WifiManager(), LABEL_WIDTH, window)
+    view = WifiView(WifiManager(), window)
     view.show()
     assert view._unavailable.isVisible()
     assert not view._content.isVisible()

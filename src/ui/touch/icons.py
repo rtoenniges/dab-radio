@@ -333,7 +333,42 @@ def _qr(p: QPainter) -> None:
         p.drawRect(QRectF(x, y, 2.4, 2.4))
 
 
+def _antenna(p: QPainter) -> None:
+    """An aerial: a rod with a fork on top. The SDR among the settings."""
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    p.drawPolyline(_polygon((12, 21), (12, 8)))
+    p.drawPolyline(_polygon((6, 3), (12, 8), (18, 3)))
+    p.drawPolyline(_polygon((7, 21), (17, 21)))
+
+
+def _screen(p: QPainter) -> None:
+    """A screen on a stand. The display among the settings."""
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    p.drawRoundedRect(QRectF(3, 4, 18, 13), 2, 2)
+    p.drawPolyline(_polygon((12, 17), (12, 20.5)))
+    p.drawPolyline(_polygon((8, 20.5), (16, 20.5)))
+
+
+def _record(p: QPainter) -> None:
+    """A ring with a dot in it, as on a recorder. The recording among the settings."""
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    p.drawEllipse(QRectF(3, 3, 18, 18))
+    p.setBrush(p.pen().color())
+    p.drawEllipse(QRectF(7.5, 7.5, 9, 9))
+
+
+def _home(p: QPainter) -> None:
+    """A house: the smart home MQTT speaks to."""
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    p.drawPolyline(_polygon((3, 12), (12, 4), (21, 12)))
+    p.drawPolyline(_polygon((6, 10.5), (6, 20), (18, 20), (18, 10.5)))
+
+
 _SYMBOLS: dict[str, Callable[[QPainter], None]] = {
+    "antenna": _antenna,
+    "screen": _screen,
+    "record": _record,
+    "home": _home,
     "play": _play,
     "pause": _pause,
     "stop": _stop,

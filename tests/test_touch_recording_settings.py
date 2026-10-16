@@ -12,7 +12,6 @@ from PyQt6.QtWidgets import QApplication, QWidget
 
 from tests.fake_receiver import SERVICES_5C
 from ui.touch.recording_view import RecordingView, delay_scope_text, start_delay_text
-from ui.touch.settings_page import LABEL_WIDTH
 from ui.touch.window import SCREEN_HEIGHT, SCREEN_WIDTH
 
 
@@ -27,7 +26,7 @@ def view(make_controller, data_directory):
     window.resize(SCREEN_WIDTH, SCREEN_HEIGHT)
     window.show()
     controller = make_controller(data_directory)
-    view = RecordingView(controller, LABEL_WIDTH, window)
+    view = RecordingView(controller, window)
     view.resize(SCREEN_WIDTH - 200, 520)
     view.show()
     yield view, controller
@@ -45,22 +44,25 @@ def test_the_texts_say_when_the_file_begins_and_whom_the_delay_applies_to():
 
 def test_the_switch_turns_the_recording_off_and_on(view):
     view, controller = view
-    assert view._switch.isChecked() and view._switch.text() == "On"
+    assert view._switch.isChecked()
 
     view._switch.click()
-    assert not controller.recording_enabled and view._switch.text() == "Off"
+    assert not controller.recording_enabled and not view._switch.isChecked()
     controller.set_recording_enabled(True)
-    assert view._switch.isChecked() and view._switch.text() == "On"
+    assert view._switch.isChecked()
 
 
-def test_the_ring_size_is_set_with_a_stepper_and_the_button_leads_to_the_recordings(view):
+def test_the_ring_size_is_set_with_a_stepper_and_the_row_leads_to_the_recordings(view):
     view, controller = view
     asked: list[bool] = []
+    changed: list[bool] = []
     view.recordings_requested.connect(lambda: asked.append(True))
+    view.changed.connect(lambda: changed.append(True))
     assert view._ring_size.value() == controller.ring_size == 10
 
     view._ring_size._plus.click()
     assert controller.ring_size == 11
+    assert changed == [True]  # the settings page shows the size in its list
     view._show_recordings.click()
     assert asked == [True]
 
@@ -71,14 +73,14 @@ def test_the_start_delay_is_set_for_the_station_playing_with_a_default_for_all(v
     assert start.stepper.value() == controller.label_delay_s == 0
     # No station selected: the stepper sets the default of every station.
     assert start.scope.text() == "Default for all stations"
-    assert not start.default_button.isVisibleTo(view)
+    assert not view._apply_defaults.isVisibleTo(view)
     start.stepper._plus.click()
     assert controller.default_label_delay_s == 5 and controller.label_delay_s == 5
 
     # A station selected: its own value from the first step on.
     controller.select_service(SERVICES_5C[0][0])
     assert start.scope.text() == "Dlf, default" and start.stepper.value() == 5
-    assert start.default_button.isVisibleTo(view)
+    assert view._apply_defaults.isVisibleTo(view)
     start.stepper._plus.click()
     assert controller.label_delay_s == 10 and controller.default_label_delay_s == 5
     assert start.scope.text() == "Dlf, own value"
@@ -88,13 +90,13 @@ def test_the_start_delay_is_set_for_the_station_playing_with_a_default_for_all(v
     start.stepper._minus.click()
     start.stepper._minus.click()
     assert controller.label_delay_s == -5
-    start.default_button.click()
+    view._apply_defaults.click()
     assert controller.default_label_delay_s == -5
     controller.select_service(SERVICES_5C[0][0])
     assert controller.label_delay_s == 10  # its own value stands
 
 
-def test_the_stop_delay_is_set_the_same_way(view):
+def test_the_stop_delay_is_set_the_same_way_and_applied_to_all_with_the_start_delay(view):
     view, controller = view
     stop = view._stop
     assert stop.stepper.value() == controller.stop_delay_s == 0
@@ -108,7 +110,9 @@ def test_the_stop_delay_is_set_the_same_way(view):
     stop.stepper._plus.click()
     assert controller.stop_delay_s == 5 and controller.stop_delay_is_station_own
     assert stop.scope.text() == "Dlf, own value" and view._start.scope.text() == "Dlf, default"
-    stop.default_button.click()
-    assert controller.default_stop_delay_s == 5
+    # "Apply to all stations" takes both delays of the station: the start delay of
+    # Dlf is the default already, so only the stop delay changes.
+    view._apply_defaults.click()
+    assert controller.default_stop_delay_s == 5 and controller.default_label_delay_s == 0
     controller.select_service(SERVICES_5C[1][0])
     assert stop.stepper.value() == 5 and stop.scope.text() == "Dlf Kultur, default"

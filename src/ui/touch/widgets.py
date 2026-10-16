@@ -98,6 +98,10 @@ class TapWidget(QWidget):
         super().__init__(parent)
         self._pressed_at: QPointF | None = None
 
+    def click(self) -> None:
+        """As a tap on the widget."""
+        self.tapped.emit()
+
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
             self._pressed_at = event.position()

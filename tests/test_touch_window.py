@@ -594,13 +594,15 @@ def test_the_chosen_scheme_is_kept(data_directory, touch_window):
     window._settings_page.show_subpage(DISPLAY)
     QApplication.processEvents()
 
-    buttons = {b.text(): b for b in window._settings_page._theme.findChildren(QPushButton)}
-    painted = _Paints()
-    buttons["Light"].installEventFilter(painted)
-    buttons["Light"].click()
+    row = window._settings_page._theme
+    row.open()
+    sheet = row.sheet()
+    assert sheet.isVisible()
+    next(r for r in sheet.rows if r.key == LIGHT).click()
 
-    # The tap shows on its button at once, the window restyles itself a moment later.
-    assert buttons["Light"].isChecked() and painted.count == 1
+    # The sheet closes and the row shows the choice at once, the window restyles
+    # itself a moment later.
+    assert not sheet.isVisible() and row.text() == "Light"
     assert window._theme.key == DARK
     _spin(settings_page.THEME_FEEDBACK_MS + 50)
     assert window._theme.key == LIGHT
@@ -612,48 +614,45 @@ def test_a_second_tap_on_the_scheme_settles_it(data_directory, touch_window, mon
     window.show_page(SETTINGS)
     restyled = []
     monkeypatch.setattr(window, "setStyleSheet", restyled.append)
-    buttons = {b.text(): b for b in window._settings_page._theme.findChildren(QPushButton)}
+    row = window._settings_page._theme
 
     # Back to the scheme showing before it was switched: nothing to restyle.
-    buttons["Light"].click()
-    buttons["Dark"].click()
+    row.choose(LIGHT)
+    row.choose(DARK)
     _spin(settings_page.THEME_FEEDBACK_MS + 50)
     assert window._theme.key == DARK
     assert restyled == []
 
-    buttons["Light"].click()
-    buttons["Dark"].click()
-    buttons["Light"].click()
+    row.choose(LIGHT)
+    row.choose(DARK)
+    row.choose(LIGHT)
     _spin(settings_page.THEME_FEEDBACK_MS + 50)
     assert window._theme.key == LIGHT
     assert len(restyled) == 1
 
 
-def _chip(page, name: str) -> QPushButton:
-    return next(b for b in page._subpage_chips.findChildren(QPushButton) if b.text() == name)
-
-
-def test_the_chips_of_the_settings_page_choose_its_sub_page(data_directory, touch_window):
+def test_the_list_of_the_settings_page_chooses_its_sub_page(data_directory, touch_window):
     window = touch_window(data_directory)
     window.show()
     window.show_page(SETTINGS)
     page = window._settings_page
+    rows = page._categories.rows
     assert page.current_subpage() == SDR
+    assert rows[SDR].property("selected") and not rows[DISPLAY].property("selected")
     assert page._device.isVisible()
-    assert page._hint.isVisible()
+    assert page._device.subtitle.isVisible()  # a change restarts the reception
 
-    _chip(page, "Display").click()
+    rows[DISPLAY].click()
     assert page.current_subpage() == DISPLAY
+    assert rows[DISPLAY].property("selected") and not rows[SDR].property("selected")
     assert page._theme.isVisible() and page._load_shown.isVisible()
     assert page._constellation.isVisible()
     assert page._dim_after.isVisible() and page._off_after.isVisible()
     assert page._backlight_hint.isVisible()  # no backlight on the PC
     assert page._latitude.isVisible() and page._height.isVisible()
     assert not page._device.isVisible()
-    # Only a change of the device restarts the reception.
-    assert not page._hint.isVisible()
 
-    _chip(page, "Audio").click()
+    rows[AUDIO].click()
     assert page.current_subpage() == AUDIO
     assert page._equalizer_switch.isVisible() and page._equalizer_scope.isVisible()
     assert page._equalizer_reset.isVisible()
@@ -661,11 +660,10 @@ def test_the_chips_of_the_settings_page_choose_its_sub_page(data_directory, touc
     assert not page._latitude.isVisible()
     assert not page._wifi_view.message.isVisible()
 
-    _chip(page, "Wi-Fi").click()
+    rows[WIFI].click()
     assert page.current_subpage() == WIFI
     assert page._wifi_view.isVisible()
     assert page._wifi_view.message.isVisible()
-    assert not page._hint.isVisible()
 
 
 def test_a_settings_sub_page_taller_than_the_page_scrolls_and_fades_at_the_edge(
@@ -712,21 +710,21 @@ def test_the_settings_page_shows_the_version_bottom_right_on_every_sub_page(
     window.show()
     window.show_page(SETTINGS)
     page = window._settings_page
-    chips = page._subpage_chips.findChildren(QPushButton)
+    rows = list(page._categories.rows.values())
     for key in (SDR, DISPLAY, AUDIO, WIFI, MQTT):
         page.show_subpage(key)
         assert page._version.isVisible()
         assert page._version.text() == f"Version {receiver_controller.APPLICATION_VERSION}"
-    # Below the chips, left of the way out of the radio, which keeps the right margin.
+    # Below the list of categories, left of the way out of the radio, which keeps the
+    # right margin.
     version = page._version.geometry()
     quit_button = next(b for b in page.findChildren(QPushButton) if b.text() == "Quit radio")
-    assert version.top() > max(chip.mapTo(page, chip.rect().bottomLeft()).y() for chip in chips)
+    assert version.top() > max(row.mapTo(page, row.rect().bottomLeft()).y() for row in rows)
     assert version.right() < quit_button.geometry().left()
-    # The eight chips share the width in the shipped typeface: none is narrower than
-    # its name ("Bluetooth" and "Aufnahme", the German "Recording", were cut while the
-    # version sat beside them).
-    for chip in chips:
-        assert QFontMetrics(chip.font()).horizontalAdvance(chip.text()) <= chip.width(), chip.text()
+    # The eight categories have their names in full in the shipped typeface.
+    for row in rows:
+        name = row.name
+        assert QFontMetrics(name.font()).horizontalAdvance(name.text()) <= name.width(), name.text()
 
 
 def test_the_equalizer_is_switched_and_chosen_for_all_or_each_station_in_the_settings(
@@ -735,18 +733,16 @@ def test_the_equalizer_is_switched_and_chosen_for_all_or_each_station_in_the_set
     window = touch_window(data_directory)
     page = window._settings_page
     controller = window._controller
-    assert page._equalizer_switch.text() == "Off"
+    assert not page._equalizer_switch.isChecked()
 
     page._equalizer_switch.click()
     assert controller.equalizer_enabled
-    assert page._equalizer_switch.text() == "On"
+    assert page._equalizer_switch.isChecked()
     # Also when switched on the equalizer page itself.
     window._radio_page.equalizer.switch.click()
     assert not page._equalizer_switch.isChecked()
 
-    next(
-        b for b in page._equalizer_scope.findChildren(QPushButton) if b.text() == "Per station"
-    ).click()
+    page._equalizer_scope.choose(True)
     assert controller.equalizer_per_station
     window._controller.shutdown()
     assert touch_window(data_directory)._settings_page._equalizer_scope.current() is True
@@ -775,17 +771,32 @@ def test_the_ceiling_of_the_volume_in_the_settings_moves_the_whole_slider(
     assert touch_window(data_directory)._settings_page._volume_ceiling.value() == -1
 
 
-def test_the_symbol_in_the_settings_leads_to_the_equalizer(data_directory, touch_window):
+def test_the_rows_of_the_settings_lead_to_the_equalizer_and_the_recordings_and_back(
+    data_directory, touch_window
+):
     window = touch_window(data_directory)
     window.show_page(SETTINGS)
+    radio = window._radio_page
 
     window._settings_page._equalizer_button.click()
+    assert window.current_page() == RADIO and radio.in_equalizer()
+    # "Back" leads to the settings the equalizer was opened from.
+    radio.equalizer.back_button.click()
+    assert window.current_page() == SETTINGS and not radio.in_equalizer()
 
-    assert window.current_page() == RADIO
-    assert window._radio_page.in_equalizer()
-    # The page of the navigation leads back to the player.
-    window.show_page(RADIO)
-    assert not window._radio_page.in_equalizer()
+    window._settings_page._recording_view._show_recordings.click()
+    assert window.current_page() == RADIO and radio.in_recordings()
+    radio.recordings.back_button.click()
+    assert window.current_page() == SETTINGS and not radio.in_recordings()
+
+    # The page of the navigation leads back to the player, and "Back" on the
+    # equalizer opened there stays on the radio page.
+    window._settings_page._equalizer_button.click()
+    window._on_nav_clicked(RADIO)
+    assert window.current_page() == RADIO and not radio.in_equalizer()
+    radio.show_equalizer()
+    radio.equalizer.back_button.click()
+    assert window.current_page() == RADIO and not radio.in_equalizer()
 
 
 def test_deleting_all_equalizer_settings_asks_first(data_directory, touch_window):
@@ -806,7 +817,7 @@ def test_deleting_all_equalizer_settings_asks_first(data_directory, touch_window
     sheet.actions[0].click()  # "Delete"
     assert not sheet.isVisible()
     assert controller.equalizer_state == EqualizerState()
-    assert page._equalizer_switch.text() == "Off"
+    assert not page._equalizer_switch.isChecked()
 
 
 def test_the_button_beside_the_loudspeaker_opens_the_equalizer(data_directory, touch_window):
@@ -910,9 +921,6 @@ def test_the_constellation_is_drawn_as_points_or_as_a_density_on_both_pages(
     points += 0.1 * (rng.normal(size=count) + 1j * rng.normal(size=count))
     points = points.astype(np.complex64)
 
-    def button(name: str) -> QPushButton:
-        return next(b for b in page._constellation.findChildren(QPushButton) if b.text() == name)
-
     # Points at first, a sample of them.
     assert page._constellation.current() is False
     window.show_page(SIGNAL)
@@ -922,7 +930,7 @@ def test_the_constellation_is_drawn_as_points_or_as_a_density_on_both_pages(
     assert len(on_signal.curve.getData()[0]) == MAX_CONSTELLATION_POINTS
 
     # The density counts every point; what is on show is redrawn at once.
-    button("Density").click()
+    page._constellation.choose(True)
     assert window._controller.settings.value(SETTINGS_CONSTELLATION_DENSITY, type=bool) is True
     assert on_signal.image.isVisible() and not on_signal.curve.isVisible()
     assert on_signal.image.image.shape == (DENSITY_BINS, DENSITY_BINS)
@@ -944,14 +952,14 @@ def test_the_constellation_is_drawn_as_points_or_as_a_density_on_both_pages(
     assert on_radio.image.isVisible() and on_radio.image.image is not None
 
     # Back to points, on both pages.
-    button("Point cloud").click()
+    page._constellation.choose(False)
     assert window._controller.settings.value(SETTINGS_CONSTELLATION_DENSITY, type=bool) is False
     assert on_radio.curve.isVisible() and not on_radio.image.isVisible()
     assert len(on_radio.curve.getData()[0]) == MAX_CONSTELLATION_POINTS
     assert on_signal.curve.isVisible() and not on_signal.image.isVisible()
 
     # The choice outlasts a restart, also for the panel made with the radio page.
-    button("Density").click()
+    page._constellation.choose(True)
     window._controller.shutdown()
     window = touch_window(data_directory)
     assert window._settings_page._constellation.current() is True
@@ -967,10 +975,7 @@ def test_the_times_of_the_screen_are_set_on_the_settings_page_and_kept(
     window.show_page(SETTINGS)
     page = window._settings_page
     assert page._dim_after.value() == 0 and page._off_after.value() == 0
-    # Both names fit the column of the labels in the shipped typeface.
-    for name in ("Dim screen", "Screen off"):
-        label = next(l for l in page.findChildren(QLabel) if l.text() == name)
-        assert QFontMetrics(label.font()).horizontalAdvance(name) <= settings_page.LABEL_WIDTH
+    assert {label.text() for label in page.findChildren(QLabel)} >= {"Dim", "Switch off"}
 
     page._dim_after._plus.click()
     page._off_after._plus.click()
@@ -1051,23 +1056,20 @@ def test_a_device_change_during_reception_restarts_it(data_directory, touch_wind
     assert controller.state is ReceptionState.CONNECTING
 
 
-def _device_button(page, name: str) -> QPushButton:
-    return next(b for b in page._device.findChildren(QPushButton) if b.text() == name)
-
-
 def test_the_stick_stands_apart_from_the_tuners_of_the_rspduo(data_directory, touch_window):
     window = touch_window(data_directory)
     window.show()
     window.show_page(SETTINGS)
     page = window._settings_page
-    stick, tuner_1, tuner_2, rtl_tcp = (
-        _device_button(page, name).geometry() for name in receiver_controller.DEVICES.values()
-    )
+    page._device.open()
+    sheet = page._device.sheet()
+    assert sheet.isVisible() and sheet.panel.width() <= window.width()
+    rows = {row.key: row.geometry() for row in sheet.rows}
+    stick, tuner_1, tuner_2, rtl_tcp = (rows[key] for key in receiver_controller.DEVICES)
 
-    tuners = tuner_2.left() - tuner_1.right()
-    assert tuner_1.left() - stick.right() > 2 * tuners
-    assert rtl_tcp.left() - tuner_2.right() > 2 * tuners
-    assert rtl_tcp.right() < page.width()
+    tuners = tuner_2.top() - tuner_1.bottom()
+    assert tuner_1.top() - stick.bottom() > 2 * tuners
+    assert rtl_tcp.top() - tuner_2.bottom() > 2 * tuners
 
 
 def test_rtl_tcp_takes_its_server_and_the_rows_of_the_stick(data_directory, touch_window):
@@ -1075,12 +1077,12 @@ def test_rtl_tcp_takes_its_server_and_the_rows_of_the_stick(data_directory, touc
     window.show()
     window.show_page(SETTINGS)
     page = window._settings_page
-    assert not page._rtl_tcp_rows.isVisible()
+    assert not page._server_host.isVisible()
 
-    _device_button(page, "RTL_TCP").click()
-    assert page._rtl_tcp_rows.isVisible()
-    assert page._rtlsdr_rows.isVisible()
-    assert not page._rspduo_rows.isVisible()
+    page._device.choose("rtltcp")
+    assert page._server_host.isVisible() and page._server_port.isVisible()
+    assert page._gain.isVisible()
+    assert not page._lna.isVisible()
     assert page._server_host.text() == "Not set"
 
     page._server_host.click()
@@ -1098,9 +1100,10 @@ def test_rtl_tcp_takes_its_server_and_the_rows_of_the_stick(data_directory, touc
     assert settings.rtl_tcp_host == "radio-pi"
     assert settings.rtl_tcp_port == 1235
     assert (page._server_host.text(), page._server_port.text()) == ("radio-pi", "1235")
-    _device_button(page, "RSPduo Tuner 1").click()
-    assert not page._rtl_tcp_rows.isVisible()
-    assert not page._rtlsdr_rows.isVisible()
+    page._device.choose("rspduo1")
+    assert not page._server_host.isVisible()
+    assert not page._gain.isVisible()
+    assert page._lna.isVisible()
 
 
 def test_back_from_a_missing_rspduo_the_stick_plays_on(data_directory, touch_window, fake_workers):
@@ -1113,14 +1116,14 @@ def test_back_from_a_missing_rspduo_the_stick_plays_on(data_directory, touch_win
     controller.start_reception()
     fake_workers[-1].connected.emit("Verbunden.")
 
-    _device_button(page, "RSPduo Tuner 1").click()
+    page._device.choose("rspduo1")
     _spin(50)
     fake_workers[0].stopped.emit()
     assert fake_workers[-1].rspduo.tuner == 1
     fake_workers[-1].error.emit("Kein RSPduo gefunden.")
     assert window._banner.isVisible()
 
-    _device_button(page, "RTL-SDR").click()
+    page._device.choose("rtlsdr")
     assert not window._banner.isVisible()
     assert len(fake_workers) == 3
     assert controller.state is ReceptionState.CONNECTING
@@ -1485,31 +1488,36 @@ def test_the_audio_settings_offer_the_outputs_automatic_first(
     window.show()
     window.show_page(SETTINGS)
     page = window._settings_page
-    _chip(page, "Audio").click()
+    page.show_subpage(AUDIO)
     row = page._output_row
     controller = window._controller
     _spin(50)  # the player tells where the audio goes: the default, the headphones
 
     assert row.isVisible()
-    assert [b.text() for b in row.buttons()] == [
-        "Automatic",
-        "Built-in Audio Stereo",
-        "WH-1000XM4",
-    ]
+    names = ["Automatic", "Built-in Audio Stereo", "WH-1000XM4"]
+    assert [name for _key, name in row.choices()] == names
     assert row.keys() == ["", outputs[0].id, outputs[1].id]
-    assert row.buttons()[0].isChecked()
-    assert not row.buttons()[2].icon().isNull()  # the Bluetooth rune
-    assert row._in_use.isVisible() and row._in_use.text() == "currently WH-1000XM4"
+    assert row.current() == "" and row.text() == "Automatic"
+    assert row.subtitle.isVisible() and row.subtitle.text() == "currently WH-1000XM4"
 
-    row.buttons()[2].click()
+    # The sheet: the one in effect marked, the Bluetooth device told as such.
+    row.open()
+    sheet = row.sheet()
+    assert sheet.isVisible()
+    assert [r.name.text() for r in sheet.rows] == names
+    assert sheet.rows[0].property("selected") and not sheet.rows[2].property("selected")
+    assert sheet.rows[2].detail.text() == "Bluetooth" and sheet.rows[1].detail.isHidden()
+    sheet.rows[2].click()
+    assert not sheet.isVisible()
     assert controller.audio_output_choice == outputs[1].id
-    assert not row._in_use.isVisible()  # the one chosen is the one in use
+    assert row.text() == "WH-1000XM4"
+    assert not row.subtitle.isVisible()  # the one chosen is the one in use
 
-    row.buttons()[1].click()
+    row.choose(outputs[0].id)
     assert controller.audio_output_choice == outputs[0].id
-    assert row._in_use.text() == "currently WH-1000XM4"  # until the player has moved
+    assert row.subtitle.text() == "currently WH-1000XM4"  # until the player has moved
     _spin(50)
-    assert not row._in_use.isVisible()
+    assert not row.subtitle.isVisible()
 
 
 def test_the_loudspeaker_button_shows_headphones_and_offers_the_outputs_when_held(
@@ -1580,13 +1588,13 @@ def test_the_volume_slider_of_the_radio_page_follows_another_output(
     assert slider.value() == 85 and controller.volume_percent == 85
 
 
-def test_the_settings_have_a_bluetooth_chip(data_directory, touch_window):
+def test_the_settings_have_a_bluetooth_category(data_directory, touch_window):
     window = touch_window(data_directory)
     window.show()
     window.show_page(SETTINGS)
     page = window._settings_page
 
-    _chip(page, "Bluetooth").click()
+    page._categories.rows["bluetooth"].click()
 
     assert page.current_subpage() == "bluetooth"
     assert page._bluetooth_view.isVisible()

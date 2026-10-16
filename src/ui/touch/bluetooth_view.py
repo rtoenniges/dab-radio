@@ -19,7 +19,6 @@ from dataclasses import dataclass
 from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtGui import QHideEvent, QMouseEvent, QShowEvent
 from PyQt6.QtWidgets import (
-    QGridLayout,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -31,6 +30,7 @@ from PyQt6.QtWidgets import (
 
 from i18n import tr, tr_noop
 from net.bluetooth import HEADPHONES, PHONE, SPEAKER, BluetoothManager, Device
+from ui.touch.cards import Card, Row, Toggle, heading_label, switch_row
 from ui.touch.icons import symbol_icon, symbol_pixmap
 from ui.touch.overlay import ActionSheet
 from ui.touch.theme import DARK, THEMES, Theme
@@ -153,14 +153,14 @@ class _DeviceRow(TapWidget):
 
 
 class BluetoothView(QWidget):
-    """Rows like the other sub-pages: "Bluetooth", "Connection", "Devices"; the list
-    fills what the page leaves. `message` (errors, the hint how to pair) is for the
+    """The card "Bluetooth" (the switch, the connection with the device's symbol and
+    battery) and the list "Devices" beneath, which fills what the page leaves, with the
+    button to search under it. `message` (errors, the hint how to pair) is for the
     settings page to place in its bottom row. Reads BlueZ only while shown."""
 
     def __init__(
         self,
         bluetooth: BluetoothManager,
-        label_width: int,
         parent: QWidget | None = None,
         connect: Callable[[Device], None] | None = None,
     ) -> None:
@@ -176,20 +176,16 @@ class BluetoothView(QWidget):
 
         self.message = set_role(QLabel(), "small")
 
-        self._switch = set_role(QPushButton(tr("Off")), "switch")
-        self._switch.setCheckable(True)
-        self._switch.toggled.connect(lambda on: self._switch.setText(tr("On") if on else tr("Off")))
+        self._switch = Toggle()
         self._switch.clicked.connect(self._on_switch_clicked)
 
-        self._connection = set_role(ElidedLabel(), "large")
+        # The connection: the device's name as the value, its symbol beside, the
+        # battery beneath the title.
         self._kind = QLabel()
         self._kind.setFixedWidth(KIND_ICON)
-        self._battery = set_role(QLabel(), "muted")
-        connection = QHBoxLayout()
-        connection.setSpacing(16)
-        connection.addWidget(self._connection, stretch=1)
-        connection.addWidget(self._kind)
-        connection.addWidget(self._battery)
+        self._connection_row = Row(tr("Connection"), control=self._kind, value="")
+        self._connection = self._connection_row.value
+        self._battery = self._connection_row.subtitle
 
         self._list_layout = QVBoxLayout()
         self._list_layout.setContentsMargins(0, 0, 0, 0)
@@ -213,32 +209,30 @@ class BluetoothView(QWidget):
         panel_layout.setContentsMargins(8, 8, 8, 8)
         panel_layout.addWidget(self._area, stretch=1)
         panel_layout.addWidget(self._empty, stretch=1)
+        devices = set_role(QWidget(), "transparent")
+        devices_layout = QVBoxLayout(devices)
+        devices_layout.setContentsMargins(0, 0, 0, 0)
+        devices_layout.setSpacing(6)
+        devices_layout.addWidget(heading_label(tr("Devices")))
+        devices_layout.addWidget(self._list_panel, stretch=1)
 
         self._scan = QPushButton()
         self._scan.setIconSize(REFRESH_ICON)
         self._scan.clicked.connect(self._on_scan_clicked)
-        side = QVBoxLayout()
-        side.setSpacing(12)
-        side.addWidget(self._scan, alignment=Qt.AlignmentFlag.AlignLeft)
-        side.addStretch()
+        buttons = QHBoxLayout()
+        buttons.setSpacing(12)
+        buttons.addWidget(self._scan)
+        buttons.addStretch()
 
         self._content = set_role(QWidget(), "transparent")
-        grid = QGridLayout(self._content)
-        grid.setContentsMargins(0, 0, 0, 0)
-        grid.setHorizontalSpacing(16)
-        grid.setVerticalSpacing(12)
-        for row, name in enumerate(("Bluetooth", tr("Connection"), tr("Devices"))):
-            label = set_role(QLabel(name), "muted")
-            label.setFixedWidth(label_width)
-            top = Qt.AlignmentFlag.AlignTop if row == 2 else Qt.AlignmentFlag.AlignVCenter
-            grid.addWidget(label, row, 0, alignment=top)
-        left = Qt.AlignmentFlag.AlignLeft
-        grid.addWidget(self._switch, 0, 1, alignment=left)
-        grid.addLayout(connection, 1, 1)
-        grid.addWidget(self._list_panel, 2, 1)
-        grid.addLayout(side, 2, 2)
-        grid.setRowStretch(2, 1)
-        grid.setColumnStretch(1, 1)
+        content = QVBoxLayout(self._content)
+        content.setContentsMargins(0, 0, 0, 0)
+        content.setSpacing(12)
+        content.addWidget(
+            Card("Bluetooth", [switch_row("Bluetooth", self._switch), self._connection_row])
+        )
+        content.addWidget(devices, stretch=1)
+        content.addLayout(buttons)
         self._unavailable = set_role(QLabel(tr(_UNAVAILABLE)), "muted")
         self._unavailable.setWordWrap(True)
         self._unavailable.setAlignment(Qt.AlignmentFlag.AlignTop)
@@ -324,7 +318,7 @@ class BluetoothView(QWidget):
         else:
             text = tr("Not connected")
         self._connection.setText(text)
-        set_role(self._connection, "large" if connected or bluetooth.activity else "muted")
+        set_role(self._connection, "" if connected or bluetooth.activity else "muted")
         repolish(self._connection)
         if connected:
             self._kind.setPixmap(

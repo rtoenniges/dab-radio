@@ -22,7 +22,7 @@ from ui.touch.mqtt_view import (
     valid_host,
     valid_prefix,
 )
-from ui.touch.settings_page import LABEL_WIDTH, SettingsPage
+from ui.touch.settings_page import SettingsPage
 from ui.touch.window import SCREEN_HEIGHT, SCREEN_WIDTH
 
 
@@ -43,7 +43,7 @@ def view(make_controller, data_directory):
     )
     bridge.start()
     FakeMqttClient.instances = []
-    view = MqttView(bridge, LABEL_WIDTH, window)
+    view = MqttView(bridge, window)
     view.resize(SCREEN_WIDTH - 200, 520)
     view.show()
     yield view, bridge
@@ -65,7 +65,7 @@ def test_the_checks():
 def test_the_rows_show_the_settings(view):
     view, bridge = view
     assert bridge.settings == MqttSettings()
-    assert view._switch.text() == "Off" and not view._switch.isChecked()
+    assert not view._switch.isChecked()
     assert view._status.text() == "Off"
     assert view._host.text() == NO_HOST
     assert view._port.text() == "1883"
@@ -96,7 +96,7 @@ def test_the_keyboard_takes_the_broker_and_the_switch_connects(view):
 
     view._switch.click()
     assert bridge.settings.enabled
-    assert view._switch.text() == "On"
+    assert view._switch.isChecked()
     client = FakeMqttClient.instances[-1]
     assert client.connect_args == ("broker", 1883, 60)
     assert view._status.text() == "Connecting to broker:1883 …"

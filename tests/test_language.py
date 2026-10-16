@@ -147,7 +147,7 @@ def test_choosing_a_language_on_the_touch_surface_offers_the_restart(data_direct
     restarts = []
     window.restart_requested.connect(lambda: restarts.append(True))
 
-    _button(page._language, "Deutsch").click()
+    page._language.choose("de")
 
     assert stored_language(window._controller.settings) == "de"
     sheet = page.action_sheet()
@@ -163,10 +163,10 @@ def test_choosing_a_language_on_the_touch_surface_offers_the_restart(data_direct
 def test_back_to_the_language_running_there_is_nothing_to_restart(data_directory, touch_window):
     window = touch_window(data_directory)
     page = window._settings_page
-    _button(page._language, "Deutsch").click()
+    page._language.choose("de")
     page.action_sheet().dismiss()
 
-    _button(page._language, "English").click()
+    page._language.choose("en")
 
     assert stored_language(window._controller.settings) == "en"
     assert not page.action_sheet().isVisible()
@@ -175,7 +175,7 @@ def test_back_to_the_language_running_there_is_nothing_to_restart(data_directory
 def test_any_other_sheet_keeps_its_way_back_in_the_language_running(data_directory, touch_window):
     window = touch_window(data_directory)
     page = window._settings_page
-    _button(page._language, "Deutsch").click()
+    page._language.choose("de")
     page.action_sheet().dismiss()
 
     page._equalizer_reset.click()
@@ -190,8 +190,8 @@ def test_the_touch_surface_is_built_in_german_when_german_is_set(data_directory,
     assert window._nav_buttons[SETTINGS].text() == "Einstellungen"
     page = window._settings_page
     assert _button(page, "Radio beenden")
-    assert _button(page._subpage_chips, "Anzeige")
-    assert _button(page._language, "English") and _button(page._language, "Deutsch")
+    assert page._categories.rows[DISPLAY].name.text() == "Anzeige"
+    assert dict(page._language.choices()) == {"en": "English", "de": "Deutsch"}
 
 
 # --- Desktop -----------------------------------------------------------------------------
