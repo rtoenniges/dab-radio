@@ -9034,9 +9034,10 @@ msgstr "Höhe"
 msgid "Interface"
 msgstr "Oberfläche"
 
+#. the heading over the technical figures that can be shown.
 #: src/ui/touch/settings_page.py
-msgid "Radio page"
-msgstr "Radio-Seite"
+msgid "Details"
+msgstr "Details"
 
 #: src/ui/touch/settings_page.py
 msgid "Load in the menu bar"

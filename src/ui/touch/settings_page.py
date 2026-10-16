@@ -604,7 +604,8 @@ class SettingsPage(QWidget):
             # Translators: the heading over language and colour scheme.
             Card(tr("Interface"), [self._language, self._theme]),
             Card(
-                tr("Radio page"),
+                # Translators: the heading over the technical figures that can be shown.
+                tr("Details"),
                 [
                     switch_row(tr("Load in the menu bar"), self._load_shown),
                     switch_row(tr("Level beside the volume slider"), self._volume_figure_shown),
