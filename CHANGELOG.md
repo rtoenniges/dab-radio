@@ -7,6 +7,8 @@ All notable changes to the radio. The format follows
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-16
+
 ### Changed
 
 - Devices: The RSPduo is one device; its tuner is a setting of its own
@@ -77,7 +79,8 @@ The first public release.
 - Desktop: Window for signal analysis
 - Languages: English and German
 
-[Unreleased]: https://github.com/rtoenniges/dab-radio/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/rtoenniges/dab-radio/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/rtoenniges/dab-radio/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/rtoenniges/dab-radio/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/rtoenniges/dab-radio/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/rtoenniges/dab-radio/compare/v1.1.1...v1.2.0
