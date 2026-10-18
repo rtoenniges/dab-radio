@@ -92,10 +92,18 @@ PATH_GATE_SAMPLES = 3
 # (0.75 to 1.18 on air). Larger gains come from a stronger path that the carriers of
 # the block cannot separate from this one, not from a transmitter. In null symbols
 # without TII, the weakest of the 4 best blocks of a comb stays below 2.1, and below
-# 2.8 for the combs without a code at the paths of a real channel.
-PATH_MIN_Z = 3.5
+# 2.8 for the combs without a code at the paths of a real channel. A path at the limit,
+# around 3, showed its code in some identifications and not in others; from 4.5 on
+# such a path stays without one, while a transmitter once named stays above
+# `PATH_KEEP_Z`.
+PATH_MIN_Z = 4.5
 PATH_KEEP_Z = 2.0
 PATH_GAIN_RANGE = (0.5, 2.0)
+
+# A new code below this many standard deviations shows only once two identifications in
+# a row found it at the path: a weak path can stand out with one code in one
+# identification and with another in the next. A strong one is named at once.
+PATH_SURE_Z = 8.0
 
 # The other 4 blocks of the comb must stay below this share of the weakest of the 4,
 # else the pattern, and with it the main identifier, is not certain: a comb can stand
@@ -432,6 +440,19 @@ def _path_gains(
     return gains.reshape(shape), deviations.reshape(shape)
 
 
+def code_strength(gain: np.ndarray, deviation: np.ndarray, code: tuple[int, int]) -> float:
+    """How far the 4 blocks of `code` stand above the noise at a path: the least of
+    their standard deviations, 0 if a gain lies outside `PATH_GAIN_RANGE`."""
+    main_id, comb = code
+    blocks = [block for block, used in enumerate(PATTERNS[main_id]) if used]
+    magnitude = np.abs(gain[comb, blocks])
+    low, high = PATH_GAIN_RANGE
+    if not np.all((magnitude >= low) & (magnitude <= high)):
+        return 0.0
+    with np.errstate(divide="ignore"):
+        return float(np.min(magnitude / deviation[comb, blocks]))
+
+
 def code_of_path(
     gain: np.ndarray,
     deviation: np.ndarray,
@@ -542,7 +563,13 @@ class PathTracker:
         self._ramps: np.ndarray | None = None
         self._normal: np.ndarray | None = None
         self._projected: np.ndarray | None = None
+        # The code each path shows, and the one it would show if the next identification
+        # agrees (`PATH_SURE_Z`).
         self._codes: dict[int, tuple[int, int]] = {}
+        self._candidates: dict[int, tuple[int, int]] = {}
+        # Gains of the last identification, (path, comb, block), for `carries`.
+        self._gains: np.ndarray | None = None
+        self._deviations: np.ndarray | None = None
 
     def add(
         self,
@@ -597,17 +624,45 @@ class PathTracker:
         noise = float(np.mean([frame.median_power for frame in self._frames])) / np.log(2)
         gains, deviations = _path_gains(self._normal, self._projected, noise, order)
 
+        self._gains, self._deviations = gains, deviations
+
         codes: dict[int, tuple[int, int] | None] = {}
+        candidates: dict[int, tuple[int, int]] = {}
         taken: set[tuple[int, int]] = set()
         for path in order:
             index = self._indices[path]
             previous = self._codes.get(index)
             code = code_of_path(gains[path], deviations[path], taken, previous)
+            if (
+                code is not None
+                and code != previous
+                and code_strength(gains[path], deviations[path], code) < PATH_SURE_Z
+                and self._candidates.get(index) != code
+            ):
+                # New and weak: wait for the next identification, and meanwhile keep what
+                # the path showed while it still carries that.
+                candidates[index] = code
+                if previous is None or (
+                    code_strength(gains[path], deviations[path], previous) < PATH_KEEP_Z
+                ):
+                    previous = None
+                code = previous
             codes[index] = code
             if code is not None:
                 taken.add(code)
         self._codes = {index: code for index, code in codes.items() if code is not None}
+        self._candidates = candidates
         return self._label(power, [self._indices[path] for path in order], codes)
+
+    def carries(self, code: tuple[int, int]) -> bool | None:
+        """Whether some path carries `code` (`PATH_KEEP_Z`), by the last identification;
+        None before the first one."""
+        if self._gains is None:
+            return None
+        return any(
+            code_strength(gain, deviation, code) >= PATH_KEEP_Z
+            for gain, deviation in zip(self._gains, self._deviations, strict=True)
+        )
 
     def _label(
         self, power: np.ndarray, indices: list[int], codes: dict[int, tuple[int, int] | None]
@@ -640,6 +695,7 @@ class PathTracker:
         self._indices = indices
         self._ramps = _GEOMETRY.ramps(self._delays())
         self._normal = self._projected = None
+        self._gains = self._deviations = None
         # In parts, which keeps the arrays of a part small.
         frames = list(self._frames)
         for start in range(0, len(frames), _REBUILD_FRAMES):
@@ -757,4 +813,13 @@ class TiiDetector:
             self._since_paths = 0
         if not self._paths:
             return result
-        return _with_paths(result, self._paths)
+        # A transmitter the power averaging detects stands out in the impulse response
+        # by far (the phase reference adds up all 1536 carriers), so a path carries its
+        # code; one that no path carries is not a transmitter (an image or a spur in
+        # the null symbol).
+        confirmed = [
+            transmitter
+            for transmitter in result.transmitters
+            if self._tracker.carries((transmitter.main_id, transmitter.sub_id)) is not False
+        ]
+        return _with_paths(replace(result, transmitters=confirmed), self._paths)

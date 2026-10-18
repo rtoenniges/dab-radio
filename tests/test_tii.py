@@ -2,9 +2,12 @@ import numpy as np
 import pytest
 
 from dab.constants import MODE_I, SAMPLE_RATE
+from dsp import tii
+from dsp.channel import impulse_response
 from dsp.ofdm import demodulate_frame_symbols
 from dsp.tii import (
     PATTERNS,
+    PathTracker,
     TiiDetector,
     code_of_path,
     code_positions,
@@ -253,10 +256,10 @@ def test_paths_are_named_by_the_code_they_carry():
 def test_a_transmitter_below_the_detection_limit_is_found_at_its_path():
     """24-03 lies 30 dB below 19-04, with the detection limit of the power averaging
     at -20 dB: the comparison at its path finds it (in 40 of 40 noise patterns over
-    96 frames); the shares cover both."""
+    128 frames); the shares cover both."""
     rng = np.random.default_rng(12)
     paths = [(0.0, 1.0, (19, 4)), (194.0, 0.0316, (24, 3))]
-    result = _detect(paths, 96, rng, noise=0.05)
+    result = _detect(paths, 128, rng, noise=0.05)
 
     assert result.detection_limit_db > -25.0
     codes = [(t.main_id, t.sub_id) for t in result.transmitters]
@@ -337,6 +340,55 @@ def test_a_code_found_before_holds_with_less_margin():
 
     assert code_of_path(gain, deviation, taken=set()) is None
     assert code_of_path(gain, deviation, taken=set(), previous=(24, 3)) == (24, 3)
+
+
+def test_a_code_no_path_carries_is_not_listed():
+    """A spur on the carriers of 24-03 with a phase of its own in every null symbol:
+    the power averaging takes it for a transmitter, but it belongs to no path."""
+    rng = np.random.default_rng(18)
+    detector = TiiDetector()
+    spur = code_positions(24, 3)
+    for frame in range(40):
+        null, channel = _carriers_of_frame([(0.0, 1.0, (19, 4))], rng, tii=frame % 2 == 1)
+        null[spur] += 0.5 * np.exp(2j * np.pi * rng.random(len(spur)))
+        result = detector.add(null, channel)
+
+    averaged = detect_transmitters(detector._power_sum / len(detector._powers), 32)
+    assert (24, 3) in [(t.main_id, t.sub_id) for t in averaged.transmitters]
+    assert [(t.main_id, t.sub_id) for t in result.transmitters] == [(19, 4)]
+
+
+def test_a_weak_new_code_shows_once_two_identifications_agree(monkeypatch):
+    """At a weak path the code found may change from one identification to the next;
+    it shows once two in a row agree, and until then the path keeps what it showed."""
+    rng = np.random.default_rng(19)
+    tracker = PathTracker()
+    main = code_positions(19, 4)
+    for frame in range(40):
+        null, channel = _carriers_of_frame(
+            [(0.0, 1.0, (19, 4)), (194.0, 0.1, None)], rng, tii=frame % 2 == 1
+        )
+        power = impulse_response(channel, MODE_I, SAMPLE_RATE)[1]
+        tracker.add(null, channel, power, main)
+
+    found = iter([(24, 3), None, (24, 3), (24, 3), (56, 3), (56, 3)])
+    real = tii.code_of_path
+
+    def scripted(gain, deviation, taken, previous=None):
+        code = real(gain, deviation, taken, previous)
+        return code if code == (19, 4) else next(found)
+
+    monkeypatch.setattr(tii, "code_of_path", scripted)
+    monkeypatch.setattr(
+        tii, "code_strength", lambda gain, deviation, code: 100.0 if code == (19, 4) else 5.0
+    )
+
+    shown = []
+    for _ in range(6):
+        weak = [path for path in tracker.paths() if path.delay_s > 50e-6]
+        shown.append(weak[0].transmitter)
+    # 24-03 once, gone, then twice; 56-03 waits a round while 24-03 is still carried.
+    assert shown == [None, None, None, (24, 3), (24, 3), (56, 3)]
 
 
 def _delayed(signal: np.ndarray, samples: int) -> np.ndarray:
