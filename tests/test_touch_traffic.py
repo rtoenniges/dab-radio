@@ -51,7 +51,7 @@ from ui.touch.traffic_view import (
     _MessageRow,
     _RowList,
 )
-from ui.touch.window import SERVICES, TouchWindow
+from ui.touch.window import RADIO, SERVICES, TouchWindow
 
 APP = QApplication.instance() or QApplication([])
 HANOVER = (52.37, 9.73)
@@ -645,6 +645,37 @@ def test_the_lists_fill_while_the_map_is_shown(window) -> None:
     _draw(window)
     assert [key[1] for key in view.page(MESSAGES).order] == [1745, 2554, 1371]
     assert len(view.page(FLOW).rows) == 1
+
+
+def test_rows_made_while_the_menu_is_hidden_have_their_height_when_shown(
+    window, monkeypatch
+) -> None:
+    """The slices go on while another page of the window is shown; back on the list,
+    the rows have the height they need instead of sharing the height the list had."""
+    window, view, _tpeg = window
+    model = window._traffic_model
+    queue = next(s for s in model.stored(TfpMessage) if s.message.management.message_id == 7777)
+    for message_id in range(8000, 8012):
+        management = dataclasses.replace(queue.message.management, message_id=message_id)
+        model._store.add(
+            dataclasses.replace(queue.message, management=management), queue.frame, NOW
+        )
+    model._changed()
+    monkeypatch.setattr(traffic_view, "BUILD_SLICE_SECONDS", 0.0)  # a row a slice
+    flow = view.page(FLOW)
+    flow._drawn_at = None
+    window._render_plots()
+    assert not flow.list.complete
+    window.show_page(RADIO)
+    assert _wait_until(lambda: flow.list.complete)
+    assert len(flow.rows) == 13
+
+    window.show_page(SERVICES)
+    view.show_page(FLOW)
+    QTest.qWait(50)
+    for row in flow.rows.values():
+        assert row.height() >= row.heightForWidth(row.width())
+    assert flow.list.verticalScrollBar().maximum() > 0
 
 
 def test_an_open_message_holds_the_rows_still_to_come(window, monkeypatch) -> None:

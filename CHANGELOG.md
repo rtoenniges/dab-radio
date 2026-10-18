@@ -7,6 +7,11 @@ All notable changes to the radio. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Touch UI: The rows of the traffic messages and the flow could be squeezed together
+  until one was opened
+
 ## [1.4.1] - 2026-10-16
 
 ### Changed

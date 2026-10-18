@@ -824,7 +824,13 @@ class _RowList(QScrollArea):
         Showing a widget lays out its visible parents at once, here the whole list for
         each row (1.4 ms a row at the start, 4.3 ms at 200 rows, PC): while the slice
         runs the layout of the list is off, and it is laid out once at its end, so that
-        the scroll area knows its height as it did before."""
+        the scroll area knows its height as it did before.
+
+        The slices go on while the list is hidden (another page of the window or menu):
+        then its layout is left to Qt, which lays it out as it is shown. Laid out
+        hidden, the layout counts as done, and the scroll area, which hears of a new
+        height only while it is visible, kept the old one: the rows squeezed into it
+        until one was opened."""
         deadline = time.perf_counter() + BUILD_SLICE_SECONDS
         self._layout.setEnabled(False)
         try:
@@ -848,7 +854,8 @@ class _RowList(QScrollArea):
                     break
         finally:
             self._layout.setEnabled(True)
-        self._layout.activate()
+        if self._list.isVisible():
+            self._layout.activate()
         complete = self.complete
         self.rest.setText(self._rest_text if complete else "")
         self.rest.setVisible(complete and bool(self._rest_text))
