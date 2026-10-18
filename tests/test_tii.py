@@ -6,8 +6,12 @@ from dsp.ofdm import demodulate_frame_symbols
 from dsp.tii import (
     PATTERNS,
     TiiDetector,
+    code_of_path,
+    code_positions,
     detect_transmitters,
-    null_symbol_carrier_power,
+    null_symbol_carriers,
+    null_symbol_spectrum,
+    tii_delay_offset,
 )
 from dsp.timing import generate_reference_symbol, physical_carrier_indices
 
@@ -65,12 +69,12 @@ def _frame(transmitters, rng, noise=0.01, data_symbols=4) -> np.ndarray:
     )
 
 
-def _null_power(transmitters, rng, noise=0.01) -> np.ndarray:
-    power = null_symbol_carrier_power(
+def _null_carriers(transmitters, rng, noise=0.01) -> np.ndarray:
+    spectrum = null_symbol_spectrum(
         _frame(transmitters, rng, noise), MODE_I.null_symbol_length, 0.0, SAMPLE_RATE, MODE_I
     )
-    assert power is not None
-    return power
+    assert spectrum is not None
+    return null_symbol_carriers(spectrum, MODE_I)
 
 
 def test_pattern_table_matches_the_reference():
@@ -92,7 +96,7 @@ def test_transmitter_occupies_16_pairs_within_the_band():
 
 def test_single_transmitter_is_identified():
     rng = np.random.default_rng(1)
-    result = detect_transmitters(_null_power([(19, 4, 1.0)], rng), frames=1)
+    result = detect_transmitters(np.abs(_null_carriers([(19, 4, 1.0)], rng)) ** 2, frames=1)
 
     assert [(t.main_id, t.sub_id) for t in result.transmitters] == [(19, 4)]
     assert result.transmitters[0].level_db == 0.0
@@ -105,7 +109,7 @@ def test_two_transmitters_with_their_levels_and_shares():
     rng = np.random.default_rng(2)
     detector = TiiDetector()
     for _ in range(8):
-        result = detector.add(_null_power([(19, 4, 1.0), (19, 11, 0.5)], rng))
+        result = detector.add(_null_carriers([(19, 4, 1.0), (19, 11, 0.5)], rng))
 
     ids = [(t.main_id, t.sub_id) for t in result.transmitters]
     assert ids == [(19, 4), (19, 11)]
@@ -120,7 +124,7 @@ def test_tii_in_every_second_null_symbol_is_found():
     detector = TiiDetector()
     for frame in range(32):
         transmitters = [(51, 4, 1.0)] if frame % 2 else []
-        result = detector.add(_null_power(transmitters, rng, noise=0.1))
+        result = detector.add(_null_carriers(transmitters, rng, noise=0.1))
 
     assert [(t.main_id, t.sub_id) for t in result.transmitters] == [(51, 4)]
     assert result.frames == 32
@@ -130,7 +134,7 @@ def test_noise_alone_yields_no_transmitter():
     rng = np.random.default_rng(4)
     detector = TiiDetector()
     for _ in range(32):
-        result = detector.add(_null_power([], rng))
+        result = detector.add(_null_carriers([], rng))
 
     assert result.transmitters == []
     assert result.detection_limit_db is None
@@ -140,9 +144,9 @@ def test_detector_averages_only_the_latest_null_symbols():
     rng = np.random.default_rng(5)
     detector = TiiDetector(averaged_frames=4)
     for _ in range(4):
-        detector.add(_null_power([(19, 4, 1.0)], rng))
+        detector.add(_null_carriers([(19, 4, 1.0)], rng))
     for _ in range(4):
-        result = detector.add(_null_power([(35, 13, 1.0)], rng))
+        result = detector.add(_null_carriers([(35, 13, 1.0)], rng))
 
     assert [(t.main_id, t.sub_id) for t in result.transmitters] == [(35, 13)]
 
@@ -158,11 +162,12 @@ def test_null_symbol_is_found_through_the_real_demodulation():
     frame = demodulate_frame_symbols(signal, 0, MODE_I, SAMPLE_RATE, max_data_symbols=3)
     assert frame is not None
     frame_start = MODE_I.null_symbol_length + frame.sample_correction
-    power = null_symbol_carrier_power(
+    spectrum = null_symbol_spectrum(
         signal, frame_start, frame.frequency_offset_hz, SAMPLE_RATE, MODE_I
     )
 
-    assert power is not None
+    assert spectrum is not None
+    power = np.abs(null_symbol_carriers(spectrum, MODE_I)) ** 2
     found = detect_transmitters(power, frames=1).transmitters
     assert [(t.main_id, t.sub_id) for t in found] == [(35, 13)]
 
@@ -170,4 +175,191 @@ def test_null_symbol_is_found_through_the_real_demodulation():
 def test_null_symbol_before_the_buffer_is_skipped():
     rng = np.random.default_rng(7)
     signal = _frame([(19, 4, 1.0)], rng)
-    assert null_symbol_carrier_power(signal, 100, 0.0, SAMPLE_RATE, MODE_I) is None
+    assert null_symbol_spectrum(signal, 100, 0.0, SAMPLE_RATE, MODE_I) is None
+
+
+# --- Paths of the impulse response ----------------------------------------------------
+
+OFFSET = tii_delay_offset(MODE_I)
+_POSITIONS = np.arange(K)
+# The phase both carriers of a pair carry: that of the first, at an even position.
+_PAIR_REFERENCE = PRS[_POSITIONS - _POSITIONS % 2]
+
+
+def _carriers_of_frame(paths, rng, tii=True, noise=0.003):
+    """Channel estimate and null symbol of one frame, built on the carriers.
+
+    `paths`: (delay in samples, amplitude, code or None). Every path carries the TII of
+    its code with the amplitude of its signal, OFFSET samples later in the null symbol
+    window (see `tii_delay_offset`); each frame has a phase of its own.
+    """
+    phase = np.exp(2j * np.pi * rng.random())
+    channel = np.zeros(K, dtype=complex)
+    null = np.zeros(K, dtype=complex)
+    for delay, amplitude, code in paths:
+        channel += amplitude * np.exp(-2j * np.pi * CARRIERS * delay / N)
+        if tii and code is not None:
+            positions = code_positions(*code)
+            null[positions] += (
+                amplitude
+                * _PAIR_REFERENCE[positions]
+                * np.exp(-2j * np.pi * CARRIERS[positions] * (delay + OFFSET) / N)
+            )
+
+    def noisy(values):
+        return phase * values + noise * (rng.standard_normal(K) + 1j * rng.standard_normal(K))
+
+    return noisy(null), noisy(channel)
+
+
+def _detect(paths, frames, rng, **options):
+    detector = TiiDetector()
+    for frame in range(frames):
+        result = detector.add(*_carriers_of_frame(paths, rng, tii=frame % 2 == 1, **options))
+    return result
+
+
+def _described(paths):
+    return [(round(path.delay_s * 1e6, 1), path.transmitter, path.echo) for path in paths]
+
+
+def test_tii_lies_304_samples_behind_the_impulse_response_in_mode_i():
+    """As measured on air on four ensembles, to a quarter sample."""
+    assert OFFSET == 304
+
+
+def test_paths_are_named_by_the_code_they_carry():
+    """Two transmitters, a reflection of the first (its code, later) and a path without
+    TII, at fractional delays; TII in every second null symbol, as on air."""
+    rng = np.random.default_rng(11)
+    paths = [
+        (0.4, 1.0, (19, 4)),
+        (40.3, 0.18, (19, 4)),  # reflection, 19.7 µs
+        (194.2, 0.1, (24, 3)),  # a further transmitter, 94.8 µs
+        (313.6, 0.18, None),  # without TII, 153.1 µs
+    ]
+    result = _detect(paths, 40, rng)
+
+    assert _described(result.paths) == [
+        (0.2, (19, 4), False),
+        (19.7, (19, 4), True),
+        (94.8, (24, 3), False),
+        (153.1, None, False),
+    ]
+    levels = [round(path.level_db) for path in result.paths]
+    assert levels == [0, -15, -20, -15]
+
+
+def test_a_transmitter_below_the_detection_limit_is_found_at_its_path():
+    """24-03 lies 30 dB below 19-04, with the detection limit of the power averaging
+    at -20 dB: the comparison at its path finds it (in 40 of 40 noise patterns over
+    96 frames); the shares cover both."""
+    rng = np.random.default_rng(12)
+    paths = [(0.0, 1.0, (19, 4)), (194.0, 0.0316, (24, 3))]
+    result = _detect(paths, 96, rng, noise=0.05)
+
+    assert result.detection_limit_db > -25.0
+    codes = [(t.main_id, t.sub_id) for t in result.transmitters]
+    assert codes == [(19, 4), (24, 3)]
+    weak = result.transmitters[1]
+    assert weak.level_db == pytest.approx(-30.0, abs=0.5)
+    assert weak.delay_s == pytest.approx(194.0 / SAMPLE_RATE, abs=0.5 / SAMPLE_RATE)
+    assert sum(t.share for t in result.transmitters) == pytest.approx(1.0)
+    assert result.transmitters[0].delay_s == pytest.approx(0.0, abs=0.5 / SAMPLE_RATE)
+
+
+def test_a_path_close_to_a_stronger_one_without_a_code_of_its_own_is_left_out():
+    """A peak 4 µs behind the main path that carries its code: on air on all four
+    channels, likely the filters."""
+    rng = np.random.default_rng(13)
+    paths = [(0.0, 1.0, (35, 13)), (8.0, 0.05, (35, 13)), (257.0, 0.05, (35, 1))]
+    result = _detect(paths, 40, rng)
+
+    assert _described(result.paths) == [(0.0, (35, 13), False), (125.5, (35, 1), False)]
+
+
+def test_without_tii_there_are_no_paths():
+    rng = np.random.default_rng(14)
+    paths = [(0.0, 1.0, None), (100.0, 0.3, None)]
+    result = _detect(paths, 20, rng)
+
+    assert result.transmitters == [] and result.paths == []
+
+
+def test_without_channel_estimates_only_the_transmitters_are_detected():
+    rng = np.random.default_rng(15)
+    detector = TiiDetector()
+    for _ in range(20):
+        null, _channel = _carriers_of_frame([(0.0, 1.0, (19, 4))], rng)
+        result = detector.add(null)
+
+    assert [(t.main_id, t.sub_id) for t in result.transmitters] == [(19, 4)]
+    assert result.paths == [] and result.transmitters[0].delay_s is None
+
+
+def test_reset_forgets_the_paths():
+    rng = np.random.default_rng(16)
+    detector = TiiDetector()
+    for frame in range(20):
+        detector.add(*_carriers_of_frame([(0.0, 1.0, (19, 4))], rng, tii=frame % 2 == 1))
+    detector.reset()
+    result = detector.add(*_carriers_of_frame([(0.0, 1.0, (19, 4))], rng))
+
+    assert result.paths == []
+
+
+def test_a_code_of_its_own_wins_over_the_code_of_a_stronger_path():
+    """On 8C the path at 125 µs carried 35-13, the code of the strongest path, as well
+    as its own 35-01."""
+    gain = np.zeros((24, 8), dtype=complex)
+    deviation = np.full((24, 8), 0.1)
+    for comb in (1, 13):
+        gain[comb, [b for b, used in enumerate(PATTERNS[35]) if used]] = 0.9
+
+    assert code_of_path(gain, deviation, taken={(35, 13)}) == (35, 1)
+    assert code_of_path(gain, deviation, taken=set()) in {(35, 1), (35, 13)}
+
+
+def test_a_gain_far_above_one_is_no_code():
+    """Leakage from a stronger path that the block's carriers barely tell apart: on 7A
+    31-03 showed gains of 2.3 to 3 at the path of 31-01."""
+    gain = np.zeros((24, 8), dtype=complex)
+    gain[3, [b for b, used in enumerate(PATTERNS[31]) if used]] = 2.8
+    deviation = np.full((24, 8), 0.1)
+
+    assert code_of_path(gain, deviation, taken=set()) is None
+
+
+def test_a_code_found_before_holds_with_less_margin():
+    gain = np.zeros((24, 8), dtype=complex)
+    gain[3, [b for b, used in enumerate(PATTERNS[24]) if used]] = 0.9
+    deviation = np.full((24, 8), 0.3)  # 3 standard deviations
+
+    assert code_of_path(gain, deviation, taken=set()) is None
+    assert code_of_path(gain, deviation, taken=set(), previous=(24, 3)) == (24, 3)
+
+
+def _delayed(signal: np.ndarray, samples: int) -> np.ndarray:
+    return np.concatenate([np.zeros(samples, dtype=complex), signal[: len(signal) - samples]])
+
+
+def test_paths_through_the_real_demodulation():
+    """The time base of TII and impulse response as the worker sees them: a reflection
+    100 samples (48.8 µs) behind its transmitter carries its code."""
+    rng = np.random.default_rng(17)
+    detector = TiiDetector()
+    for _ in range(12):
+        direct = _frame([(19, 4, 1.0)], rng, noise=0.0)
+        signal = direct + 0.3 * _delayed(direct, 100)
+        signal = signal + 0.002 * (
+            rng.standard_normal(len(signal)) + 1j * rng.standard_normal(len(signal))
+        )
+        frame = demodulate_frame_symbols(signal, 0, MODE_I, SAMPLE_RATE, max_data_symbols=3)
+        assert frame is not None
+        frame_start = MODE_I.null_symbol_length + frame.sample_correction
+        spectrum = null_symbol_spectrum(
+            signal, frame_start, frame.frequency_offset_hz, SAMPLE_RATE, MODE_I
+        )
+        result = detector.add(null_symbol_carriers(spectrum, MODE_I), frame.channel_estimate)
+
+    assert _described(result.paths) == [(0.0, (19, 4), False), (48.8, (19, 4), True)]

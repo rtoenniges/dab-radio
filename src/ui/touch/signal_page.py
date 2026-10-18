@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import numpy as np
 import pyqtgraph as pg
+from PyQt6.QtGui import QBrush, QColor, QFont
 from PyQt6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from dab.constants import MODE_I, SAMPLE_RATE
@@ -19,9 +20,10 @@ from dsp.mp2_frame import Mp2FrameResult
 from dsp.pipeline import SYMBOL_WINDOW_EXCERPT_SYMBOLS, SubchannelStatus, SymbolWindows
 from dsp.superframe import SuperframeResult
 from dsp.tii import TiiResult
-from i18n import tr, tr_noop, tr_plural
+from i18n import tr, tr_context, tr_noop, tr_plural
 from ui.ofdm_tab import OfdmColours, OfdmPlots
 from ui.offscreen_gl import RenderThread
+from ui.path_marks import PathMarks, TransmitterColours, code_text, delay_text
 from ui.plots import PathDifferenceAxis, SmoothedRange
 from ui.receiver_controller import ReceiverController
 from ui.service_tab import FrameLayoutPlot, Mp2FrameLayoutPlot, SuperframeLayoutPlot
@@ -57,10 +59,10 @@ CORRECTION = "correction"
 PAGES = (OVERVIEW, SYNC, OFDM, DETAIL, SFN, CORRECTION)
 
 # Width of the figures beside a plot, and of the transmitters beside the impulse
-# response: just room for an identifier ("19-04"), a level ("-18.6 dB") and a share
-# ("100.0 %"), so that the impulse response gets the rest.
+# response: just room for an identifier ("19-04"), a level ("-18.6 dB"), a share
+# ("100.0 %") and a delay ("127.9 µs"), so that the impulse response gets the rest.
 FIGURES_WIDTH = 460
-TII_WIDTH = 310
+TII_WIDTH = 400
 # The legend of a frame layout, opaque enough to read over the bands beneath it.
 LEGEND_ALPHA = 220
 
@@ -322,16 +324,29 @@ class _OfdmPage(Page):
 # --- Single frequency network -----------------------------------------------------------
 
 
+def transmitter_palette(theme: Theme) -> list[QColor]:
+    """The colours of the transmitters in the impulse response and in their list: none
+    near the accent of the curve or the colour of alarms."""
+    extra = (
+        ("#be6ec8", "#e6c84a", "#f07fa8")
+        if theme.key == DARK
+        else ("#8e44ad", "#9a7400", "#c2185b")
+    )
+    return [theme.color("notice"), theme.color("success"), *(QColor(colour) for colour in extra)]
+
+
 class _SfnPage(Page):
     """The single frequency network: the impulse response, large, with the path
     difference in km above it, and the transmitters the identification in the null
-    symbols names (TII). The status line tells how much of the power comes over other
+    symbols names (TII), each path marked with the transmitter it carries
+    (`ui.path_marks`). The status line tells how much of the power comes over other
     paths than the strongest."""
 
     def __init__(self, controller: ReceiverController) -> None:
         super().__init__(tr("Single frequency network"))
         self._pending_impulse: tuple[np.ndarray, np.ndarray] | None = None
         self._pending_tii: TiiResult | None = None
+        self._codes: list[tuple[int, int]] = []  # the transmitters in the list, in order
 
         guard_seconds = MODE_I.guard_length / SAMPLE_RATE
         self._impulse_plot = pg.PlotWidget(axisItems={"top": PathDifferenceAxis("top")})
@@ -344,10 +359,14 @@ class _SfnPage(Page):
         self._impulse_plot.addItem(self._guard_region)
         self._impulse_curve = self._impulse_plot.plot()
         self._impulse_range = SmoothedRange()
+        self._colours = TransmitterColours(transmitter_palette(THEMES[DARK]))
+        self.marks = PathMarks(self._impulse_plot, self._colours)
 
         # "TII" over the identifiers: a word ("Identifier") would make the column half
         # as wide again as "19-04" needs.
-        self.table = touch_table(["TII", tr("Level"), tr("Share")])
+        self.table = touch_table(
+            ["TII", tr("Level"), tr("Share"), tr_context("transmitter list", "Delay")]
+        )
         self.tii_note = set_role(QLabel("-"), "small")
         self.tii_note.setWordWrap(True)
         transmitters = Panel(tr("Transmitters (TII)"))
@@ -376,10 +395,18 @@ class _SfnPage(Page):
         self._guard_region.setBrush(translucent(theme, "accent", 40))
         for line in self._guard_region.lines:
             line.setPen(pg.mkPen(theme.outline))
+        self._colours.set_palette(transmitter_palette(theme))
+        self.marks.set_style(
+            pixel_font(SMALL_FONT_PX), theme.color("muted"), theme.color("surface")
+        )
+        self._colour_codes()
 
     def _reset(self) -> None:
         self._pending_impulse = None
         self._pending_tii = None
+        self._colours.reset()
+        self.marks.clear()
+        self._codes = []
         fill_table(self.table, [])
         self.tii_note.setText("-")
         self.status.setText("")
@@ -402,23 +429,31 @@ class _SfnPage(Page):
             delays, power_db = self._pending_impulse
             self._pending_impulse = None
             self._impulse_curve.setData(delays, power_db)
-            self._impulse_range.apply(
-                self._impulse_plot, float(power_db.min()), float(power_db.max())
-            )
+            low, high = float(power_db.min()), float(power_db.max())
+            # Room above the strongest path for its label.
+            high += self.marks.headroom_db(high - low)
+            self._impulse_range.apply(self._impulse_plot, low, high)
         if self._pending_tii is not None:
             self._show_tii(self._pending_tii)
             self._pending_tii = None
 
     def _show_tii(self, result: TiiResult) -> None:
+        self._colours.note(result.transmitters)
+        self.marks.show(result.paths)
         rows = [
             (
-                f"{transmitter.main_id:02d}-{transmitter.sub_id:02d}",
+                code_text((transmitter.main_id, transmitter.sub_id)),
                 f"{transmitter.level_db:.1f} dB",
                 f"{transmitter.share * 100:.1f} %",
+                delay_text(transmitter.delay_s),
             )
             for transmitter in result.transmitters
         ]
-        fill_table(self.table, rows, right_aligned=range(1, 3))
+        fill_table(self.table, rows, right_aligned=range(1, 4))
+        self._codes = [
+            (transmitter.main_id, transmitter.sub_id) for transmitter in result.transmitters
+        ]
+        self._colour_codes()
         if result.detection_limit_db is None:
             note = tr_plural(
                 "None detected, {count} null symbol averaged.",
@@ -432,6 +467,24 @@ class _SfnPage(Page):
                 result.frames,
             ).format(count=result.frames, limit=result.detection_limit_db)
         self.tii_note.setText(note)
+
+    def _colour_codes(self) -> None:
+        """Each code in the list in the colour of its marks, bold. `fill_table` fitted
+        the column to the plain text of a new row; bold it is wider, so the column is
+        fitted again then (with a single row nothing else did, "31-03" read "31...")."""
+        bold = QFont(self.table.font())
+        bold.setBold(True)
+        widened = False
+        for row, code in enumerate(self._codes[: self.table.rowCount()]):
+            item = self.table.item(row, 0)
+            if item is None:
+                continue
+            item.setForeground(QBrush(self._colours.colour(code)))
+            if item.font() != bold:
+                item.setFont(bold)
+                widened = True
+        if widened:
+            self.table.resizeColumnToContents(0)
 
 
 # --- Error correction -------------------------------------------------------------------

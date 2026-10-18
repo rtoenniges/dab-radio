@@ -2,9 +2,9 @@
 
 Besides the audio, a service carries accompanying data in the same subchannel: the
 dynamic label with station and title information, the images of the MOT slideshow and
-the text pages of Journaline. All of them live in the PAD field. DAB+ carries it in a Data Stream Element (DSE)
-of the AAC access unit (ETSI TS 102 563, clause 5.3), classic DAB at the end of the
-MPEG Layer II frame (ETSI EN 300 401, clause 7).
+the text pages of Journaline. All of them live in the PAD field. DAB+ carries it in a
+Data Stream Element (DSE) of the AAC access unit (ETSI TS 102 563, clause 5.3), classic
+DAB at the end of the MPEG Layer II frame (ETSI EN 300 401, clause 7).
 
 Structure, from the outside in:
 

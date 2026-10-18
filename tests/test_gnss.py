@@ -138,7 +138,7 @@ def test_the_orbit_ring_holds_the_satellite_for_an_hour(frame) -> None:
     """The ellipse begins where the satellite stands. As it lies in space, the satellite
     runs along it: its positions over the next hour, turned back by the Earth's rotation
     since, stay within a kilometre (the Earth's flattening moves the true orbit away from
-    the ellipse by 0.3 km in an hour, measured 07.10.2026)."""
+    the ellipse by 0.3 km in an hour)."""
     ephemeris = _ephemeris(frame)
     ring = orbit_ring(ephemeris, REFERENCE_EPOCH_UTC, 720)
     assert ring.shape == (721, 3)

@@ -1,11 +1,11 @@
 #!/bin/sh
 # Brings the touch of the Raspberry Pi Touch Display 2 back when the kernel found no
-# touchscreen at boot. Its controller (Goodix, on the I2C bus of the DSI connector, bus
-# 11 address 0x5d on the Pi 5 here) now and then does not answer when the driver probes
-# it (dmesg: "Goodix-TS 11-005d: I2C communication failure: -121", "probe with driver
-# Goodix-TS failed"), mostly after a warm reboot that left it as it was; then there is
-# no input device at all, whatever cage, the udev rules or the radio do. Binding the
-# driver again brought it back without a reboot (09.10.2026).
+# touchscreen at boot. Its controller (Goodix, address 0x5d on the I2C bus of the DSI
+# connector) now and then does not answer when the driver probes it (dmesg:
+# "Goodix-TS 11-005d: I2C communication failure: -121", "probe with driver Goodix-TS
+# failed"), mostly after a warm reboot that left it as it was; then there is no input
+# device at all, whatever cage, the udev rules or the radio do. Binding the driver
+# again brings it back without a reboot.
 #
 # Runs as root: by hand `sudo sh pi/rebind-touch.sh`, or from pi/dab-radio.service as
 # ExecStartPre before cage starts (cage takes the touchscreen by hotplug all the same,

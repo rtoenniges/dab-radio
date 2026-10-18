@@ -1,8 +1,5 @@
 """The ring the API's compiled callback fills without the GIL: order, wrap-around,
-overflow, packets longer than a slot and the packet that waits for the next.
-
-Taken over from the GNSS receiver, without the tests of arrival times and of the
-callback for librtlsdr, which the radio's ring does not have."""
+overflow, packets longer than a slot and the packet that waits for the next."""
 
 import ctypes
 import threading
@@ -111,8 +108,8 @@ def test_a_packet_longer_than_a_slot_is_cut_into_several():
 
 
 def test_the_ring_holds_three_seconds_in_packets_of_one_slot_each():
-    # At 2.048 MS/s the API sends 1344 samples per packet (04.10.2026); with slots of 1024,
-    # as in the GNSS receiver, every packet took two and the ring held 2 s.
+    # At 2.048 MS/s the API sends 1344 samples per packet; with slots of 1024 every packet
+    # would take two and the ring would hold 2 s.
     ring = PacketRing(2_048_000.0)
     assert SLOT_SAMPLES == API_PACKET_SAMPLES
     assert ring.seconds >= RING_SECONDS

@@ -189,7 +189,7 @@ def test_parse_fib_reads_date_and_time_from_fig0_ext10():
     ids=["dlf", "seven-pop", "mixed"],
 )
 def test_parse_fib_reads_programme_types_from_fig0_ext17(fig, expected):
-    """FIG 0/17 as received on air in September 2026, from the FIG header on."""
+    """FIG 0/17 as received on air, from the FIG header on."""
     ensemble = Ensemble()
 
     parse_fib(fib(bytes.fromhex(fig)), ensemble)
@@ -345,8 +345,8 @@ def test_fig0_ext14_reads_the_fec_scheme_per_subchannel(fig, expected):
 
 
 # --- Frequency information: FIG 0/21 -------------------------------------------------
-# On air on 5D (Antenne DE, EId 11F7), September 2026: two FI lists for its own
-# ensemble, since a list holds at most two DAB frequencies.
+# On air on 5D (Antenne DE, EId 11F7): two FI lists for its own ensemble, since a list
+# holds at most two DAB frequencies.
 FIG0_21_5D = "1515001211f706002bf60030ac11f7060031f60037ed"
 
 
@@ -383,9 +383,9 @@ def test_fig0_ext21_stops_at_a_list_running_past_its_block():
 
 
 # --- Ensembles carrying a service: FIG 0/24 ------------------------------------------
-# On air in September 2026: 5D (EId 11F7) names itself for RTL RADIO (1229), OE flag
-# clear; NDR 2 NDS (D882) with the OE flag set, so from an ensemble that does not carry
-# it, in seven others, 7A (1188) among them.
+# On air: 5D (EId 11F7) names itself for RTL RADIO (1229), OE flag clear; NDR 2 NDS
+# (D882) with the OE flag set, so from an ensemble that does not carry it, in seven
+# others, 7A (1188) among them.
 
 
 @pytest.mark.parametrize(
@@ -426,8 +426,8 @@ def test_fig0_ext24_stops_at_eids_running_past_the_field():
 
 
 # --- Announcements: FIG 0/0 (Al flag), FIG 0/18, FIG 0/19 ------------------------------
-# FIG 0/0 and 0/18 as received in September 2026. No FIG 0/19 came in 150 s, since no
-# announcement was running; those FIGs are built after ETSI EN 300 401, clause 8.1.6.2.
+# FIG 0/0 and 0/18 as received on air. With no announcement running, no FIG 0/19 came;
+# those FIGs are built after ETSI EN 300 401, clause 8.1.6.2.
 
 
 @pytest.mark.parametrize(
@@ -509,8 +509,8 @@ def test_fig0_ext19_skips_the_region_of_older_transmitters():
 
 
 # --- Announcements of other ensembles: FIG 0/25, FIG 0/26 ------------------------------
-# None of 5C, 5D, 7A and 8C sent either in 10 min on 06.10.2026; the FIGs are built after
-# ETSI EN 300 401 V2.1.1, clauses 8.1.6.3 and 8.1.6.4.
+# None of the ensembles received sent either; the FIGs are built after ETSI EN 300 401
+# V2.1.1, clauses 8.1.6.3 and 8.1.6.4.
 
 
 def test_fig0_ext25_reads_oe_announcement_support():

@@ -49,8 +49,8 @@ def profile(
     )
 
 
-# What a Raspberry Pi showed on 2026-10-10 (shortened): the address and gateway the
-# router gave, and its DNS servers both in use and as the DHCP option.
+# What a Raspberry Pi shows (shortened): the address and gateway the router gave, and
+# its DNS servers both in use and as the DHCP option.
 ACTIVE_IPV4_DHCP = (
     "IP4.ADDRESS[1]:192.168.178.42/24\n"
     "IP4.GATEWAY:192.168.178.1\n"
@@ -66,9 +66,9 @@ ACTIVE_IPV4_DHCP = (
 )
 
 
-# Every access point once: the home network on both bands, connected over 2.4 GHz (as
-# the Pi was on 2026-10-11), a neighbour whose name has a colon (escaped), an open one, a
-# company network with 802.1X and a hidden one.
+# Every access point once: the home network on both bands, connected over 2.4 GHz, a
+# neighbour whose name has a colon (escaped), an open one, a company network with 802.1X
+# and a hidden one.
 WIFI_LIST = (
     " :82:5180 MHz:WPA2:FRITZ!Box 7590 XY\n"
     "*:64:2437 MHz:WPA2:FRITZ!Box 7590 XY\n"

@@ -4,10 +4,10 @@
 It is the last picture of the boot splash as well (`pi/plymouth/dab-radio`, installed by
 `pi/install.sh --splash`), whose script animates it: the dots run round a ring at first,
 as the constellation does while the receiver is off in frequency, then slow down and
-gather in the four points. On the Pi 5 here the display comes up 5.0 s after power on
-(its driver loads from the root file system), the radio's unit starts at 8.3 s and ends
-Plymouth, which has to let go of the display for cage, and the radio needs 2 to 4 s more
-until its window shows (measured 10.10.2026). `StartupSplash` covers that time:
+gather in the four points. On a Raspberry Pi 5 the display comes up about 5 s after
+power on (its driver loads from the root file system), the radio's unit starts about 3 s
+later and ends Plymouth, which has to let go of the display for cage, and the radio
+needs 2 to 4 s more until its window shows. `StartupSplash` covers that time:
 `main.py` shows it as soon as Qt is up, before it imports the rest of the radio, and
 closes it once the radio's window has come up over it.
 

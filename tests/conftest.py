@@ -63,11 +63,10 @@ def pytest_report_header(config) -> str | None:
 @pytest.fixture(autouse=True, scope="module")
 def _collect_garbage_after_each_module():
     """Destroys at the end of a module what its tests left in reference cycles. Left to
-    the garbage collector, such Qt objects went whenever it happened to run, also in the
-    middle of a later test: there a pyqtgraph LabelItem was resized after its text item
-    was gone, and PyQt6 aborts on the exception in that virtual (in
-    `test_touch_traffic.py`, after tests had been added to another module, 07.10.2026).
-    Collected after every test instead, the run takes twice as long."""
+    the garbage collector, such Qt objects go whenever it happens to run, also in the
+    middle of a later test: a pyqtgraph LabelItem resized there after its text item is
+    gone raises in a virtual, and PyQt6 aborts on that. Collected after every test
+    instead, the run takes twice as long."""
     yield
     gc.collect()
 

@@ -6,21 +6,21 @@ Builds native\rtlsdr.dll: librtlsdr with libusb linked in and RAW_IO switched on
 Why the radio needs a build of its own: without the pipe policy RAW_IO, WinUSB passes
 on one read at a time however many transfers are submitted. Between two of them the
 stick is not polled, its buffer overflows, and samples are lost without any notice
-(measured 02.10.2026 in the GNSS receiver, see src\sdr\library.py). The librtlsdr of the
-package pyrtlsdrlib is rtl-sdr 0.8.0 with a libusb that cannot set RAW_IO.
+(see src\sdr\library.py). The librtlsdr of the package pyrtlsdrlib is rtl-sdr 0.8.0
+with a libusb that cannot set RAW_IO.
 
-The script and rtlsdr-raw-io.patch are those of ..\gnss-receiver\native. The radio adds
-rtlsdr-r82xx-if-agc.patch: rtl-sdr 2.0.3 sets the IF amplifier (VGA) of the R820T/2 to
-a fixed 16.3 dB, with which no tuner gain suits both strong and weak ensembles (measured
-02.10.2026, see DEFAULT_GAIN_DB in src\ui\main_window.py). The patch hands the VGA to the
-IF AGC of the RTL2832U, as the library of pyrtlsdrlib does.
+Besides rtlsdr-raw-io.patch the build applies rtlsdr-r82xx-if-agc.patch: rtl-sdr 2.0.3
+sets the IF amplifier (VGA) of the R820T/2 to a fixed 16.3 dB, with which no tuner gain
+suits both strong and weak ensembles (see DEFAULT_GAIN_DB in
+src\ui\receiver_controller.py). The patch hands the VGA to the IF AGC of the RTL2832U,
+as the library of pyrtlsdrlib does.
 
 Sources, pinned by tag and commit:
   libusb 1.0.30, the first release whose API sets RAW_IO (libusb_endpoint_set_raw_io)
   rtl-sdr 2.0.3 of osmocom, plus the two patches
 
 Both are compiled into one DLL with the static C runtime, so that it depends on nothing
-but Windows. The sources and objects go to a folder outside OneDrive.
+but Windows. The sources and objects go to a folder outside the repository.
 
 Needs git and Visual Studio with the C++ tools (found through vswhere).
 

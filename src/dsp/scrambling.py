@@ -16,12 +16,10 @@ def generate_prbs(length: int) -> np.ndarray:
     shifted into the register.
 
     The sequence depends only on the length and restarts from the same initial value
-    for every scrambled block, so it is constant for the whole run time and is cached.
-    Without the cache this function was by far the most expensive item of the whole
-    signal processing (20 % of the compute time according to profiling), because it
-    ran a few thousand shift register steps in pure Python again for EVERY FIC and MSC
-    logical frame. The returned array is therefore read-only and must not be modified
-    by the caller.
+    for every scrambled block, so it is constant for the whole run time and is cached:
+    a few thousand shift register steps in pure Python for EVERY FIC and MSC logical
+    frame would be the most expensive item of the whole signal processing. The
+    returned array is therefore read-only and must not be modified by the caller.
     """
     register = np.ones(9, dtype=np.uint8)
     output = np.empty(length, dtype=np.uint8)

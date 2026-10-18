@@ -12,10 +12,9 @@ a picture per frame (`PINCH_INTERVAL_MS`), and the view's range is set once when
 are lifted. Every change of the range runs pyqtgraph's Python code for all the items of
 the plot and paints them all anew, some 20 of them on the traffic map; followed step by
 step, that kept the Raspberry Pi's GUI thread, and with it the GIL, busy for 60 % of
-real time (measured 08.10.2026), and the signal processing fell behind. Lines and marks
-scale with the picture meanwhile; the names of the towns are drawn on it crisp and at
-their size by the plot's `overlay`, with the items it names in `hidden_in_snapshot` left
-out of the picture.
+real time, and the signal processing fell behind. Lines and marks scale with the picture
+meanwhile; the names of the towns are drawn on it crisp and at their size by the plot's
+`overlay`, with the items it names in `hidden_in_snapshot` left out of the picture.
 
 Zoom limits are the view box's own (`ViewBox.setLimits`), applied when the fingers are
 lifted.

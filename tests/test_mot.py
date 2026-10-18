@@ -174,8 +174,7 @@ def test_body_without_header_yields_nothing():
 
 def test_segment_header_is_stripped():
     """Every MOT segment starts with two bytes of segment header. Left in place they
-    would precede the image file and the header would be unreadable; exactly that is
-    where the first version failed on real reception."""
+    would precede the image file and the header would be unreadable."""
     decoder = MotDecoder()
     _feed_group(decoder, _data_group(DATA_GROUP_MOT_HEADER, 11, 0, True, _mot_header(len(JPEG))))
     finished = _feed_group(decoder, _data_group(DATA_GROUP_MOT_BODY, 11, 0, True, JPEG))
@@ -202,9 +201,9 @@ def test_reset_discards_partial_objects():
 
 
 def test_unfinished_objects_touched_longest_ago_are_dropped():
-    """An object that lost a segment to a CRC error stays unfinished. The decoder used
-    to keep it until the next reset, for hours on one station; now the objects of
-    later transport identifiers push it out."""
+    """An object that lost a segment to a CRC error stays unfinished. Rather than stay
+    until the next reset, for hours on one station, it is pushed out by the objects of
+    later transport identifiers."""
     decoder = MotDecoder()
     _feed_group(decoder, _data_group(DATA_GROUP_MOT_HEADER, 2, 0, True, _mot_header(len(JPEG))))
     for transport_id in range(100, 100 + MAX_PARTIAL_OBJECTS):
@@ -255,9 +254,8 @@ def test_content_name_starts_with_a_charset_byte():
 
 
 def test_header_update_is_complete_without_a_body():
-    """A header update has body size 0; body segments never arrive. The first
-    version of the decoder waited for them anyway, so updates never reached the
-    slideshow."""
+    """A header update has body size 0; body segments never arrive, and waiting for them
+    would keep every update from the slideshow."""
     decoder = MotDecoder()
     finished = _feed_group(
         decoder,

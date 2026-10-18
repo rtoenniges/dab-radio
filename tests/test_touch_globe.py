@@ -5,9 +5,8 @@ and shift the view.
 OpenGL needs a graphics driver, which the offscreen platform these tests run on does not
 offer. The page is therefore tested with a stand-in for the render thread that only
 notes what it is asked to draw and hands an image back at once, and as it behaves without
-OpenGL; the real renderer draws in a process of its own
-on the real platform, without a window, and is skipped where that has no OpenGL either
-(as in the gnss-receiver).
+OpenGL; the real renderer draws in a process of its own on the real platform, without a
+window, and is skipped where that has no OpenGL either.
 """
 
 from __future__ import annotations
@@ -504,8 +503,7 @@ def test_without_opengl_the_page_says_so() -> None:
 
 
 # Draws with the real renderer and prints the colours of some pixels: seen from above the
-# Gulf of Guinea, an orbit-like line along the Earth's axis in green, as in the
-# gnss-receiver.
+# Gulf of Guinea, an orbit-like line along the Earth's axis in green.
 _RENDER_SCRIPT = """
 import json, sys
 import numpy as np

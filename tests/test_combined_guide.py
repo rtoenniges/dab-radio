@@ -16,7 +16,7 @@ from dab.spi import PARAM_SCOPE_ID, ProgrammeGuide, decode_spi_object
 from tests.spi_vectors import DLF_NOVA_PI_BODY
 
 # The ensembles of EPG Deutschland (5C), Antenne DE (5D), NDR (7A) and one from North
-# Rhine-Westphalia that is not receivable in Hanover.
+# Rhine-Westphalia that is receivable only there.
 EID_5C, EID_5D, EID_7A, EID_NRW = 0x10BC, 0x11F7, 0x1188, 0x1205
 
 

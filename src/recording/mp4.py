@@ -6,8 +6,7 @@ The container is what makes a DAB+ recording playable: its AudioSpecificConfig (
 samples and whether SBR is in it, which ADTS cannot (`recording.adts`). The same
 configuration drives FAAD2 in the radio (`audio.aac.audio_specific_config`), so a
 player with FAAD2 (VLC) decodes the file as the radio does; ffmpeg's own AAC decoder
-does not take 960-sample frames (it reports the "960/120 MDCT window" as missing,
-checked in its source, 09.10.2026).
+does not take 960-sample frames (it reports the "960/120 MDCT window" as missing).
 
 One track, one chunk holding every unit in order, a sample table with their sizes and
 the constant duration of 960 core samples, and the iTunes-style tags (`ilst`) for title,

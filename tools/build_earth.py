@@ -1,5 +1,5 @@
 """Builds `src/ui/assets/earth.npz`, the outlines the 3D view (`ui.globe_gl`) draws the
-Earth from. Taken over unchanged from the gnss-receiver project, the file as well.
+Earth from.
 
 The source is Natural Earth (naturalearthdata.com, public domain) at 1:50 million: the
 land, the large lakes and the borders between countries. The coordinates are stored in

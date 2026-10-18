@@ -37,8 +37,8 @@ def test_an_ensemble_not_received_is_found_where_fig_0_21_announces_it():
 
 
 def test_an_announced_channel_carrying_another_ensemble_here_is_passed_over():
-    """5D announces its ensemble 11F7 on 8C as well, where NI HANNOVER is received here;
-    a frequency off the Band III raster (L band) has no channel."""
+    """5D announces its ensemble 11F7 on 8C as well, where NI HANNOVER was received; a
+    frequency off the Band III raster (L band) has no channel."""
     announced = {0x11F7: (199_360, 1_452_960)}
     assert locate_ensemble(0x11F7, STORED, announced) == EnsembleLocation(
         0x11F7, None, received=False

@@ -12,6 +12,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import pytest
 
 from dab.channels import BAND_III_CHANNELS
+from dsp.tii import TiiPath, TiiResult, TiiTransmitter
 from tests.fake_receiver import ENSEMBLE_5C, SERVICES_5C, SERVICES_11D
 from ui.main_window import CHANNEL_MANUAL, MainWindow
 
@@ -188,3 +189,34 @@ def test_the_audio_box_tells_and_follows_the_controller(data_directory, window_o
     assert not box.isChecked()
     box.click()
     assert controller.audio_enabled
+
+
+def test_the_transmitters_are_listed_with_their_delay_and_marked(data_directory, window_on):
+    window = window_on(data_directory)
+    window._tabs.setCurrentIndex(window._signal_tab_index)
+    transmitters = [
+        TiiTransmitter(31, 3, 0.0, 0.999, 0.2e-6),
+        TiiTransmitter(31, 1, -32.1, 0.001, 127.9e-6),
+        TiiTransmitter(12, 5, -9.0, 0.11),
+    ]
+    paths = [TiiPath(0.2e-6, 0.0, (31, 3)), TiiPath(127.9e-6, -32.1, (31, 1))]
+
+    window._controller.dsp_worker.tii_ready.emit(TiiResult(transmitters, -24.0, 32, paths))
+    window._render_plots()
+
+    table = window._tii_table
+    rows = [
+        tuple(table.item(row, column).text() for column in range(4))
+        for row in range(table.rowCount())
+    ]
+    assert rows == [
+        ("31-03", "0.0 dB", "99.9%", "0.2 µs"),
+        ("31-01", "-32.1 dB", "0.1%", "127.9 µs"),
+        ("12-05", "-9.0 dB", "11.0%", "-"),
+    ]
+    marks = window._signal_tab.path_marks.shown()
+    assert [label for label, *_rest in marks] == ["31-03", "31-01"]
+    assert table.item(1, 0).foreground().color() == marks[1][2]
+
+    window._controller.live_reset.emit()
+    assert window._signal_tab.path_marks.shown() == []

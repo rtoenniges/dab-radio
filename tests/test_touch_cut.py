@@ -219,10 +219,10 @@ def test_the_level_is_a_picture_mirrored_about_the_middle():
 
 
 def test_a_handle_dragged_leaves_the_view_and_the_level_drawn_as_they_are(page, monkeypatch):
-    """Dragging a handle painted the whole level anew with every move, 40 to 80 ms in
-    the GUI thread, and in the view of the beginning the view followed the handle, the
-    level running away beneath the finger; the signal processing went beyond real time
-    (2026-10-13, on the PC)."""
+    """Painting the whole level anew with every move of a handle takes 40 to 80 ms in
+    the GUI thread, enough to push the signal processing beyond real time; and in the
+    view of the beginning, a view that follows the handle runs the level away beneath
+    the finger."""
     cut, model, controller, _saved, _played = page
     _open(cut, controller)
     controller.levels_read.emit(

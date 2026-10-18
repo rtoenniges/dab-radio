@@ -99,8 +99,8 @@ def test_a_network_is_listed_once_with_its_strongest_access_point():
 
 
 def test_the_access_point_in_use_gives_its_network_its_signal_even_when_weaker():
-    # As on the Pi on 2026-10-11: connected over 5 GHz, the 2.4 GHz of the same access
-    # point stronger; the bars are those of the connection.
+    # Connected over 5 GHz, the 2.4 GHz of the same access point stronger: the bars are
+    # those of the connection.
     networks = parse_networks(" :70:2412 MHz:WPA2:Heim\n*:40:5180 MHz:WPA2:Heim\n")
     assert networks == [
         Network("Heim", 40, "WPA2", True, frozenset({BAND_2_4_GHZ, BAND_5_GHZ}), BAND_5_GHZ)

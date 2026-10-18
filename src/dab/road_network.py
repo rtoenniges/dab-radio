@@ -7,11 +7,9 @@ shows it must say so (`ATTRIBUTION`). The file is built on each computer and nev
 committed: the extract of Germany alone has some 5 GB.
 
 ARD TPEG locates its messages by OpenLR on roads of every class from 0 (motorway) to 4
-(district road) in about equal shares (measured on 7A, 06.10.2026: of 572 messages 18 %
-on class 0, 26 % on 1, 19 % on 2, 14 % on 3, 22 % on 4, 1 % on 5), so the network goes
-down to tertiary roads. It is only the background: a message is not named after the
-road nearest to it, since that is in some 8 % the road crossing it (compared with the
-TMC location of the messages that carry both, same day); names come from the TMC
+(district road) in about equal shares (14 to 26 % each), so the network goes down to
+tertiary roads. It is only the background: a message is not named after the road
+nearest to it, since in some 8 % that is the road crossing it; names come from the TMC
 location table (`dab.tmc_locations`).
 
 The lines are kept per layer as all their points (longitude, latitude) in one array
@@ -21,8 +19,8 @@ pieces of mostly two points; the build joins them end to end, since drawing cost
 the point and a piece that short leaves nothing to simplify. Besides the fine lines the
 roads down to the Landesstraßen, borders and coast have a medium copy for a region,
 the main roads a coarse copy for the whole country (`FINE`, `MEDIUM`, `COARSE`): the
-fine ones would cost the Raspberry Pi too much to draw there (measured 06.10.2026 on
-the PC, a view 4° wide: 660 000 points in pieces took 184 ms per frame).
+fine ones would cost the Raspberry Pi too much to draw there (in a view 4° wide,
+660 000 points take 184 ms per frame on a desktop computer).
 """
 
 from __future__ import annotations

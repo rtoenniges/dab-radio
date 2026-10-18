@@ -77,8 +77,8 @@ def _finger(row, start: QPointF, end: QPointF | None = None) -> None:
     """Down at `start`, lifted at `end` (where it came down: a tap), straight to the row:
     `QTest.mouseClick` goes through the QScroller of the list, which holds the press back
     to tell a tap from a swipe. Freed with the view at the end of the test while that was
-    pending, it crashed later tests now and then (2 of 25 runs); the view of the
-    application lives as long as the program."""
+    pending, it crashes later tests now and then; the view of the application lives as
+    long as the program."""
     end = start if end is None else end
     left = Qt.MouseButton.LeftButton
     no_modifier = Qt.KeyboardModifier.NoModifier

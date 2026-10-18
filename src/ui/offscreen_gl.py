@@ -12,9 +12,8 @@ nothing else changes if it is missing.
 Drawing runs in a thread of its own (`RenderThread`), and the image comes back through
 `glReadPixels` called by ctypes: that call waits for the graphics card to finish the
 frame, and ctypes lets go of the GIL meanwhile, which PyQt never does (its `toImage` held
-it for the whole wait, and the signal processing stood still for as long as the
-Raspberry Pi drew: measured 08.10.2026, it waited for the GIL 80 to 100 % of real time
-while the globe was turned, 1 % otherwise, and the audio ran dry). The GUI thread only
+it for the whole wait; on the Raspberry Pi the signal processing then waited for the GIL
+most of the time while the globe was turned, and the audio ran dry). The GUI thread only
 hands over the camera and paints the last finished image, so a gesture never waits for
 the graphics card either. OpenGL gives the pixels bottom row first; the scene is
 therefore drawn upside down (`_FLIP`, with the winding of the faces turned around) and
@@ -23,11 +22,11 @@ comes out upright, without a copy.
 OpenGL 2.1 with GLSL 1.20 is asked for, which every driver has, through Qt's own
 classes: no PyOpenGL, and nothing of GLX or X11. The context comes from Qt's platform
 plugin: under Wayland (the Raspberry Pi runs the radio in the compositor cage) through
-EGL. The Qt of the PyQt6 wheel for aarch64 is built for desktop OpenGL, its Wayland
-plugin binds EGL's desktop OpenGL API and makes the offscreen surface an EGL pbuffer, or
-no surface at all where EGL_KHR_surfaceless_context is offered (as Mesa does; looked up
-in PyQt6-Qt6 6.11.2 on 07.10.2026). Under XWayland (platform "xcb") Qt would use GLX.
-The log names the platform with the driver.
+EGL. The Qt of the PyQt6 wheel for aarch64 (PyQt6-Qt6 6.11.2) is built for desktop
+OpenGL, its Wayland plugin binds EGL's desktop OpenGL API and makes the offscreen
+surface an EGL pbuffer, or no surface at all where EGL_KHR_surfaceless_context is
+offered (as Mesa does). Under XWayland (platform "xcb") Qt would use GLX. The log names
+the platform with the driver.
 """
 
 from __future__ import annotations
@@ -202,12 +201,11 @@ class OffscreenRenderer:
     the graphics card (`_load`) and how it is drawn (`_paint`); what a scene and a camera
     are is its own business.
 
-    OpenGL is set up when first needed, in steps (`prepare`): creating the context took
-    0.42 s in the gnss-receiver (it loads the graphics driver, measured 02.10.2026), and Qt
-    does not let go of the GIL in that, nor in what a subclass adds. Done at once while a
-    stream runs, the processing would stand still that long. Between the steps the caller
-    lets the event loop run. If a step fails, `error` says why and `render` returns None
-    from then on.
+    OpenGL is set up when first needed, in steps (`prepare`): creating the context can
+    take almost half a second (it loads the graphics driver), and Qt does not let go of
+    the GIL in that, nor in what a subclass adds. Done at once while a stream runs, the
+    processing would stand still that long. Between the steps the caller lets the event
+    loop run. If a step fails, `error` says why and `render` returns None from then on.
 
     Drawn from `RenderThread`, the context is made in the GUI thread (`open`) and handed
     to the thread (`move_to_thread`), which does the rest of the steps and the drawing;

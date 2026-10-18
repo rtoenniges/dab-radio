@@ -120,7 +120,7 @@ class FakeBus(Bus):
     With `one_stream` only while no other device holds it, as on the Pi: then Connect
     fails as BlueZ's does ("br-connection-create-socket"), and so does ConnectProfile.
     A device in `drops_without_a2dp` disconnects as its stream ends (a loudspeaker
-    whose hands-free profile belongs to a phone, the JBL box of 2026-10-11)."""
+    whose hands-free profile belongs to a phone)."""
 
     def __init__(self, objects: dict | None = None, connected: bool = True) -> None:
         super().__init__()

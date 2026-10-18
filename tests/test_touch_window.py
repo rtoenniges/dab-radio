@@ -403,8 +403,8 @@ def test_a_finger_resting_on_a_tile_is_no_tap(data_directory, touch_window):
     tile.long_pressed.connect(lambda: presses.append(True))
     centre = QPoint(TILE_WIDTH // 2, TILE_HEIGHT // 2)
     # The windows earlier tests let go of are deleted in the next event loop, which would
-    # be the one the long press is waited for in: after other modules that took up to a
-    # second, and the press came too late (2026-10-12).
+    # be the one the long press is waited for in: after other modules that can take up
+    # to a second, and the press comes too late.
     QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete.value)
 
     QTest.mousePress(tile, Qt.MouseButton.LeftButton, pos=centre)
@@ -648,7 +648,7 @@ def test_the_list_of_the_settings_page_chooses_its_sub_page(data_directory, touc
     assert page._theme.isVisible() and page._load_shown.isVisible()
     assert page._constellation.isVisible()
     assert page._dim_after.isVisible() and page._off_after.isVisible()
-    assert page._backlight_hint.isVisible()  # no backlight on the PC
+    assert page._backlight_hint.isVisible()  # no backlight here
     assert page._latitude.isVisible() and page._height.isVisible()
     assert not page._device.isVisible()
 
@@ -1597,7 +1597,7 @@ def test_the_loudspeaker_button_shows_headphones_and_offers_the_outputs_when_hel
     assert page.mute_symbol(True) == "muted"
 
     # Muted or unmuted from elsewhere (MQTT): the button follows, and one tap undoes
-    # it (it used to take two, the button keeping a state of its own, 10.10.2026).
+    # it (the button keeps no state of its own).
     controller.set_audio_enabled(True)
     assert not button.isChecked()
     controller.set_audio_enabled(False)
@@ -1634,7 +1634,7 @@ def test_the_settings_have_a_bluetooth_category(data_directory, touch_window):
 
     assert page.current_subpage() == "bluetooth"
     assert page._bluetooth_view.isVisible()
-    # No system bus on the PC: the page says where pairing happens instead.
+    # No system bus here: the page says where pairing happens instead.
     assert page._bluetooth_view._unavailable.isVisible()
     assert page._bluetooth_view.message.isVisible()
     assert not page._wifi_view.message.isVisible()
@@ -1715,7 +1715,7 @@ def test_the_rail_keeps_its_place_for_the_symbols_while_both_are_off(data_direct
     window.show()
     _spin(0)
 
-    # Neither nmcli nor a system bus on the PC: no symbol, but the row stays.
+    # Neither nmcli nor a system bus here: no symbol, but the row stays.
     assert not window._wifi_icon.isVisible() and not window._bluetooth_icon.isVisible()
     assert window._status_row.isVisible()
     assert window._status_row.height() == window._wifi_icon.height()

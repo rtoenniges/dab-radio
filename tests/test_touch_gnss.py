@@ -217,7 +217,7 @@ def test_the_dots_show_while_swiping_and_fade_out(pager, clock) -> None:
     assert fade.state() == QAbstractAnimation.State.Running
     assert fade.endValue() == 0.0
     # To its end without waiting: after `test_main_window` in the same process Qt's
-    # animation timer no longer ticks; the fade itself runs (checked by hand).
+    # animation timer no longer ticks; the fade itself runs in the application.
     fade.setCurrentTime(DOTS_FADE_MS)
     assert pager.dots_opacity == 0.0
 

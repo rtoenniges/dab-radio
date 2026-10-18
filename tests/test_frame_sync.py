@@ -33,15 +33,14 @@ def _synthetic_stream(
 ) -> np.ndarray:
     """Builds a sample stream of `num_frames` frames.
 
-    Every frame consists of a quiet null symbol and a loud "useful part".
-    `null_power` gives the amplitude of the null symbol per frame; in real reception
-    it varies considerably (live: a 16.6 dB spread, among other things because of the
-    TII signal).
+    Every frame consists of a quiet null symbol and a loud "useful part". `null_power`
+    gives the amplitude of the null symbol per frame; in real reception it varies
+    considerably (by some 16 dB, among other things because of the TII signal).
 
-    The signal is deliberately zero-mean complex noise and not a constant level:
-    `DspWorker.process_samples` can correct DC offset and IQ imbalance before the
-    frame search (see `dsp.iq_correction`, switchable in the GUI), and only a
-    zero-mean signal behaves like a real OFDM signal there.
+    The signal is zero-mean complex noise, not a constant level:
+    `DspWorker.process_samples` can correct DC offset and IQ imbalance before the frame
+    search (`dsp.iq_correction`), and only a zero-mean signal behaves like a real OFDM
+    signal there.
 
     A short block of constant samples in the useful part carries the frame number, so
     that a test can attribute the delivered frames unambiguously. It sits
@@ -100,11 +99,10 @@ _STREAM_OFFSET_WITH_TWO_NULLS_IN_RANGE = 196_000
 def test_drain_yields_every_frame_exactly_once_despite_varying_null_power():
     """No frame may be skipped or delivered twice.
 
-    The actual failure: as soon as the frame buffer grew beyond two frame lengths, the
-    search span contained TWO null symbols. A plain minimum search returns the quieter
-    of them, here deliberately alternating the later one, so every second frame was
-    lost without replacement (without the fix this set-up only delivers frames 1, 3,
-    5, 7, 9).
+    Once the frame buffer grows beyond two frame lengths, the search span contains TWO
+    null symbols. A plain minimum search returns the quieter of them, here deliberately
+    alternating the later one, so every second frame would be lost (this set-up would
+    deliver only frames 1, 3, 5, 7, 9).
     """
     num_frames = 12
     # Every second frame has a markedly quieter null symbol than its predecessor; a
@@ -174,9 +172,9 @@ def test_persistently_unreliable_frames_trigger_reacquisition():
     """Frame tracking must free itself from a wrong lock.
 
     Unlike a search over the whole buffer, a grid once locked does not correct itself.
-    If acquisition locks onto a wrong position (reproducible live when restarting
-    reception while the gain control is still settling), it would otherwise stay there
-    forever and deliver nothing but unusable frames.
+    If acquisition locks onto a wrong position (as when reception restarts while the
+    gain control is still settling), it would otherwise stay there forever and deliver
+    nothing but unusable frames.
     """
     worker = DspWorker(2_048_000.0, MODE_I)
     worker._expected_null = 0  # locked
@@ -227,10 +225,8 @@ def test_constellation_is_shown_for_unreliable_frames_too(monkeypatch):
     """The constellation diagram is meant to show the signal actually received, also
     (and especially) when it is bad. The same goes for the channel impulse response,
     the SFN share, the transmitter identification and the FFT-per-symbol display.
-
-    An earlier version froze the display for frames rated unreliable to avoid a
-    briefly "collapsed" point cloud. But that suppresses exactly the information the
-    diagram exists for.
+    Freezing them for frames rated unreliable would hide a briefly "collapsed" point
+    cloud, exactly the information the diagram exists for.
     """
     spectra = np.ones((4, MODE_I.fft_length), dtype=complex)
     monkeypatch.setattr(
@@ -316,16 +312,14 @@ def test_power_envelope_markers_follow_the_decoded_frame_positions():
     """The markers in the power envelope must show exactly the frame position the
     decoder locked onto.
 
-    Previously a separate minimum search over the read block, independent of the
-    decoder, served that purpose. It also found a real null symbol, but at most ONE
-    marker per block (and with varying null symbol power the quieter of two
-    candidates), while the decoder processes two frames per block, so the display
-    showed something other than what the receiver actually does. The test therefore
-    holds markers and actually decoded frame starts against each other.
+    A separate minimum search over the read block finds a real null symbol too, but at
+    most ONE per block (and with varying null symbol power the quieter of two), while
+    the decoder processes two frames per block. The test therefore holds markers and
+    actually decoded frame starts against each other.
     """
     num_frames = 12
     # Strongly varying null symbol power: exactly here an independent minimum search
-    # and the frame tracking diverged.
+    # and the frame tracking diverge.
     null_power = [0.05 if i % 2 else 0.2 for i in range(num_frames)]
     worker = DspWorker(2_048_000.0, MODE_I)
 

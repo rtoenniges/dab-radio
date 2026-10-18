@@ -7,7 +7,7 @@ that the drive is not there right now; a tap on it opens the folder browser
 (`ui.touch.folder_browser`) on the drive the directory lies on, else on the first drive
 mounted. The list "Drives" beneath holds the USB drives UDisks2 knows (`storage.volumes`):
 a tap on a mounted one offers to choose a folder on it or to eject it, one on a drive
-not mounted mounts it. On the PC the list shows what the system has mounted, and only
+not mounted mounts it. On a PC the list shows what the system has mounted, and only
 the folder can be chosen there. The ring and the start delay are on the sub-page
 "Recording" (`ui.touch.recording_view`)."""
 
@@ -94,8 +94,8 @@ def volume_entries(volumes: list[Volume], recordings: Volume | None) -> list[Vol
 
 
 def directory_text(directory: Path | None, volume: Volume | None) -> str:
-    """ "USB-Stick › Aufnahmen" where the directory lies on a volume known, else the path
-    as stored; "No folder chosen" without one."""
+    """ "USB-Stick › Recordings" where the directory lies on a volume known, else the
+    path as stored; "No folder chosen" without one."""
     if directory is None:
         return tr(_NO_DIRECTORY)
     if volume is None:
@@ -134,7 +134,7 @@ class _VolumeRow(TapWidget):
         texts.setContentsMargins(0, 0, 0, 0)
         texts.setSpacing(0)
         texts.addWidget(name)
-        # Elided, not wrapped: a mount point of the PC can be long, and a plain label
+        # Elided, not wrapped: a mount point on a PC can be long, and a plain label
         # would push the symbol out of the row.
         detail = set_role(ElidedLabel(), "small")
         detail.setText(entry.detail)

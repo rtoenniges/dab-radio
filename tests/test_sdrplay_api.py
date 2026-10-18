@@ -1,12 +1,9 @@
 """The ctypes structures against the layout of the original C headers.
 
-Taken over unchanged from the GNSS receiver, together with the binding itself.
-
-The expected values were printed by a small C program compiled with MSVC 19.44 (x64)
-against the headers of API 3.15 (`sizeof`/`offsetof` of every structure the binding
-writes into or reads from). The same program compiled with gcc 15.2 (Linux x64) against
-the headers of API 3.15 for Linux printed the same values (03.10.2026). A mismatch means
-the binding would read or write the wrong field in the API's memory.
+The expected values were printed by a small C program against the headers of API 3.15
+(`sizeof`/`offsetof` of every structure the binding writes into or reads from); built
+with MSVC for Windows x64 and with gcc for Linux x64, it printed the same values. A
+mismatch means the binding would read or write the wrong field in the API's memory.
 """
 
 import ctypes

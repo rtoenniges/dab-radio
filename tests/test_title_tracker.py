@@ -111,9 +111,9 @@ def test_texts_are_tidied_and_reset_forgets_everything():
 
 
 def test_dl_plus_without_item_tags_leaves_the_boundaries_to_the_text():
-    """89.0 RTL (10.10.2026) sends DL Plus with the running flag on but without item
-    tags, and the flag stays on from one title to the next: the text has to tell, as
-    without DL Plus; tags, once they come, settle it."""
+    """89.0 RTL sends DL Plus with the running flag on but without item tags, and the
+    flag stays on from one title to the next: the text has to tell, as without DL Plus;
+    tags, once they come, settle it."""
     clock = _Clock()
     tracker = TitleTracker(clock)
     first = tracker.update(_label("Purple Disco Machine - Test My Luck"))

@@ -2,9 +2,9 @@
 the share of a device's range as pactl's raw value and back, the readback parsed, a sink
 followed only once it is known to apply its volume in the device (waited for, as a
 Bluetooth device brings its volume control up late), one command for the last of
-several values, the device never left louder than set, the radio's own value not taken for a change (also as a
-Bluetooth device rounds it, or answers late), changes made elsewhere reported, and
-nothing without pactl."""
+several values, the device never left louder than set, the radio's own value not taken
+for a change (also as a Bluetooth device rounds it, or answers late), changes made
+elsewhere reported, and nothing without pactl."""
 
 from __future__ import annotations
 
@@ -249,8 +249,8 @@ def give_up_waiting(volume: SystemVolume, clock: list[float]) -> None:
 def test_a_sink_that_applies_its_volume_in_software_is_never_set_to_a_level(
     volume, pactl, monitor, clock
 ):
-    """The loudspeaker of the Pi: after a reboot its route showed -52.8 dB while its
-    node played at 1.0 (2026-10-11); the radio leaves it the level no more."""
+    """The loudspeaker of the Pi: after a reboot its route can show -52.8 dB while its
+    node plays at 1.0, so the radio does not set its level."""
     software = _Recorder(volume.software_volume)
     applied = _Recorder(volume.applied)
     volume.follow(SPEAKER)
@@ -288,8 +288,8 @@ def test_a_sink_pactl_does_not_list_counts_as_one_in_software(volume, pactl, clo
 def test_a_bluetooth_device_whose_volume_control_comes_late_is_waited_for(
     volume, pactl, monitor, clock
 ):
-    """The Jabra Elite 10, asked at once, had no flag yet and was set to 100 % of its
-    own volume (2026-10-11): its AVRCP comes up a second or two after its audio."""
+    """A Bluetooth headset asked at once has no flag yet and would be set to 100 % of
+    its own volume: its AVRCP comes up a second or two after its audio."""
     software = _Recorder(volume.software_volume)
     applied = _Recorder(volume.applied)
     pactl.flags[HEADPHONES] = ["HARDWARE", "DECIBEL_VOLUME", "LATENCY"]
@@ -395,7 +395,7 @@ def test_a_change_made_elsewhere_is_reported_as_the_raw_value(volume, pactl, mon
     volume.set_volume(HEADPHONES, 26214)
     clock[0] += SETTLE_S  # the radio's own set has settled
 
-    # The button on the headphones: up to step 76 of 127 (as the Jabra stood on the Pi).
+    # The button on the headphones: up to step 76 of 127.
     pactl.volumes[HEADPHONES] = round(VOLUME_NORM * 76 / 127)
     monitor.sink_changed()
     assert changes.calls == [(HEADPHONES, round(VOLUME_NORM * 76 / 127))]
@@ -510,8 +510,8 @@ def test_disabled_it_does_not_even_look_for_pactl(monkeypatch):
 
 def test_a_device_left_quieter_than_set_moves_the_slider(volume, pactl, monitor, clock):
     """WirePlumber writes back the volume it stored for the device a moment after it
-    connects (the Jabra at step 76 while the radio set 73 %, 2026-10-11): the answer
-    falls into the settle window, and only the read after it shows the truth."""
+    connects (here step 76 while the radio set 73 %): the answer falls into the settle
+    window, and only the read after it shows the truth."""
     changes = _Recorder(volume.changed)
     volume.follow(HEADPHONES)
     volume.set_volume(HEADPHONES, raw_of_share(0.73))

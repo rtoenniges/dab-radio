@@ -108,7 +108,7 @@ def test_a_service_selection_is_always_answered_with_its_status():
 
 # FIG 0/25: NDR Info also takes road traffic from OE cluster 5, served by ensemble 1188;
 # FIG 0/26: road traffic in OE cluster 5, carried there by D581 (built after ETSI EN 300
-# 401 V2.1.1, clauses 8.1.6.3 and 8.1.6.4: no transmitter here sends either).
+# 401 V2.1.1, clauses 8.1.6.3 and 8.1.6.4: no transmitter received sends either).
 FIG0_25 = bytes.fromhex("0919d38400020005" + "1188")
 FIG0_26_RUNNING = bytes.fromhex("071a05000280d581")
 

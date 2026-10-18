@@ -226,7 +226,7 @@ def test_a_directory_on_a_drive_missing_is_shown_as_not_available(view, tmp_path
     assert view._space.text() == "Drive not mounted"
     assert _row(view, "USB-STICK").entry.holds_recordings
 
-    # A directory that is there (on the PC a temporary one) shows its free space.
+    # A directory that is there (here a temporary one) shows its free space.
     view._controller.set_recording_directory(tmp_path)
     assert view._directory.text() == str(tmp_path)
     assert view._space.text().endswith("free of " + view._space.text().split(" of ")[1])

@@ -78,9 +78,8 @@ MAX_ROWS = 200
 MAX_FLOW_ROWS = 100
 # New rows of a list are made for this long at a time (seconds), at least one, then the
 # GUI goes on for `BUILD_PAUSE_MS`. Qt polishes the widgets of a row with the style sheet
-# as it shows them, 2.5 ms a row at the PC (2026-10-16): the 200 messages made at once
-# stopped the swipe that had just turned to their list for half a second, on the Pi for
-# longer.
+# as it shows them, a few milliseconds a row: the 200 messages made at once would stop
+# the swipe that had just turned to their list for half a second or longer.
 BUILD_SLICE_SECONDS = 0.008
 BUILD_PAUSE_MS = 16
 MARKER_SIZE = 14
@@ -822,15 +821,15 @@ class _RowList(QScrollArea):
         the slice too.
 
         Showing a widget lays out its visible parents at once, here the whole list for
-        each row (1.4 ms a row at the start, 4.3 ms at 200 rows, PC): while the slice
-        runs the layout of the list is off, and it is laid out once at its end, so that
-        the scroll area knows its height as it did before.
+        each row, at a cost growing with the list: while the slice runs the layout of
+        the list is off, and it is laid out once at its end, so that the scroll area
+        knows its height as it did before.
 
         The slices go on while the list is hidden (another page of the window or menu):
         then its layout is left to Qt, which lays it out as it is shown. Laid out
         hidden, the layout counts as done, and the scroll area, which hears of a new
-        height only while it is visible, kept the old one: the rows squeezed into it
-        until one was opened."""
+        height only while it is visible, would keep the old one: the rows would squeeze
+        into it until one was opened."""
         deadline = time.perf_counter() + BUILD_SLICE_SECONDS
         self._layout.setEnabled(False)
         try:

@@ -18,7 +18,7 @@ from dsp.iq_correction import IqCorrectionReport
 from dsp.mp2_frame import CHANNEL_MODE_JOINT_STEREO, Mp2Format, Mp2FrameResult
 from dsp.pipeline import SYMBOL_WINDOW_EXCERPT_SYMBOLS, SubchannelStatus, SymbolWindows
 from dsp.superframe import AudioFormat, SuperframeResult
-from dsp.tii import TiiResult, TiiTransmitter
+from dsp.tii import TiiPath, TiiResult, TiiTransmitter
 from ui.ofdm_tab import OfdmTab
 from ui.touch.signal_page import (
     CORRECTION,
@@ -31,6 +31,7 @@ from ui.touch.signal_page import (
     SYNC,
 )
 from ui.touch.signal_panels import describe_format
+from ui.touch.theme import touch_font
 from ui.touch.window import SIGNAL, TouchWindow
 
 # One application for the module: plots built outside a window need one alive.
@@ -192,10 +193,11 @@ def test_the_transmitters_of_the_network_are_listed(window) -> None:
     window._render_plots()
 
     rows = [
-        tuple(sfn.table.item(row, column).text() for column in range(3))
+        tuple(sfn.table.item(row, column).text() for column in range(4))
         for row in range(sfn.table.rowCount())
     ]
-    assert rows == [("07-03", "0.0 dB", "61.0 %"), ("12-01", "-9.8 dB", "7.0 %")]
+    # No path carries their codes yet: no delay.
+    assert rows == [("07-03", "0.0 dB", "61.0 %", "-"), ("12-01", "-9.8 dB", "7.0 %", "-")]
     assert sfn.tii_note.text() == "128 null symbols averaged, detection limit -22 dB."
     assert sfn.status.text() == "SFN share 18.0 %, outside the guard 0.3 %"
 
@@ -203,6 +205,74 @@ def test_the_transmitters_of_the_network_are_listed(window) -> None:
     window._controller.live_reset.emit()
     assert sfn.table.rowCount() == 0
     assert sfn.status.text() == ""
+
+
+def test_a_single_transmitter_fits_its_column(window) -> None:
+    """The code turns bold after the table fitted its columns to the plain text; with
+    one row nothing fitted them again, and "31-03" showed as "31...". Measured in the
+    typeface of the touch surface, as `main` sets it: in the fallback of the tests the
+    header is the widest."""
+    fallback = QApplication.font()
+    QApplication.setFont(touch_font())
+    try:
+        page = window._signal_page
+        sfn = page.page(SFN)
+        page.show_page(SFN)
+        dsp = window._controller.dsp_worker
+
+        result = TiiResult([TiiTransmitter(31, 3, 0.0, 1.0, -0.04e-6)], -24.0, 32)
+        dsp.tii_ready.emit(result)
+        window._render_plots()
+
+        table = sfn.table
+        assert table.columnWidth(0) >= table.sizeHintForColumn(0)
+        assert table.item(0, 3).text() == "0.0 µs"  # not "-0.0 µs"
+    finally:
+        QApplication.setFont(fallback)
+
+
+def test_the_paths_are_marked_in_the_colours_of_their_transmitters(window) -> None:
+    page = window._signal_page
+    sfn = page.page(SFN)
+    page.show_page(SFN)
+    dsp = window._controller.dsp_worker
+    transmitters = [
+        TiiTransmitter(19, 4, 0.0, 0.997, 0.2e-6),
+        TiiTransmitter(24, 3, -24.6, 0.003, 94.7e-6),
+    ]
+    paths = [
+        TiiPath(0.2e-6, 0.0, (19, 4)),
+        TiiPath(19.7e-6, -15.0, (19, 4), echo=True),
+        TiiPath(94.7e-6, -24.6, (24, 3)),
+        TiiPath(125.9e-6, -30.7, None),
+    ]
+
+    dsp.tii_ready.emit(TiiResult(transmitters, -14.0, 32, paths))
+    window._render_plots()
+
+    rows = [
+        tuple(sfn.table.item(row, column).text() for column in range(4))
+        for row in range(sfn.table.rowCount())
+    ]
+    assert rows == [
+        ("19-04", "0.0 dB", "99.7 %", "0.2 µs"),
+        ("24-03", "-24.6 dB", "0.3 %", "94.7 µs"),
+    ]
+    shown = [(label, filled, colour.name()) for label, filled, colour, _tier in sfn.marks.shown()]
+    assert [(label, filled) for label, filled, _colour in shown] == [
+        ("19-04", True),
+        (None, False),
+        ("24-03", True),
+        ("?", False),
+    ]
+    # The code in the list has the colour of its marks, each transmitter its own.
+    first, second = (sfn.table.item(row, 0).foreground().color().name() for row in range(2))
+    assert first == shown[0][2] == shown[1][2]
+    assert second == shown[2][2] != first
+    assert sfn.tii_note.text() == "32 null symbols averaged, detection limit -14 dB."
+
+    window._controller.live_reset.emit()
+    assert sfn.marks.shown() == []
 
 
 def test_the_error_correction_page_counts_the_frames_and_names_the_codec(window) -> None:

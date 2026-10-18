@@ -63,9 +63,9 @@ def generate_reference_symbol(num_carriers: int = 1536) -> np.ndarray:
     (ETSI EN 300 401, clause 14.3.2, transmission mode I).
 
     Cached for the same reason as `physical_carrier_indices`: the result depends only
-    on `num_carriers`, and profiling showed it being recomputed from scratch several
-    times per frame (including 1536 table scans in `_phase_angle` each time). The
-    returned array must not be modified by the caller.
+    on `num_carriers`, and it is asked for several times per frame (each computation
+    takes 1536 table scans in `_phase_angle`). The returned array must not be modified
+    by the caller.
     """
     k_values = physical_carrier_indices(num_carriers)
     phases = np.array([_phase_angle(int(k)) for k in k_values])

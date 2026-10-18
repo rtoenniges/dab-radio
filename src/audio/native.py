@@ -5,9 +5,9 @@ On Windows `ctypes.util.find_library` searches nothing but the PATH. The DLLs th
 `native\\build_codecs.ps1` builds lie in the folder `native` next to `src`, like
 `native\\rtlsdr.dll`; DLLs obtained elsewhere may lie in the Scripts folder of the
 virtual environment, which is on the PATH under `uv run` or in an activated environment,
-but not when the environment's python.exe is started directly, as the run button of VS
-Code does. FAAD2 was then missing without any notice in the GUI and no service had
-sound, so both folders are searched explicitly.
+but not when the environment's python.exe is started directly (the run button of VS
+Code). FAAD2 would then be missing without any notice in the GUI and no service would
+have sound, so both folders are searched explicitly.
 """
 
 from __future__ import annotations

@@ -78,13 +78,12 @@ PAGES = (SKY, GLOBE, ATMOSPHERE, CORRECTIONS, STREAM)
 SKY_POINT_SIZE = 16
 # The satellites in space are placed anew this often: in that time one moves by 20 km,
 # half a pixel in the first view and two at the closest. Their orbits with them cost
-# 22 ms for 69 satellites on the PC (measured 07.10.2026), the sky's positions 9 ms.
+# 22 ms for 69 satellites, the sky's positions 9 ms.
 GLOBE_INTERVAL_SECONDS = 5.0
 # On the radio page the view is as high as on the page "3D view" (480 px against
 # 468) but only 4:3 instead of 2.4:1: the space beside the Earth is cut off. It begins
-# at the distance the user brought it to (2026-10-13), farther than on that page; until
-# then an eighth nearer than the page, 56 000 km. Brought nearer or farther, the view
-# keeps its distance under this key of the settings, also for the next start.
+# farther away than on that page. Brought nearer or farther, the view keeps its distance
+# under this key of the settings, also for the next start.
 RADIO_GLOBE_DISTANCE_KM = 97_750.0
 SETTINGS_RADIO_GLOBE_DISTANCE = "touch/radio_globe_distance_km"
 MAP_POINT_SIZE = 12
@@ -290,9 +289,9 @@ class GlobePanel(SignalPanel):
     `RADIO_GLOBE_DISTANCE_KM`, with the corners of a panel. What that page says in its
     header stands in the lower left corner. Two fingers bring it nearer or farther
     (`zoom`, from the slide area of `ui.touch.radio_page`, which keeps one finger for
-    its long press); it is not turned or shifted, neither by fingers nor by the mouse
-    (wish of the user). A new listener's position turns it there; the distance stays,
-    with `settings` also for the next start (`SETTINGS_RADIO_GLOBE_DISTANCE`)."""
+    its long press); it is not turned or shifted, neither by fingers nor by the mouse.
+    A new listener's position turns it there; the distance stays, with `settings` also
+    for the next start (`SETTINGS_RADIO_GLOBE_DISTANCE`)."""
 
     def __init__(
         self,

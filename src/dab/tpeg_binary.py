@@ -18,8 +18,8 @@ flag the optional fields in order, the first one in bit 6 (0x40). Booleans are f
 the same selector. Integers are big-endian; `IntUnLoMB` and `IntSiLoMB` carry seven
 bits per byte, the most significant group first, with the most significant bit as
 continuation flag. The interpretation follows the TPEG2 evaluation kit of TISA (pyTPEG,
-BSD licence; no code of it is used) and was checked against the ARD TPEG service on
-channel 7A: every length and CRC of 1 159 TEC and 1 606 TFP messages works out.
+BSD licence; no code of it is used); every length and CRC of the messages of ARD TPEG
+works out with it.
 """
 
 from __future__ import annotations

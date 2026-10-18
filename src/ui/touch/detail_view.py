@@ -5,18 +5,18 @@ that one scrolls through (`ui.spectrogram` computes it, `ui.waterfall_gl` draws 
 Fingers on the landscape: one up or down scrolls through time (the landscape follows
 the finger), across it turns the page as everywhere in the pager; two turn the view as
 they move together and bring it closer or farther as they spread or close; three shift
-it, as on the 3D view of the GNSS menu; a double tap returns to the first view. On a PC: the left button dragged up or down scrolls, the
-wheel scrolls, with Ctrl held it zooms, the middle button held turns and the right one
-shifts, as on the globe, a double click returns.
+it, as on the 3D view of the GNSS menu; a double tap returns to the first view. On a
+PC: the left button dragged up or down scrolls, the wheel scrolls, with Ctrl held it
+zooms, the middle button held turns and the right one shifts, as on the globe, a double
+click returns.
 
 Along the time axis a strip shows the null symbols, guard intervals and useful parts,
 in the colours of the page "OFDM", with a legend at the bottom left. Beneath the
 landscape the whole capture at a glance (`CaptureOverview`), the null symbols as dark
 lines across it, and on it the window shown; dragging it moves the window in time and
-frequency, a tap puts it there. To the right: one row per FFT
-wherever it falls or one per symbol, the length of the FFT, how much time and frequency
-the landscape shows, how many dB its height spans, the null symbol before or after,
-and a new capture.
+frequency, a tap puts it there. To the right: one row per FFT wherever it falls or one
+per symbol, the length of the FFT, how much time and frequency the landscape shows, how
+many dB its height spans, the null symbol before or after, and a new capture.
 """
 
 from __future__ import annotations

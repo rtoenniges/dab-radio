@@ -9,10 +9,10 @@ The BASt publishes the table; its terms do not allow it in the repository, so
 keeps only what is needed here in a file in the data directory.
 
 A TMC location is a point and an extent: the number of further points in the direction
-its direction bit names, following the neighbours of the table. Checked against the
-messages of ARD TPEG that carry an OpenLR line as well (7A, 06.10.2026): of 217 with an
-extent, 207 extend that way, and in 223 of 234 the primary point lies at the end of the
-OpenLR line, where the traffic flows to.
+its direction bit names, following the neighbours of the table. The messages of ARD
+TPEG that carry an OpenLR line as well bear this out: 95 % of the extents run that way,
+and in 95 % the primary point lies at the end of the OpenLR line, where the traffic
+flows to.
 """
 
 from __future__ import annotations

@@ -11,18 +11,15 @@ in a "holding buffer" and offers two modes of operation (clause 5.2):
 Categories have no fixed meaning: the CategoryID is a freely assigned 8-bit number and
 becomes readable through the CategoryTitle sent along with it (clause 5.3.5).
 
-In practice: of eleven stations checked across three multiplexes, none used categories
-or links. The implementation therefore follows the standard without having been
-verified on air; only the parameter identifiers and their layout are confirmed, since
-they agree between this code and the standard. Several stations encode a
-classification in the file name instead; for uncategorised images it is derived from
-there as a fallback (`category_from_name`). That is not part of the standard and is
-marked as such in the GUI.
+In practice stations use neither categories nor links, so that part follows the
+standard without having been verified on air. Several stations encode a classification
+in the file name instead; for uncategorised images it is derived from there as a
+fallback (`category_from_name`). That is not part of the standard and is marked as such
+in the GUI.
 
-A recording across all multiplexes receivable here (5C, 5D, 8C on 19 September 2026)
-confirms the picture: all 22 received images carried the TriggerTime "NOW" (four zero
-bytes) and no parameter other than the ContentName. ExpireTime, Alert, categories,
-trigger times and header updates did not occur and are only tested on constructed data.
+The images on air carry the TriggerTime "NOW" (four zero bytes) and no parameter other
+than the ContentName. ExpireTime, Alert, categories, trigger times and header updates
+are only tested on constructed data.
 
 Retroactive changes arrive as a "header update" (clause 6.3): a MOT object without a
 body that refers to an image sent earlier through its ContentName

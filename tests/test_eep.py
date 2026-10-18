@@ -14,9 +14,8 @@ from dsp.scrambling import apply_energy_dispersal
 
 
 def test_compute_eep_bitrate_matches_known_live_configurations():
-    # Subchannel configurations observed live on real hardware (see the FIG 0/1
-    # validation): plausible DAB+ bit rates common in practice confirm the formula
-    # independently of the puncturing tables.
+    # Subchannel configurations received on air: plausible DAB+ bit rates common in
+    # practice confirm the formula independently of the puncturing tables.
     asa_de = Subchannel(
         subchannel_id=1, start_address=0, size=32, is_uep=False, protection_index=1, eep_option=0
     )
@@ -50,11 +49,11 @@ def test_compute_eep_bitrate_matches_known_live_configurations():
 def test_decode_eep_logical_frame_matches_declared_subchannel_size(
     eep_option, protection_index, size
 ):
-    """For subchannel configurations observed live (see the FIG 0/1 validation) the
-    coded bit count computed from bit rate and level must match the subchannel size
-    declared in FIG 0/1 exactly, a strong indication that the formulas (bit rate,
-    L1/L2, puncturing patterns) fit together. If the coded bit count did not match,
-    decode_eep_logical_frame would raise a ValueError."""
+    """For subchannel configurations received on air the coded bit count computed from
+    bit rate and level must match the subchannel size declared in FIG 0/1 exactly, a
+    strong indication that the formulas (bit rate, L1/L2, puncturing patterns) fit
+    together. If the coded bit count did not match, decode_eep_logical_frame would
+    raise a ValueError."""
     subchannel = Subchannel(
         subchannel_id=1,
         start_address=0,

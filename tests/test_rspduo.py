@@ -1,5 +1,5 @@
 """`RspDuo` against a fake of the SDRplay API: choice of the tuner, configuration for DAB,
-callbacks and the German messages for everything the user can fix."""
+callbacks and the messages for everything the user can fix."""
 
 import ctypes
 

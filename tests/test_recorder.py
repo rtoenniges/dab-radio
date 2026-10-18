@@ -385,9 +385,9 @@ def test_a_write_that_fails_ends_the_title_and_the_next_is_tried(harness, monkey
 
 
 def test_a_drive_mounted_after_the_start_is_read_before_the_first_title(tmp_path):
-    # On the Pi the radio sets the directory before it mounts the stick; the titles
-    # of the last run were then never read, a broken off one never completed, and the
-    # ring grew by up to its size with every boot (seen 10.10.2026).
+    # On the Pi the radio sets the directory before it mounts the stick; unless the
+    # titles of the last run are read then, a broken off one is never completed and the
+    # ring grows by up to its size with every boot.
     stick = tmp_path / "stick"
     stick.mkdir()
     before = _Harness(stick)
@@ -562,7 +562,7 @@ def test_a_dab_title_is_read_back_frame_by_frame(harness):
 
 def test_a_stop_delay_cuts_the_title_before_short_of_the_label(harness):
     """The station names the next title 30 s after it began: with the stop delay as
-    well, the title before ends 30 s before the label, as the boundary once moved."""
+    well, the title before ends 30 s before the label."""
     harness.recorder.set_label_delay(30)
     harness.recorder.set_stop_delay(30)
     harness.label("A-HA - TAKE ON ME", "TAKE ON ME", "A-HA")
@@ -606,8 +606,8 @@ def test_a_negative_stop_delay_lets_the_title_before_run_on_beside_the_next(harn
 
 def test_a_label_running_ahead_counts_the_wait_against_the_stop_delay(harness):
     """The label names the next title 10 s before it begins (start delay -10): with the
-    stop delay -10 the one before ends when the next begins, as the boundary once
-    moved; with 0 it ends at the label (the test above)."""
+    stop delay -10 the one before ends when the next begins; with 0 it ends at the
+    label (the test above)."""
     harness.recorder.set_label_delay(-10)
     harness.recorder.set_stop_delay(-10)
     harness.label("A-HA - TAKE ON ME", "TAKE ON ME", "A-HA")

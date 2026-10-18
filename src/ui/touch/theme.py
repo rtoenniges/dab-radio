@@ -52,9 +52,9 @@ LARGE_FONT_PX = 24
 SMALL_FONT_PX = 16
 
 # The typeface, Adobe's Source Sans 3 (SIL Open Font License, beside the files). Left to
-# the system, the Raspberry Pi drew DejaVu Sans, about 12 % wider than Segoe UI on
-# Windows, and cut "Einstellungen" (German) in the rail to "Eins…ngen" (08.10.2026). Source
-# Sans 3 runs a little narrower than Segoe UI, so what fits on the PC fits on the display.
+# the system, the Raspberry Pi draws DejaVu Sans, about 12 % wider than Segoe UI on
+# Windows, which cuts "Einstellungen" (German) in the rail. Source Sans 3 runs a little
+# narrower than Segoe UI, so what fits on a PC fits on the display.
 FONT_FAMILY = "Source Sans 3"
 FONT_FILES = tuple(
     Path(__file__).parent.parent / "assets" / "fonts" / name
@@ -134,9 +134,9 @@ def touch_font() -> QFont:
     """The application's font in the typeface of the touch surface, to be set with
     `QApplication.setFont` before the window is built; registers the typeface with Qt
     when its database does not have it, which it checks every time: once registered,
-    the typeface was gone again from the database between two tests on the offscreen
-    platform (08.10.2026), and a flag of this module would not have known. A file that
-    cannot be loaded leaves the system's typeface in its place."""
+    the typeface can be gone again from the database between two tests on the offscreen
+    platform, which a flag of this module would not know. A file that cannot be loaded
+    leaves the system's typeface in its place."""
     if FONT_FAMILY not in QFontDatabase.families():
         for path in FONT_FILES:
             if QFontDatabase.addApplicationFont(str(path)) < 0:

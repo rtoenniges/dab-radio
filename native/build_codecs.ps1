@@ -21,8 +21,8 @@ Sources, pinned:
 Both are built with the static C runtime, so that they depend on nothing but Windows.
 libmpg123 gets its generic C decoder: the assembler optimizations need yasm under MSVC,
 and the few hundred kbit/s of a DAB ensemble do not need them. Only the two libraries
-are built, no command-line tools. The sources and objects go to a folder outside
-OneDrive.
+are built, no command-line tools. The sources and objects go to a folder outside the
+repository.
 
 Needs git and Visual Studio with the C++ tools and its CMake component ("C++ CMake
 tools for Windows", which brings cmake and ninja; found through vswhere).

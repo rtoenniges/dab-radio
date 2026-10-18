@@ -1,8 +1,8 @@
-"""A fake of the SDRplay API for tests: behaves like sdrplay_api.dll as measured on the
-RSPduo in the GNSS receiver, with switchable faults and packets pushed by the test.
+"""A fake of the SDRplay API for tests: behaves like sdrplay_api.dll on an RSPduo, with
+switchable faults and packets pushed by the test.
 
-Taken over from the GNSS receiver; here either tuner can be selected, and the test
-pushes the packets itself instead of a streaming thread.
+Either tuner can be selected, and the test pushes the packets itself instead of a
+streaming thread.
 """
 
 import ctypes
@@ -11,7 +11,7 @@ import numpy as np
 
 from sdr import sdrplay_api as sp
 
-PACKET = 1344  # samples per stream callback at 2.048 MS/s, as measured
+PACKET = 1344  # samples per stream callback at 2.048 MS/s, as the RSPduo sends them
 
 HANDLE = 0x1234
 
@@ -27,7 +27,7 @@ def make_device(hw=sp.RSPDUO_HW_VERSION, tuner=sp.TUNER_BOTH, modes=7, serial=b"
 
 
 class FakeApi:
-    """Behaves like sdrplay_api.dll as measured on the RSPduo, with switchable faults."""
+    """Behaves like sdrplay_api.dll on an RSPduo, with switchable faults."""
 
     def __init__(
         self,

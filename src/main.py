@@ -18,12 +18,8 @@ from ui.touch.splash import StartupSplash
 # Switch interval of the GIL. The thread that reads the receiver sleeps between its
 # visits to the device and must get the GIL back next to the signal processing and the
 # GUI; with the default 5 ms a thread computing in Python besides can keep it from doing
-# so for seconds. Measured on 04.10.2026 with the RSPduo (`sdr.worker.RspDuoWorker` and
-# the signal processing on noise, plus a thread looping in Python): with 5 ms the reader
-# delivered 0.2 s of signal in 15 s and the packet ring overflowed, with 0.5 ms 14.4 s
-# without a loss, and without that thread the processing load was the same with both.
-# The GNSS receiver (`../gnss-receiver`) needed the same setting for the same reason.
-# pyrtlsdr's reading thread for the RTL-SDR waits for the GIL just the same.
+# so for seconds, and the RSPduo's packet ring overflows. With 0.5 ms nothing is lost,
+# at the same processing load. pyrtlsdr's reading thread waits for the GIL as well.
 GIL_SWITCH_INTERVAL_SECONDS = 0.0005
 
 # The audio backend of Qt Multimedia on Linux. Qt 6.11 brings two and takes its native
@@ -32,11 +28,10 @@ GIL_SWITCH_INTERVAL_SECONDS = 0.0005
 # destroys its PipeWire stream, not on stop(), reset() or deleting the QAudioSink. The
 # stream stays as an unlinked node with a connection of its own (it carries
 # node.dont-reconnect, so nothing moves it), one more with every disconnect, and
-# removing it from outside (pw-cli destroy) crashed the process. Its PulseAudio backend,
+# removing it from outside (pw-cli destroy) crashes the process. Its PulseAudio backend,
 # through pipewire-pulse, lets PipeWire move the stream to the default output instead,
-# reports no error and removes the stream when the player tears the sink down.
-# Reproduced with a virtual sink on the Pi, 2026-10-11 (Qt 6.11.2, PipeWire 1.4.2).
-# Any other value than "pipewire" selects the PulseAudio backend; one set in the
+# reports no error and removes the stream when the player tears the sink down. Any
+# other value than "pipewire" selects the PulseAudio backend; one set in the
 # environment is kept.
 QT_AUDIO_BACKEND = "pulseaudio"
 
@@ -44,12 +39,11 @@ QT_AUDIO_BACKEND = "pulseaudio"
 # PULSE_PROP when Qt connects: the stream plays to its own sink or nowhere. Without
 # them PipeWire moves a stream whose sink goes (headphones switched off) to the default,
 # the loudspeaker, which the radio pins at 100 % (`--system-volume`) while the player
-# plays at 1.0 to a device applying its volume itself; and Qt 6.11's PulseAudio backend
-# does not report a sink going unless it was the default. On the Pi a tone played so
-# reached a stand-in loudspeaker (a null sink) unattenuated for as long as it ran; with
-# these properties the stream ended with its sink, and one made for a sink gone failed
-# instead of landing on the default (2026-10-11). The player notices such a stream by
-# the sound card taking nothing more (`audio.player.STALL_SECONDS`).
+# plays at 1.0 to a device applying its volume itself: the audio would reach the
+# loudspeaker unattenuated. Qt 6.11's PulseAudio backend does not report a sink going
+# unless it was the default. With these properties the stream ends with its sink, and
+# one made for a sink gone fails instead of landing on the default. The player notices
+# such a stream by the sound card taking nothing more (`audio.player.STALL_SECONDS`).
 PINNED_STREAM_PROPERTIES = "node.dont-reconnect=true node.dont-fallback=true"
 
 
@@ -129,7 +123,7 @@ def main() -> None:
         # The touch display needs no pointer, but cage shows one as soon as any device
         # reports as a mouse (such as the receiver of a wireless keyboard). cage takes
         # over the cursor of the window it focuses, right at the start without the mouse
-        # moving. In a window on the PC the pointer stays to try the touch surface.
+        # moving. In a window on a PC the pointer stays to try the touch surface.
         app.setOverrideCursor(QCursor(Qt.CursorShape.BlankCursor))
         # On the Pi the radio takes 2 to 4 s from here to its window, after Plymouth
         # has let go of the display (`ui.touch.splash`): the last picture of the boot
@@ -165,7 +159,7 @@ def main() -> None:
         from ui.touch.theme import touch_font
         from ui.touch.window import TouchWindow
 
-        # The typeface ships with the surface: the display shows what the PC does.
+        # The typeface ships with the surface: the display shows what a PC does.
         app.setFont(touch_font())
         window = TouchWindow(controller)
     else:

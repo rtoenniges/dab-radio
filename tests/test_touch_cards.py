@@ -276,12 +276,12 @@ def test_the_states_name_what_each_category_stands_at(make_controller, data_dire
     on = SimpleNamespace(
         available=True,
         activity="",
-        connected_ssid="WLAN-0815",
+        connected_ssid="Home",
         connected_band=BAND_5_GHZ,
         device=SimpleNamespace(connecting=False),
         enabled=True,
     )
-    assert wifi_state(on) == "WLAN-0815 · 5 GHz"
+    assert wifi_state(on) == "Home · 5 GHz"
     assert wifi_state(SimpleNamespace(available=False)) == ""
     off = SimpleNamespace(
         available=True, activity="", connected_ssid="", device=None, enabled=False

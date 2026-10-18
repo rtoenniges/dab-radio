@@ -16,10 +16,10 @@ follow from it:
   whole chain resynchronising and the time deinterleaver starting from scratch.
 - Retuning drops exactly what is of the old frequency (see `retune`). The API delivers
   its packets in bursts, and a change shows in the stream 15 to 78 ms after
-  `sdrplay_api_Update` has returned (measured 04.10.2026 on both tuners, 24 to 119
-  packets later, for gain and frequency alike): cutting where `Update` returns would
-  keep up to 78 ms of the old frequency. The flagged packet was in every case the one
-  in which the level stepped, and from the next packet on the level was steady.
+  `sdrplay_api_Update` has returned (24 to 119 packets later, on both tuners, for gain
+  and frequency alike): cutting where `Update` returns would keep up to 78 ms of the
+  old frequency. The flagged packet is the one in which the level steps, and from the
+  next packet on the level is steady.
 """
 
 from __future__ import annotations
@@ -42,22 +42,19 @@ logger = logging.getLogger(__name__)
 # The API scales the 14-bit ADC to the full int16 range; full scale is 2**15.
 FULL_SCALE = 32768.0
 
-# Discarded after the start (0.5 s). The API's sample counter jumps right after `Init`:
-# measured in the GNSS receiver (RSPduo, Tuner 2, 2 MS/s) five times by 9000 to 15000
-# samples within the first 0.2 s, afterwards not once in 10 s; in the radio on
-# 04.10.2026 (both tuners, 2.048 MS/s) five jumps by 8592 to 18924 samples within the
-# first 0.2 s, afterwards none in 9.5 s and none across eight retunes. 1 024 000 samples
-# are also what the radio discards after opening the RTL-SDR
-# (`sdr.device.DISCARD_AFTER_OPEN_SAMPLES`).
+# Discarded after the start (0.5 s). The API's sample counter jumps right after `Init`,
+# several times by 8000 to 19000 samples within the first 0.2 s, afterwards not at all,
+# not across retunes either. 1 024 000 samples are also what the radio discards after
+# opening the RTL-SDR (`sdr.device.DISCARD_AFTER_OPEN_SAMPLES`).
 START_DISCARD_SAMPLES = 1_024_000
 
 # Discarded after the packet with which a new frequency took effect (50 ms), for the
 # tuner's PLL to settle; what suffices for the RTL-SDR (`sdr.device.RETUNE_SETTLE_SAMPLES`).
-# On the RSPduo the level was steady from the next packet on (0.7 ms, see above).
+# On the RSPduo the level is steady from the next packet on (0.7 ms, see above).
 RETUNE_SETTLE_SAMPLES = 102_400
 
 # Should the API not flag a new frequency, it counts as applied this many packets after
-# `Update` has returned (0.3 s; at most 119 packets were seen, see above).
+# `Update` has returned (0.3 s; the flag comes within 119 packets, see above).
 FLAG_TIMEOUT_PACKETS = round(0.3 * SAMPLE_RATE / API_PACKET_SAMPLES)
 
 # Largest gap in the API's sample counter that is filled with zeros (1 s). Anything

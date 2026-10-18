@@ -6,9 +6,8 @@ connecting plays over the hands-free profile, mono at 16 kHz, which sounds tinny
 to the device holding it (`BluetoothManager.release_a2dp`), sets one up to the new one
 (`connect_a2dp`, or `connect_device` where it is not connected yet) and waits until
 PipeWire lists the new device's sink with the A2DP profile (`pactl -f json list
-sinks`). On the Pi with the JBL box and the Jabra Elite 10 (2026-10-11) the stream
-ended at once, the new one stood after 0.4 s, and WirePlumber switched the card of the
-new device to A2DP by itself.
+sinks`). The old stream ends at once, the new one stands within about half a second,
+and WirePlumber switches the card of the new device to A2DP by itself.
 
 All the while the player is to stay silent, which the controller sees to: a device
 changing profile takes its sink away and brings it back under the same name, and
@@ -18,9 +17,8 @@ that applies its volume itself. The move begins `HOLD_LEAD_MS` after it was aske
 so that the player has let go of its sink by then.
 
 Which device is to play is the controller's choice (`ReceiverController`), and so is
-trying again: a device that has just connected may refuse the stream for a moment
-(the Jabra Elite 10 did 0.2 s after connecting by itself, 2026-10-11, and took it at
-the next try).
+trying again: a device that has just connected may refuse the stream for a moment and
+take it at the next try.
 """
 
 from __future__ import annotations
@@ -288,9 +286,9 @@ class BluetoothRoute(QObject):
 
     def _finish(self, ok: bool, why: str = "") -> None:
         """Ends the move, all of it before telling so: a listener of `finished` may
-        ask for the next move at once (on the Pi it did, 2026-10-11, and the end of the
-        move before then wiped the new one's state, its text stayed in the activity
-        and held the Bluetooth page). The activity goes once no move follows."""
+        ask for the next move at once, and ending this one afterwards would wipe the
+        new one's state and leave its text in the activity, holding the Bluetooth page.
+        The activity goes once no move follows."""
         path = self._target or ""
         self._target = None
         self._stage = ""

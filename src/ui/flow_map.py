@@ -104,8 +104,8 @@ class FlowLayer(QObject):
     def _joined(self, lines: list[np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
         """The lines moved `offset` pixels to the right of their direction, with NaN
         between them: each point along the mean of the normals of the segments it joins.
-        All lines at once; one by one, 500 stretches took 18 ms on the PC, held the GIL
-        all the while, and came again with every new frame of TPEG."""
+        All lines at once; one by one, 500 stretches took 18 ms, held the GIL all the
+        while, and came again with every new frame of TPEG."""
         if not lines:
             return np.empty(0), np.empty(0)
         gap = np.full((1, 2), np.nan)

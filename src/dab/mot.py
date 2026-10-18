@@ -136,9 +136,8 @@ def decode_content_name(value: bytes | None) -> str | None:
     For the ContentName only! The slideshow's text parameters (CategoryTitle,
     ClickThroughURL, AlternativeLocationURL) are plain UTF-8 without a character set
     byte (ETSI TS 101 499, clauses 5.3.3 and 5.3.5.4) and are decoded separately in
-    `dab.slideshow`. An earlier version of this function was called
-    "decode_parameter_text" and was wrongly used for them as well: every link became
-    garbage and every title lost its first letter.
+    `dab.slideshow`; decoded here, every link would be garbage and every title would
+    lose its first letter.
     """
     if not value:
         return None

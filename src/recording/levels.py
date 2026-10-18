@@ -2,13 +2,13 @@
 every eighth of a unit (`STEPS_PER_UNIT`, 5 ms with DAB+ at 48 kHz and SBR), decoded
 with the decoders of the player (FAAD2, libmpg123).
 
-The level is not in the file: only decoding the audio tells it. FAAD2 decodes a title
-of 4 min in about 1 s on the PC (113 times real time), the Raspberry Pi 5 read the level
-of 14:17 min in 25 s (34 times real time; both 2026-10-13); the level of the decoded
-audio costs a tenth of the decoding, whether of whole units or of their eighths (one
-numpy call either way). `LevelReader` lives in a thread of its own and works in slices of
-`SLICE_S`, so that a stretch can be given up for another at once; what it has read so
-far goes out every `REPORT_S`, and the surface draws the level as it comes.
+The level is not in the file: only decoding the audio tells it. A Raspberry Pi 5 reads
+the level some 34 times faster than real time, a quarter of an hour in under half a
+minute; the level of the decoded audio costs a tenth of the decoding, whether of whole
+units or of their eighths (one numpy call either way). `LevelReader` lives in a thread
+of its own and works in slices of `SLICE_S`, so that a stretch can be given up for
+another at once; what it has read so far goes out every `REPORT_S`, and the surface
+draws the level as it comes.
 """
 
 from __future__ import annotations
@@ -34,9 +34,9 @@ SLICE_S = 0.03
 # How often at most the levels read so far are handed on.
 REPORT_S = 0.2
 # How many levels a unit has: a unit of 40 ms (960 samples of the core, doubled by SBR)
-# in steps of 5 ms. With one level a unit, the level of the cutter came in steps two or
-# three pixels wide where a view shows 20 s (the user found it coarse, 2026-10-13); the
-# samples of a unit (1920, 960 or 1152) part evenly in eight.
+# in steps of 5 ms. With one level a unit, the level of the cutter comes in steps two or
+# three pixels wide where a view shows 20 s; the samples of a unit (1920, 960 or 1152)
+# part evenly in eight.
 STEPS_PER_UNIT = 8
 _FULL_SCALE = 32768.0
 _FLOOR = 10 ** (FLOOR_DB / 20)
@@ -46,9 +46,9 @@ def unit_levels(
     pcm: np.ndarray, channels: int = 1, steps: int = STEPS_PER_UNIT
 ) -> tuple[np.ndarray, np.ndarray]:
     """RMS and peak in dBFS of `steps` equal parts of a unit's samples (int16,
-    interleaved), of the sum of its channels: between two titles of Absolut relax lay,
-    where they are silent, a signal of some 20 Hz at −26 dBFS with left the negative of
-    right (2026-10-13); the sum there is digital silence, as a pause should be."""
+    interleaved), of the sum of its channels: the silence between two titles can carry
+    a signal of some 20 Hz at −26 dBFS with left the negative of right, and the sum
+    there is digital silence, as a pause should be."""
     if not len(pcm):
         return np.full(steps, FLOOR_DB, dtype=np.float32), np.full(
             steps, FLOOR_DB, dtype=np.float32

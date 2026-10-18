@@ -1,7 +1,7 @@
 """The null symbol on the radio page (`ui.touch.null_symbol_view`): it asks for the
 stretches around the null symbols only while shown, draws them at the plot rate taking
-turns between frames of even and odd number, with the settings of the user's picture,
-and forgets them on another channel.
+turns between frames of even and odd number, with fixed settings and camera, and forgets
+them on another channel.
 
 OpenGL is stood in for as on the detail page (`tests/test_touch_detail_view.py`)."""
 

@@ -104,9 +104,9 @@ _PRIORITIES = {1: tr_noop("low"), 2: tr_noop("medium"), 3: tr_noop("high")}
 # No frame for this long and the service counts as silent.
 SILENT_SECONDS = 30.0
 # Received again after an absence (another channel, or silence), the service has repeated
-# everything still on air within this time: on 7A all 655 TEC messages the SNI announced
-# came within 240 s (28.09.2026), the TFP messages twice. What was held from before and
-# did not come again is dropped then, since its withdrawal may have been missed.
+# everything still on air within this time: all 655 TEC messages the SNI announced came
+# within 240 s, the TFP messages twice. What was held from before and did not come again
+# is dropped then, since its withdrawal may have been missed.
 CYCLE_SECONDS = 300.0
 
 # Levels of service of the traffic flow (tfp003 without its tendency) with their colours,

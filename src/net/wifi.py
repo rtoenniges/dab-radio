@@ -98,7 +98,7 @@ _RADIO = ["radio", "wifi"]
 _DEVICE_STATUS = ["-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "device", "status"]
 _CONNECTIONS = ["-t", "-f", "UUID,TYPE,NAME", "connection", "show"]
 _PERMISSIONS = ["-t", "-f", "PERMISSION,VALUE", "general", "permissions"]
-# One "key:value" line each, values unescaped (unlike -g; seen with nmcli 1.52).
+# One "key:value" line each, values unescaped (unlike -g).
 _PROFILE_FIELDS = (
     "802-11-wireless.ssid,802-11-wireless.band,"
     "ipv4.method,ipv4.addresses,ipv4.gateway,ipv4.dns,ipv4.ignore-auto-dns"
@@ -243,9 +243,9 @@ def parse_networks(output: str) -> list[Network]:
     the strongest first. nmcli lists every access point, so a network with several of
     them or on both bands once for each: here it is listed once, with the strongest, and
     with the bands of all. The network connected to has the signal of the access point
-    connected to: its bars are those of the connection (on 2026-10-11 the Pi was
-    connected over 5 GHz with 40 %, and showed the 70 % of 2.4 GHz). Hidden networks
-    (without a name) are left out; they are entered by hand."""
+    connected to, so that its bars are those of the connection, not those of a stronger
+    access point on the other band. Hidden networks (without a name) are left out; they
+    are entered by hand."""
     networks: dict[str, Network] = {}
     bands: dict[str, set[str]] = {}
     # Band and signal of the access point connected to.
@@ -304,7 +304,7 @@ def parse_device_status(output: str) -> DeviceStatus | None:
 
 def parse_fields(output: str) -> dict[str, str]:
     """Key and value of each line of `nmcli -t -f … show`: "ipv4.method:auto",
-    "IP4.DNS[1]:192.168.2.1". The value is not escaped there, so it is all after the
+    "IP4.DNS[1]:192.168.1.1". The value is not escaped there, so it is all after the
     first colon (a key has none)."""
     fields = {}
     for line in output.splitlines():
@@ -320,7 +320,7 @@ def _split_list(text: str) -> list[str]:
 
 
 def _address_and_prefix(text: str) -> tuple[str, int]:
-    """The address and the prefix length of "192.168.2.20/24"."""
+    """The address and the prefix length of "192.168.1.20/24"."""
     address, _slash, prefix = text.strip().partition("/")
     try:
         return address, int(prefix)

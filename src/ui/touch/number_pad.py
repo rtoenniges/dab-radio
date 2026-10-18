@@ -39,9 +39,8 @@ ADDRESS_DOT = "."
 LIST_COMMA = ","
 LIST_SEPARATOR = ", "
 
-# The keys as in the sketch: digits like a telephone turned upside down (as on a
-# calculator), with the decimal separator and zero beneath; backspace and sign on the
-# right.
+# The keys: digits like a telephone turned upside down (as on a calculator), with the
+# decimal separator and zero beneath; backspace and sign on the right.
 _KEYS = (
     ("7", 0, 0),
     ("8", 0, 1),

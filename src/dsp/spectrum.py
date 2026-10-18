@@ -45,11 +45,11 @@ def detect_clipping(samples: np.ndarray, threshold: float = 0.99) -> float:
 
     pyrtlsdr normalises the raw 8-bit ADC values of each I/Q channel to roughly
     [-1, 1], and `sdr.rspduo_reader` scales the RSPduo's 14-bit values the same way; a
-    channel value close to +/-1 means full scale. A gain that overdrives the
-    tuner input produces a clearly measurable share of such full-scale samples
-    (empirically on real hardware: a clean signal typically < 0.2 %, an overdriven one
-    typically > 10 %), unlike a mere level change, which does not push the distribution
-    against the limits. Useful in practice to explain to users why raising the gain
-    further no longer has any visible effect (see `dsp.pipeline`).
+    channel value close to +/-1 means full scale. A gain that overdrives the tuner
+    input produces a clearly measurable share of such full-scale samples (a clean
+    signal typically < 0.2 %, an overdriven one > 10 %), unlike a mere level change,
+    which does not push the distribution against the limits. Useful in practice to
+    explain to users why raising the gain further no longer has any visible effect
+    (see `dsp.pipeline`).
     """
     return float(np.mean((np.abs(samples.real) > threshold) | (np.abs(samples.imag) > threshold)))

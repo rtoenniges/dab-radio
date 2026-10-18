@@ -289,7 +289,7 @@ def test_without_udisks_the_service_is_marked_absent_and_the_system_asked(bus):
 
 
 def test_the_qt_bus_for_udisks_is_made_and_called_without_a_system_bus():
-    """On the PC there is no system bus: subscribing and calling must still run through
+    """On a PC there is no system bus: subscribing and calling must still run through
     (the names of the QtDBus API are checked here). On the Pi this reaches udisksd."""
     bus = QtBus(SERVICE)
     replies = []

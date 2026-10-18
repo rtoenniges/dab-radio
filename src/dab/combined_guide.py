@@ -2,8 +2,8 @@
 is broadcast on.
 
 A programme guide is not confined to its own ensemble. The SI of EPG Deutschland on 5C
-lists 42 services: 13 of its own ensemble, the 16 of Antenne DE on 5D and 13 of an
-ensemble from North Rhine-Westphalia (EId 1205) that is not receivable here. Each
+lists 42 services: 13 of its own ensemble, the 16 of Antenne DE on 5D and 13 of a
+regional ensemble from North Rhine-Westphalia (EId 1205), receivable only there. Each
 service comes with its bearers (`dab.spi.Bearer`), which name the ensembles carrying it;
 EPG Deutschland gives every service a bearer in its own ensemble 10BC as well, including
 the services that are not on 5C at all.
@@ -12,9 +12,9 @@ A bearer names an ensemble, not a frequency. Which channel an ensemble is on is 
 from reception: the EId each channel of the channel list was received with (FIG 1/0),
 and the ensemble a guide gives for itself in its SI, on the channel it came from. That
 is measured. What the FIC says about other ensembles (FIG 0/21) is only announced: 5D
-names 8C (199.360 MHz) for its own ensemble 11F7, while here 8C carries NI HANNOVER.
-So an announcement never files a service under a channel; it only describes an
-ensemble that was received nowhere.
+names 8C (199.360 MHz) for its own ensemble 11F7, while 8C carries a different ensemble
+in some regions. So an announcement never files a service under a channel; it only
+describes an ensemble that was received nowhere.
 
 A service is filed under the channel whose service list contains it (the stored
 channel list or the running reception). Failing that, it goes under the ensembles its

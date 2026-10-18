@@ -151,11 +151,11 @@ class MapLabel(pg.TextItem):
     in sight. The default halo suits the black ground of the desktop's plots.
 
     The halo is a copy of the text beneath it, its letters outlined wide. Painting the
-    outlines anew in every frame cost 0.85 ms per name (measured 06.10.2026 on the PC,
-    40 names: 40 ms a frame instead of 6.5 ms without halo); Qt keeps the halo as a
-    picture instead (`DeviceCoordinateCache`, 6.2 ms), which suits an item that moves
-    with the map but keeps its size. After zooming the picture lay up to a pixel off
-    the letters drawn anew, none of it missing."""
+    outlines anew in every frame costs nearly 1 ms per name (with 40 names 40 ms a frame
+    instead of 6.5 ms without halo); Qt keeps the halo as a picture instead
+    (`DeviceCoordinateCache`, hardly more than without halo), which suits an item that
+    moves with the map but keeps its size. After zooming the picture may lie up to a
+    pixel off the letters drawn anew."""
 
     def __init__(
         self,

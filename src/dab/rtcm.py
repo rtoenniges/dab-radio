@@ -11,13 +11,13 @@ continuity index, form an RTCM 3 byte stream (RTCM 10403.3, clause 4). Each fram
 and frames run across data group boundaries. Every message starts with its 12 bit
 message type number.
 
-Measured on 5C (240 s): 1 608 frames, all with a correct CRC and no byte between them.
-They carry the broadcast ephemerides of GPS (1019), GLONASS (1020), BeiDou (1042) and
-Galileo I/NAV (1046), together a good half of the 4.3 kbit/s, and the Geo++
-proprietary message 4090 with sub-type 7: SSRZ, the PPP-RTK corrections themselves
-(clock and orbit corrections, biases, ionosphere and troposphere; Geo++ SSRZ format,
-version 1.1.3). The ephemerides are decoded here, the orbits they describe are computed
-in `dab.gnss`; SSRZ is decoded in `dab.ssrz`.
+The frames follow each other without a byte between them. They carry the broadcast
+ephemerides of GPS (1019), GLONASS (1020), BeiDou (1042) and Galileo I/NAV (1046),
+together a good half of the 4.3 kbit/s, and the Geo++ proprietary message 4090 with
+sub-type 7: SSRZ, the PPP-RTK corrections themselves (clock and orbit corrections,
+biases, ionosphere and troposphere; Geo++ SSRZ format, version 1.1.3). The ephemerides
+are decoded here, the orbits they describe are computed in `dab.gnss`; SSRZ is decoded
+in `dab.ssrz`.
 """
 
 from __future__ import annotations

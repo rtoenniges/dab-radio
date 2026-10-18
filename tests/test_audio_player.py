@@ -625,7 +625,7 @@ def test_the_rest_of_a_recording_plays_however_short(playing_player, fake_decode
 def test_stop_leaves_the_refill_timer_running(player, fake_decoder):
     """`stop` comes with every change of station. A recording played back afterwards
     is refilled by the timer alone: the live audio refills with every superframe and
-    never missed the timer, a recording starved after its first fill (10.10.2026)."""
+    would never miss the timer, a recording would starve after its first fill."""
     player.start()
     assert player._timer is not None and player._timer.isActive()
 

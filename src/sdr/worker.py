@@ -50,10 +50,9 @@ DEFAULT_READ_SIZE = 2 * MODE_I.frame_length
 # `rtlsdr_cancel_async` only initiates the cancellation of the running USB transfers;
 # closing the device too early leaves it streaming and on the next open it either
 # delivers nothing at all (blocking read) or constant filler bytes, fixable only by a
-# USB reset or unplugging the stick. Measured on real hardware: without the wait the
-# NEXT start fails, 50 ms are not enough, from 100 ms on it works reliably, so 250 ms
-# with a safety margin. A channel change does not close the device (see
-# `RtlSdrWorker.retune`), so this only applies to stopping.
+# USB reset or unplugging the stick. 50 ms are not enough, 100 ms are; 250 ms leave a
+# margin. A channel change does not close the device (see `RtlSdrWorker.retune`), so
+# this only applies to stopping.
 _CLOSE_SETTLE_SECONDS = 0.25
 
 # Every tuning of a stick, be it opening it or retuning it while running, gets a number
@@ -120,16 +119,15 @@ class RtlSdrWorker(QThread):
         Important and not interchangeable with a loop over the synchronous
         `read_samples()`: the synchronous interface starts a single USB bulk transfer
         per call and reads nothing between two calls. Everything the stick produces in
-        the gap is lost, measured on real hardware at about 1 % of the samples, in
-        bursts of a few thousand samples every few frames. For the bare
-        spectrum/constellation display that goes unnoticed, and even the FIC stays
-        error-free (every frame is decoded independently there), but for the MSC it is
-        fatal: the time deinterleaver (see `dsp.time_interleave.TimeDeinterleaver`)
-        requires a gapless sequence of CIFs, and every sample loss shifts the symbol
-        grid in the middle of a frame, so audio decoding fails permanently. The
-        asynchronous path keeps several USB transfers queued at all times and delivers
-        a gapless stream (verified: the distance between consecutive phase reference
-        symbols is exactly constant over a whole recording).
+        the gap is lost, about 1 % of the samples, in bursts of a few thousand samples
+        every few frames. For the bare spectrum/constellation display that goes
+        unnoticed, and even the FIC stays error-free (every frame is decoded
+        independently there), but for the MSC it is fatal: the time deinterleaver (see
+        `dsp.time_interleave.TimeDeinterleaver`) requires a gapless sequence of CIFs,
+        and every sample loss shifts the symbol grid in the middle of a frame, so audio
+        decoding fails permanently. The asynchronous path keeps several USB transfers
+        queued at all times and delivers a gapless stream (the distance between
+        consecutive phase reference symbols stays exactly constant).
 
         On Windows that holds only with the radio's own build of librtlsdr, which
         switches on WinUSB's RAW_IO: without it the queued transfers are passed on one
@@ -215,16 +213,16 @@ class RtlSdrWorker(QThread):
         running read (rtl_tcp retunes from a thread of its own the same way). Unlike a
         stop and restart, the device stays open, so neither the wait before closing
         (`_CLOSE_SETTLE_SECONDS`) nor the leftovers after opening
-        (`DISCARD_AFTER_OPEN_SAMPLES`) apply. Measured on real hardware (R820T): the
-        call takes about 42 ms and the sample stream continues without a gap.
+        (`DISCARD_AFTER_OPEN_SAMPLES`) apply. With an R820T the call takes about 42 ms
+        and the sample stream continues without a gap.
 
         Discarded are the blocks arriving while the tuner switches and afterwards
         `read_size + RETUNE_SETTLE_SAMPLES` samples in whole blocks, i.e. two blocks
-        (~0.4 s). The first of them was already being filled at the switch and on real
-        hardware still contained decodable frames of the old channel. The second
-        covers the settling, and the case that a block completed during the switch
-        only reaches the callback after it and takes the place of the first. The
-        first block kept is preceded by `tuned`.
+        (~0.4 s). The first of them was already being filled at the switch and can still
+        hold decodable frames of the old channel. The second covers the settling, and
+        the case that a block completed during the switch only reaches the callback
+        after it and takes the place of the first. The first block kept is preceded by
+        `tuned`.
 
         The read callback must never wait for the duration of the switch: the calling
         thread waits for its control transfers to complete, and librtlsdr's event

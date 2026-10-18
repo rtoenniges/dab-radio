@@ -155,7 +155,7 @@ _SETTINGS_OUTPUT_VOLUMES = "audio/volumes"
 # How often the radio tries to give A2DP to a device before it leaves it be, until the
 # device connects anew or is chosen, and how long it waits after a try that failed
 # (`ReceiverController._route_bluetooth`): a device that has just connected may refuse
-# the stream for a moment (the Jabra Elite 10, 0.2 s after connecting, 2026-10-11).
+# the stream for a moment (some 0.2 s after connecting).
 BLUETOOTH_MOVES = 3
 BLUETOOTH_RETRY_MS = 1000
 # The equalizer (see `ReceiverController.equalizer_state`): per station or not, the one
@@ -212,8 +212,8 @@ _RSPDUO_TUNER_DEVICES = {"rspduo1": 1, "rspduo2": 2}
 
 # Fixed gain by default, no AGC. Both gain controls of the RTL-SDR hurt DAB: the null
 # symbol every 96 ms is a gap the control runs into, so the level moves within the
-# frame. Measured on real hardware (channel 5C; level spread over one frame and how
-# tightly the D-QPSK points cluster, |mean(u^4)| of the unit points, 1 = perfect):
+# frame. Level spread over one frame and how tightly the D-QPSK points cluster
+# (|mean(u^4)| of the unit points, 1 = perfect) on a strong ensemble:
 #
 #   tuner AGC             spread 0.151, quality 0.15, 43 % of samples clipped
 #   tuner + digital AGC   spread 0.247, quality 0.24, 0.4 % clipped
@@ -223,27 +223,25 @@ _RSPDUO_TUNER_DEVICES = {"rspduo1": 1, "rspduo2": 2}
 # almost nothing clips while the signal is distorted all the same.
 #
 # The fixed gain only fixes the tuner's LNA and mixer. librtlsdr leaves the IF amplifier
-# (VGA) behind them to the RTL2832U's IF AGC loop, which keeps the ADC at about -9 dBFS:
-# on 5C the level stayed the same from 8.7 to 49.6 dB. That is how the library of
-# pyrtlsdrlib (the librtlsdr/librtlsdr fork) behaves, with which the figures here were
-# measured, and the radio's own build likewise through `native/rtlsdr-r82xx-if-agc.patch`
-# (see `sdr.library`). Plain rtl-sdr 2.0.3 sets the VGA to a fixed 16.3 dB instead, and
-# then no gain suits all ensembles (measured 02.10.2026): at 29.7 dB the strong 5C was
-# at -1.3 dBFS with 25 % of the samples clipped, at 40.2 dB half of them and FIBs
-# failed, while the weak 9D delivered no valid FIB below 25.4 dB.
+# (VGA) behind them to the RTL2832U's IF AGC loop, which keeps the ADC at about -9 dBFS
+# at any gain from 8.7 to 49.6 dB. That is how the library of pyrtlsdrlib (the
+# librtlsdr/librtlsdr fork) behaves, and the radio's own build likewise through
+# `native/rtlsdr-r82xx-if-agc.patch` (see `sdr.library`). Plain rtl-sdr 2.0.3 fixes the
+# VGA at 16.3 dB instead, and then no gain suits all ensembles: at 29.7 dB a strong one
+# had 25 % of its samples clipped, at 40.2 dB half of them and FIBs failed, while a weak
+# one delivered no valid FIB below 25.4 dB.
 #
 # The gain therefore hardly moves the level but sets the noise figure of the front end,
-# which decides for weak ensembles. Measured on the weak 9D (MER of the D-QPSK points,
-# share of CRC-valid FIBs):
+# which decides for weak ensembles. On a weak one (MER of the D-QPSK points, share of
+# CRC-valid FIBs):
 #
 #   gain (dB)       8.7    14.4    19.7    25.4    29.7    49.6
 #   MER (dB)        3.1     3.6     4.7     5.3     5.5     5.4
 #   valid FIBs      0 %    ~30 %   100 %   100 %   100 %   100 %
 #
-# The strong 5C, 5D, 7A and 8C kept their MER (14.4, 11.7, 8.3, 8.1 dB) within
-# ±0.5 dB from 14.4 up to 49.6 dB, without clipping. 29.7 dB is the lowest step at
-# which 9D reaches its best MER. At 33.8 dB the IF AGC on 9D repeatably settled 4 dB
-# too high (-5 dBFS, 1.6 % clipped).
+# Strong ensembles kept their MER within ±0.5 dB from 14.4 up to 49.6 dB, without
+# clipping. 29.7 dB is the lowest step at which the weak one reaches its best MER; at
+# 33.8 dB its IF AGC repeatably settled 4 dB too high (-5 dBFS, 1.6 % clipped).
 DEFAULT_GAIN_DB = 29.7
 
 # Frequency correction of the RTL-SDR's crystal that can be set, in ppm.
@@ -887,9 +885,9 @@ class ReceiverController(QObject):
         # level, the player plays at 1.0, and its buttons move the slider. Every other
         # sink stands at 100 % and the player attenuates, as without pactl: PipeWire
         # applies its volume in software, and after a reboot the value it shows need not
-        # be the one its node plays at (2026-10-11). Next to other programs that 100 %
-        # would play their sounds at full volume, so there the system's volume is left
-        # alone and the player attenuates on every output.
+        # be the one its node plays at. Next to other programs that 100 % would play
+        # their sounds at full volume, so there the system's volume is left alone and
+        # the player attenuates on every output.
         self._system_volume = SystemVolume(self, enabled=self._system_volume_enabled)
         self._system_volume.applied.connect(self._on_system_volume_applied)
         self._system_volume.changed.connect(self._on_system_volume_changed)
@@ -1436,7 +1434,7 @@ class ReceiverController(QObject):
         the touch surface on the Pi). Where the radio is the one program playing
         (`system_volume`), it decides from then on which of them plays over A2DP, which
         the adapter carries to one device at a time (`_route_bluetooth`); elsewhere
-        BlueZ and the system decide, as before."""
+        BlueZ and the system decide."""
         self._bluetooth = bluetooth
         if not self._system_volume.available or not bluetooth.available:
             return
@@ -1449,8 +1447,8 @@ class ReceiverController(QObject):
     def connect_bluetooth(self, device: Device) -> None:
         """Connects a paired device for the surface. One that takes audio gets A2DP, from
         the device holding it if need be: without it a loudspeaker lacking the hands-free
-        profile drops again (the JBL box, 2026-10-11). Connected by hand it is to play:
-        with a Bluetooth device chosen as output, the choice moves to it."""
+        profile drops again. Connected by hand it is to play: with a Bluetooth device
+        chosen as output, the choice moves to it."""
         bluetooth, route = self._bluetooth, self._bluetooth_route
         if bluetooth is None:
             return
@@ -1475,16 +1473,16 @@ class ReceiverController(QObject):
 
     def _route_bluetooth(self) -> None:
         """Which Bluetooth device plays, over A2DP: under "Automatic" the one connected
-        last (the user's rule, 2026-10-11), with one chosen that one while it is
-        connected; and one the player falls back to (the default) where none holds A2DP.
-        That device gets A2DP where it has none (`audio.bluetooth_route`), at most
-        `BLUETOOTH_MOVES` tries in a row until it connects anew or is chosen; one that lost
-        A2DP by itself gets none (`_note_lost_a2dp`). "Automatic" plays to
-        it explicitly, not to the default of the system: WirePlumber kept a device on the
-        hands-free profile as default next to one with A2DP (2026-10-11). A try that
-        failed is followed by the next after `BLUETOOTH_RETRY_MS`. The player is silent
-        from the moment a move is asked for until none is in progress or due
-        (`_hold_audio`), and is told where to play before it plays again."""
+        last, with one chosen that one while it is connected; and one the player falls
+        back to (the default) where none holds A2DP. That device gets A2DP where it has
+        none (`audio.bluetooth_route`), at most `BLUETOOTH_MOVES` tries in a row until
+        it connects anew or is chosen; one that lost A2DP by itself gets none
+        (`_note_lost_a2dp`). "Automatic" plays to it explicitly, not to the default of
+        the system: WirePlumber may keep a device on the hands-free profile as default
+        next to one with A2DP. A try that failed is followed by the next after
+        `BLUETOOTH_RETRY_MS`. The player is silent from the moment a move is asked for
+        until none is in progress or due (`_hold_audio`), and is told where to play
+        before it plays again."""
         bluetooth, route = self._bluetooth, self._bluetooth_route
         if bluetooth is None or route is None:
             return
@@ -1519,12 +1517,11 @@ class ReceiverController(QObject):
     def _note_lost_a2dp(self, bluetooth: BluetoothManager) -> None:
         """A device still connected that lost A2DP without a move of the radio's is not
         given it again until it connects anew or is chosen: it is being switched off
-        (BlueZ ends the stream before it reports the device gone; on the Pi the radio
-        set the stream up again to the Jabra going off, which failed and showed the
-        failure, 2026-10-11), or a phone took it (a multipoint box), from which the
-        radio must not take it back. Which device a move releases is noted when the
-        move is asked for: the route follows BlueZ's signals before the controller and
-        may be through by the time the controller sees the stream gone."""
+        (BlueZ ends the stream before it reports the device gone, and setting the stream
+        up again fails and shows the failure), or a phone took it (a multipoint box),
+        from which the radio must not take it back. Which device a move releases is
+        noted when the move is asked for: the route follows BlueZ's signals before the
+        controller and may be through before the controller sees the stream gone."""
         holding = {device.path for device in bluetooth.devices.values() if device.a2dp}
         for path in self._bluetooth_a2dp - holding:
             if path in self._bluetooth_released:
@@ -1719,8 +1716,7 @@ class ReceiverController(QObject):
         """The sink would not take the volume (pactl without a server, a sink that has
         just gone): the player attenuates until a later set gets through, and the next
         change tries again. Giving the sink up for good would leave it standing low
-        under a player that attenuates as well: silence at every slider position (the
-        JBL box on 2026-10-11, whose warning went to tty1 instead of the journal)."""
+        under a player that attenuates as well: silence at every slider position."""
         if sink != self._system_volume_sink:
             return
         logger.warning(
@@ -3128,9 +3124,8 @@ class ReceiverController(QObject):
 
     def _on_data_services_updated(self, components: list[DataComponent]) -> None:
         """Starts every decodable component that is not switched off: decoding them all
-        costs little compute time next to the audio. Measured on 5C (05.10.2026, RSPduo,
-        EPG Deutschland at 24 kbit/s and GEPOS at 8 kbit/s in subchannels of their own):
-        28 % of real time for the signal processing with both, 26 % without."""
+        costs little compute time next to the audio (a programme guide at 24 kbit/s and
+        GEPOS at 8 kbit/s together some 2 % of real time)."""
         if not self._list_is_live or self._awaited_tuning is not None:
             return  # a straggler of the previous frequency, see `_on_services_updated`
         self._data_components = list(components)

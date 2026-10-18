@@ -10,9 +10,9 @@ drops the objects by the book, see `dab.dls`), do not begin anything: they refin
 stretch on air. Without DL Plus only the text is there, and stations alternate a few
 texts (the title, a slogan, the web address): a text seen within the last
 `TEXT_MEMORY_S` is one of those and begins nothing, one not seen for that long is a new
-title. The same holds for DL Plus without item tags (89.0 RTL sends the Item Running
-flag alone, on from one title to the next, seen 10.10.2026): as long as no tags name
-the item on air, the text decides.
+title. The same holds for DL Plus without item tags (some stations send the Item
+Running flag alone, on from one title to the next): as long as no tags name the item
+on air, the text decides.
 
 `TitleTracker.update` takes every label as it arrives and returns the info of a new
 item where one begins; `current` always carries the latest info of the stretch on air,

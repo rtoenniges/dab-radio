@@ -9,9 +9,9 @@ set identifier. Exactly three values are registered:
 * 6: UTF-16, big endian, basic plane only (i.e. UCS-2).
 * 15: UTF-8.
 
-Confirmed on air (19 September 2026): Dlf sends "Büchermarkt" with 0x99 for the ü and
-SCHLAGERPARADIES sends "MÜLLER" with 0xD9 for the Ü, both in character set 0. Latin-1
-would have used 0xFC and 0xDC.
+Confirmed on air: Dlf sends "Büchermarkt" with 0x99 for the ü and SCHLAGERPARADIES
+sends "MÜLLER" with 0xD9 for the Ü, both in character set 0. Latin-1 would have used
+0xFC and 0xDC.
 """
 
 from __future__ import annotations

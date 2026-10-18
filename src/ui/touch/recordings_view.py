@@ -1,6 +1,6 @@
 """The recordings: a sub-page of the radio page, reached by the badge on
 the corner of the slide (`ui.touch.radio_page`) or from the settings
-(`ui.touch.storage_view`). Two pages to swipe (`ui.touch.pager`):
+(`ui.touch.recording_view`). Two pages to swipe (`ui.touch.pager`):
 
 - the last titles: the ring (`recording.recorder`), newest on top, the title recording
   right now above them with a red dot. A tap offers to play a title, to cut it (the
@@ -512,7 +512,6 @@ class RecordingsPage(QWidget):
         )
 
     def _cut_action(self, entry: RecordingEntry) -> tuple[str, str, object]:
-        # In the yellow of the notices, so that it stands out beside "Play" (the user's
-        # wish, 2026-10-14).
+        # In the yellow of the notices, so that it stands out beside "Play".
         # Translators: an action: open a recording in the cutter.
         return (tr("Cut"), "notice", lambda: self.cut_requested.emit(entry.id))

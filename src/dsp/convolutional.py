@@ -134,8 +134,8 @@ def _viterbi(received: np.ndarray, output_codes: np.ndarray) -> np.ndarray:
 
     Plain scalar loops instead of NumPy vector operations: with only 4 bits per step,
     the Python/NumPy call overhead per trellis transition exceeds the actual arithmetic
-    by orders of magnitude (profiling showed 2.36 million `np.count_nonzero` calls for
-    a single FIC logical frame, ~1 s instead of ~10 ms).
+    by orders of magnitude (a single FIC logical frame would take ~1 s instead of
+    ~10 ms).
 
     The branch metric of a transition sums the soft bits whose sign contradicts its
     output bits and subtracts those that agree (-r for an output bit 0, +r for a 1).
@@ -150,9 +150,9 @@ def _viterbi(received: np.ndarray, output_codes: np.ndarray) -> np.ndarray:
 
     Deliberately keeps the GIL (no `nogil=True`): the DSP thread would have to win it
     back afterwards, and if the GUI happens to be running Python it only gets it after
-    the 5 ms switch interval. Measured next to a second thread computing continuously:
-    6.2 instead of 0.7 ms per logical frame. A call only takes about 0.35 ms, and the
-    GUI can happily wait that long.
+    the 5 ms switch interval; next to a thread computing continuously, a logical frame
+    then takes 6.2 instead of 0.7 ms. A call only takes about 0.35 ms, and the GUI can
+    happily wait that long.
 
     Returns:
         All decoded bits including the tail bits.
@@ -208,10 +208,10 @@ def viterbi_decode(received_soft_bits: np.ndarray, num_info_bits: int) -> np.nda
     scale.
 
     Unlike a hard decision, a weak carrier (in a notch of the channel, in noise)
-    contributes little to the metric instead of counting as much as a strong one.
-    Measured on channel 9D at about 9 dB SNR: the Reed-Solomon decoder behind it had
-    to correct 1-2 instead of ~300 bytes in 8 s, and decoding kept working with added
-    noise where hard decisions already lost every superframe.
+    contributes little to the metric instead of counting as much as a strong one. At
+    about 9 dB SNR the Reed-Solomon decoder behind it has to correct 1-2 instead of
+    ~300 bytes in 8 s, and decoding keeps working with added noise where hard decisions
+    already lose every superframe.
 
     Returns:
         The decoded information bits (length `num_info_bits`, without the tail bits).

@@ -66,7 +66,7 @@
 #      (the constellation locking in, as the radio shows it while it starts), the
 #      initramfs of every kernel rebuilt with it, and in cmdline.txt `quiet splash
 #      plymouth.ignore-serial-consoles` and the rotation of the display as its panel
-#      orientation, on the DSI connector it is on (pi/touch-display.sh): on the Pi here
+#      orientation, on the DSI connector it is on (pi/touch-display.sh), such as
 #      video=DSI-2:720x1280@60,panel_orientation=right_side_up, in place of any video=
 #      word of a DSI connector (the console turns by rotate= or by this, Plymouth only
 #      by this). It needs the display connected. A copy of cmdline.txt as it was stays
@@ -102,7 +102,7 @@
 # --no-splash, the SDRplay API (proprietary installer from sdrplay.com, only for the
 # RSPduo), libinput-tools for checking touch (`libinput debug-events`, see README.md)
 # and the data files the traffic pages want (road_network.npz, tmc_locations.npz,
-# built on the PC and copied into the radio's data directory); the end of the run says
+# built on a PC and copied into the radio's data directory); the end of the run says
 # which of them are missing.
 #
 # The end of the run also says what is left to make it all take effect. A reboot, when
@@ -115,8 +115,8 @@
 # a run would end with.
 set -eu
 # usermod, useradd, update-initramfs and plymouth-set-default-theme live in /usr/sbin,
-# which a user's PATH lacks: a dry run without root found no Plymouth theme and would
-# have rebuilt the initramfs.
+# which a user's PATH lacks: without it a dry run without root finds no Plymouth theme
+# and would rebuild the initramfs.
 PATH=$PATH:/usr/sbin:/sbin
 # What lands in /opt/dab-radio has to be readable by the radio's account, whatever
 # umask root has.
@@ -778,9 +778,8 @@ resolve_account() {
 }
 
 # --- 1. packages ---------------------------------------------------------------------
-# Checked against a set-up Pi on 09.10.2026 (dry run): apt wanted only rtl-sdr; Qt
-# loaded without libopengl0, so it is not listed. A fresh Raspberry Pi OS Lite lacked
-# libxrandr2 (16.10.2026): Qt's media backend, the ffmpeg plugin, links it, and
+# Qt loads without libopengl0, so it is not listed. libxrandr2 is, although a fresh
+# Raspberry Pi OS Lite lacks it: Qt's media backend, the ffmpeg plugin, links it, and
 # QMediaDevices loads that backend.
 dpkg_state() { dpkg-query -W -f '${binary:Package} ${Version} ${db:Status-Abbrev}\n'; }
 
@@ -798,8 +797,8 @@ step_packages() {
         git curl ca-certificates
     "
     # Debian's initramfs hook of Plymouth calls fc-match and fc-cache for any theme
-    # with pictures, but plymouth does not depend on fontconfig: on a fresh Raspberry
-    # Pi OS Lite the hook stopped with status 127 (16.10.2026).
+    # with pictures, but plymouth does not depend on fontconfig: without it the hook
+    # stops with status 127.
     case $SPLASH in
         on|theme) PACKAGES="$PACKAGES plymouth fontconfig" ;;
     esac
@@ -1021,8 +1020,8 @@ step_rules() {
 
     # The kernel's DVB driver would take the RTL2832U before librtlsdr (the one bundled
     # with pyrtlsdrlib; the system's only brings the udev rule) can open it. A blacklist
-    # that is already there counts, whatever its name (blacklist-rtlsdr.conf, made by
-    # hand, on the Pi here).
+    # that is already there counts, whatever its name (such as a blacklist-rtlsdr.conf
+    # made by hand).
     existing=$(grep -rls '^blacklist[[:space:]][[:space:]]*dvb_usb_rtl28xxu' /etc/modprobe.d/ 2>/dev/null \
         | head -n 1 || true)
     if [ -n "$existing" ]; then
@@ -1247,14 +1246,14 @@ step_unit() {
 # --- 7. boot splash ------------------------------------------------------------------
 # Plymouth with pi/plymouth/dab-radio, whose last picture the radio shows while it
 # starts (src/ui/touch/splash.py). The display of the Pi 5 comes up only when its driver
-# loads from the root file system, 5.0 s after power on; the splash shows from there
-# until the unit starts at 8.3 s and ends Plymouth (measured 10.10.2026, without it).
+# loads from the root file system, some 5 s after power on; the splash shows from there
+# until the unit starts, some 3 s later, and ends Plymouth.
 # Plymouth turns its picture by the panel orientation of the display, never by the
 # rotate= the console turns by (fbcon adds the two); so the rotation of the output
 # (pi/touch-display.sh) goes into cmdline.txt as panel_orientation= in place of rotate=,
 # on the DSI connector the display is on. The video= words of the DSI connectors are the
 # script's: the first becomes the one of the display, any further one goes (left from
-# the other socket, before the cable moved); those of other connectors stay.
+# the other socket); those of other connectors stay.
 #
 # Where cmdline.txt is, and with neither --splash nor --no-splash, whether a splash is
 # on: then it stays on and gets the theme of this checkout, cmdline.txt stays as it is
@@ -1300,8 +1299,8 @@ step_splash() {
             270) orientation=right_side_up ;;
             *) die "pi/touch-display.sh: DISPLAY_TRANSFORM=$DISPLAY_TRANSFORM is not 0, 90, 180 or 270" ;;
         esac
-        # With the mode, as the Pi here has run since 10.10.2026, where the connector
-        # lists the one of the Touch Display 2; another panel keeps its own.
+        # With the mode where the connector lists the one of the Touch Display 2;
+        # another panel keeps its own.
         if grep -qx "$DISPLAY_MODE" /sys/class/drm/card*-"$output"/modes 2>/dev/null; then
             video="video=$output:$DISPLAY_MODE@$DISPLAY_REFRESH,panel_orientation=$orientation"
             say "the Touch Display 2 is on $output"
@@ -1427,7 +1426,7 @@ report() {
             [ -f "$DATA_DIR/$file" ] || missing="${missing:+$missing }$file"
         done
         if [ -n "$missing" ]; then
-            todo "Traffic map: copy $missing from the PC, as the radio's own:
+            todo "Traffic map: copy $missing from the computer that built them, as the radio's own:
       sudo install -o $USER_NAME -g $USER_GROUP -m 644 $missing $data/"
         fi
     fi

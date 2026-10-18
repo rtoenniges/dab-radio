@@ -62,10 +62,10 @@ RING_SIZE_RANGE = (3, 30)
 DEFAULT_RING_SIZE = 10
 # How late the dynamic label runs against the audio at a title boundary, in seconds:
 # positive where the text comes after the audio changed (many stations delay their
-# metadata to match their web streams, seen as some 30 s on 09.10.2026, and unevenly),
-# negative where it comes before. A title then begins that much before (or after) its
-# label; the title before keeps its end all the same, so the files overlap and nothing
-# is cut off however much the delay varies.
+# metadata to match their web streams, by some 30 s and unevenly), negative where it
+# comes before. A title then begins that much before (or after) its label; the title
+# before keeps its end all the same, so the files overlap and nothing is cut off
+# however much the delay varies.
 LABEL_DELAY_RANGE_S = (-60, 60)
 DEFAULT_LABEL_DELAY_S = 0
 # How the title before ends against the label of the next, in seconds: positive = cut

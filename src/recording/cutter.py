@@ -37,8 +37,8 @@ if TYPE_CHECKING:  # the recorder imports this module
     from recording.recorder import Recording
 
 # A stretch of audio this quiet for this long is a pause between two titles: radio
-# automation leaves digital silence there (−91 dBFS between two titles of Absolut relax,
-# 2026-10-13), a quiet passage of music stays well above it.
+# automation leaves digital silence there (around −90 dBFS), a quiet passage of music
+# stays well above it.
 PAUSE_BELOW_DB = -45.0
 PAUSE_MIN_S = 0.2
 # How much of a pause a handle that jumped to it keeps: the beginning keeps the last of

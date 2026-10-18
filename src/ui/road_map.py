@@ -10,24 +10,24 @@ nothing anew.
 
 The roads are painted once into a picture of that region (`_Picture`), which the map
 then shows as an image: moving the view moves the image, and the messages above it,
-which change every few seconds, no longer paint the network again. Before, every frame
-painted all of it (measured 06.10.2026 on the PC, all of Germany: 84 ms when a message
-changed, 120 ms per step of a pinch). The picture is painted anew when the view leaves
-it, the level changes, or the scale differs by more than `RESCALE_FACTOR`; until then a
-pinch shows it scaled. Qt's own cache of an item's painting
-(`QGraphicsItem.DeviceCoordinateCache`) left patches of the map empty after zooming.
+which change every few seconds, no longer paint the network again (painted every frame,
+all of Germany cost 84 ms when a message changed and 120 ms per step of a pinch). The
+picture is painted anew when the view leaves it, the level changes, or the scale differs
+by more than `RESCALE_FACTOR`; until then a pinch shows it scaled. Qt's own cache of an
+item's painting (`QGraphicsItem.DeviceCoordinateCache`) left patches of the map empty
+after zooming.
 
 The picture is painted in slices (`SLICE_POINTS`) with the event loop between them,
 since a call of QPainter holds the GIL for all its length: painted at once, the picture
 kept the signal processing and the audio from running Python for as long as it took
-(measured 06.10.2026 on the PC: drawLines of 140 000 points, 67 ms), and the map from
-taking a touch. A thread would not help, it would hold the GIL just the same. The
-picture shown stays until the new one is done.
+(drawLines of 140 000 points took 67 ms), and the map from taking a touch. A thread
+would not help, it would hold the GIL just the same. The picture shown stays until the
+new one is done.
 
 The names of the towns are one item too (`_Labels`), each name painted once as a small
 image with its halo and put on whole pixels: as `MapLabel`s, forty of them set their
-transforms anew one by one at every step of a pinch, in Python (measured 08.10.2026 on
-the PC: 3.7 ms per step before anything was painted, most of it there).
+transforms anew one by one at every step of a pinch, in Python (3.7 ms per step before
+anything was painted).
 """
 
 from __future__ import annotations
@@ -95,7 +95,7 @@ RESCALE_FACTOR = 1.25
 # Neither side of the picture has more pixels (a big window on a screen scaled up, with
 # the margin).
 MAX_PICTURE_PX = 4096
-# Points painted into the picture at a time, some 5 ms on the PC.
+# Points painted into the picture at a time, a few milliseconds each.
 SLICE_POINTS = 10_000
 # The margin a QGraphicsTextItem keeps around its text: the names stand where the
 # `MapLabel`s stood, their lower left corner (with that margin) at the town.

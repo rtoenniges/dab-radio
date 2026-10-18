@@ -210,8 +210,8 @@ def test_reset_clears_everything():
 
 # --- DL Plus (ETSI TS 102 980) --------------------------------------------------------
 
-# Complete DL Plus data groups (prefix, command, CRC) as received on air in September
-# 2026, with the text they link to.
+# Complete DL Plus data groups (prefix, command, CRC) as received on air, with the text
+# they link to.
 ABSOLUT_RELAX = (
     "72060d010709040003dd50",
     "A-HA - TAKE ON ME",

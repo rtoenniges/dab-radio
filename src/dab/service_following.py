@@ -5,8 +5,8 @@ FIG 0/24 names the ensembles carrying a service by their EId, FIG 0/21 the frequ
 an ensemble is broadcast on. Which channel carries an ensemble here is only known from
 reception: the EId each channel of the channel list was received with (FIG 1/0). What
 FIG 0/21 says is announced, and may hold elsewhere in the country: 5D announces its own
-ensemble 11F7 on 8C as well, while here 8C carries NI HANNOVER. So an announced channel
-only counts while no other ensemble was received on it.
+ensemble 11F7 on 8C as well, while 8C carries a different ensemble in some regions. So
+an announced channel only counts while no other ensemble was received on it.
 """
 
 from __future__ import annotations

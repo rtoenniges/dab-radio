@@ -37,8 +37,8 @@ Decoded here are all messages GEPOS sends, and what it takes to read them:
 What the corrections mean at a place is computed in `dab.corrections`.
 
 Where the format description and the stream disagree, the stream wins; checked against
-the reference decoder of Geo++ (Geopp-SSRZ-Python-Demo, AGPL, used only for comparison)
-on a 15 minute recording of 5C:
+the reference decoder of Geo++ (Geopp-SSRZ-Python-Demo, AGPL, used only for
+comparison):
 
 - ZDF092 (order of the grid coordinate resolution) is PC(2,0), not PC(2,1,0).
 - "sint" fields (ZDF168 to ZDF170, ZDF252, ZDF254) are sign and magnitude, like the

@@ -83,17 +83,17 @@ POLL_SECONDS = 0.1
 NO_DATA_TIMEOUT_SECONDS = 3.0
 # Room in the system for the samples the reading thread has not taken yet (4 s at
 # 2.048 MS/s): the system fills it without the GIL, as the API's thread fills the ring of
-# the RSPduo (`sdr.packet_ring`, 3 s). When the GUI holds the GIL for long, turning the
-# detail view, the reading thread falls behind by seconds; with only a second of room the
-# rest piled up in rtl_tcp's queue (2.2 s, its "ll+" lines), and came back only as fast as
-# the network carries more than the stream, little over Wi-Fi: the audio ran dry while
-# the RSPduo played on (15.10.2026). Asked for before connecting, since the window scale
-# is agreed on in the handshake; see `receive_buffer_bytes` for Linux.
+# the RSPduo (`sdr.packet_ring`, 3 s). When the GUI holds the GIL for long (turning the
+# detail view), the reading thread falls behind by seconds; with less room the rest
+# piles up in rtl_tcp's queue (its "ll+" lines) and comes back only as fast as the
+# network carries more than the stream, little over Wi-Fi, and the audio runs dry.
+# Asked for before connecting, since the window scale is agreed on in the handshake;
+# see `receive_buffer_bytes` for Linux.
 RECEIVE_BUFFER_BYTES = 16 * 1024 * 1024
 # Read up to this much at a time (1 s): a reading thread that has fallen behind takes
-# all that waits at its next turn, as `RspDuoReader` drains the whole ring. With rtl_tcp's
-# 64 ms per read it caught up with nothing while the GIL was scarce, needing several turns
-# for each.
+# all that waits at its next turn, as `RspDuoReader` drains the whole ring; reads of
+# rtl_tcp's 64 ms would need several turns at the GIL each and not catch up while it is
+# scarce.
 READ_BYTES = 4 * 1024 * 1024
 # After a read of less than this (16 ms), the reading thread has caught up and pauses
 # (20 ms; the receive buffer holds seconds).

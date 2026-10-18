@@ -72,19 +72,16 @@ class SubchannelDecoder:
             frames.restarted = True
 
         # Important: ALWAYS feed the actually demodulated bits here, even when
-        # `demodulate_frame_symbols` rated this frame unreliable. An earlier version
-        # fed zero bits in that case to preserve only the ring buffer phase of the
-        # time deinterleaver, which made audio/superframe decoding practically
-        # impossible: through the convolutional structure of the deinterleaver every
-        # single block of zeros is guaranteed to corrupt 1/16 of the bits in EACH of
-        # the next 16 CIFs (see dsp.time_interleave.TimeDeinterleaver), which at the
-        # ~25 % unreliable frames of that time made practically every Reed-Solomon
-        # codeword uncorrectable (live: 0 of 544 superframes synchronised, 2169
-        # uncorrectable RS blocks). The actually demodulated bits, on the other hand,
-        # are mostly only partially wrong even in "unreliable" frames, exactly the
-        # kind of bit errors Viterbi and Reed-Solomon decoding are meant to absorb;
-        # as soft bits they additionally tell the Viterbi decoder how little to trust
-        # them.
+        # `demodulate_frame_symbols` rated this frame unreliable. Zero bits in their
+        # place, to preserve only the ring buffer phase of the time deinterleaver,
+        # make audio decoding practically impossible: through the convolutional
+        # structure of the deinterleaver every block of zeros corrupts 1/16 of the
+        # bits in EACH of the next 16 CIFs (see dsp.time_interleave.TimeDeinterleaver),
+        # so that a share of unreliable frames leaves practically no Reed-Solomon
+        # codeword correctable. The actually demodulated bits, on the other hand, are
+        # mostly only partially wrong even in "unreliable" frames, exactly the kind of
+        # bit errors Viterbi and Reed-Solomon decoding are meant to absorb; as soft
+        # bits they additionally tell the Viterbi decoder how little to trust them.
         deinterleaved = [self._deinterleaver.push(bits) for bits in frames.raw_bits]
 
         # The first `INTERLEAVE_DEPTH` CIFs after a reset still contain the zeros of

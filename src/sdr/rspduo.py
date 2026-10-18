@@ -5,8 +5,7 @@ claims the whole device: while the radio receives, no other program gets the sec
 tuner. Both tuners together would need master/slave mode (one program per tuner, 6 or
 8 MS/s on a low IF) and are not supported.
 
-Taken over from the GNSS receiver (`../gnss-receiver/src/sdr/rspduo.py`), which uses
-Tuner 2 only, for its bias-T. The radio needs no bias-T and switches it off.
+The radio needs no bias-T and switches it off.
 """
 
 from __future__ import annotations
@@ -34,10 +33,8 @@ TUNERS: dict[int, int] = {1: sp.TUNER_A, 2: sp.TUNER_B}
 BANDWIDTH_KHZ = sp.BW_1_536
 
 # Gain reduction of the LNA states from 60 to 420 MHz (Band III: 174 to 240 MHz), from
-# the gain reduction table of the RSPduo in the SDRplay API specification. Exactly what
-# the API reported in its gain event for every state at 178.352 MHz on both tuners
-# (04.10.2026; system gain at state 0 and IF reduction 40 dB: 83.1 dB on Tuner 1,
-# 82.4 dB on Tuner 2).
+# the gain reduction table of the RSPduo in the SDRplay API specification; the API's
+# gain event reports exactly these on both tuners.
 LNA_GAIN_REDUCTION_DB = (0, 6, 12, 18, 20, 26, 32, 38, 57, 62)
 
 # IF gain reduction the API accepts in normal mode (sdrplay_api_NORMAL_MIN_GR .. MAX_BB_GR).
@@ -45,25 +42,22 @@ IF_GAIN_REDUCTION_RANGE_DB = (20, 59)
 
 # Fixed gain, no AGC, as with the RTL-SDR (see `DEFAULT_GAIN_DB` in
 # `ui.receiver_controller`): a control loop would move the level within the frame. The
-# values are those of the GNSS receiver, measured there with an active L1 antenna
-# (-27 dBFS, 39 dB above the receiver's own noise); with a Band III antenna they are not
-# measured yet. Without an antenna (04.10.2026, Tuner 1, 178.352 MHz) the noise was at
-# -43.4 dBFS, 10 dB above the floor of the stages after the LNA (-53.5 dBFS from LNA
-# state 4 on), and the level followed the IF reduction dB for dB from 20 to 50 dB.
+# values are not yet tuned for a Band III antenna. Without an antenna the noise lies at
+# about -43 dBFS, 10 dB above the floor of the stages after the LNA (-53.5 dBFS from LNA
+# state 4 on), and the level follows the IF reduction dB for dB from 20 to 50 dB.
 DEFAULT_LNA_STATE = 0
 DEFAULT_IF_GAIN_REDUCTION_DB = 40
 
 # Range of the frequency correction offered, in ppm (`devParams.ppm` of the API, a
-# double, set before `Init`). The RSPduo's TCXO is specified to 0.5 ppm. Measured in the
-# GNSS receiver (02.10.2026): the API corrects mixer and sample clock alike, and a
-# positive frequency error needs a negative correction.
+# double, set before `Init`). The RSPduo's TCXO is specified to 0.5 ppm. The API
+# corrects mixer and sample clock alike, and a positive frequency error needs a
+# negative correction.
 FREQ_CORRECTION_RANGE_PPM = (-10.0, 10.0)
 
 # USB transfer mode (`devParams.mode`, set before `Init`). Isochronous, the API's
-# default, reserves bandwidth but never repeats a transfer; bulk repeats it. Measured in
-# the GNSS receiver on 03.10.2026 on Linux in a VMware VM: isochronous delivered packets
-# out of order and stale ones from the start of the stream again, bulk not one jump. On
-# Windows isochronous lost nothing in 300 s at 6 MS/s and stays.
+# default, reserves bandwidth but never repeats a transfer; bulk repeats it. On Linux
+# (in a VM at least) isochronous delivers packets out of order and stale ones from the
+# start of the stream again, bulk none; on Windows isochronous loses nothing and stays.
 USB_TRANSFER_MODE = sp.TRANSFER_ISOCH if sys.platform == "win32" else sp.TRANSFER_BULK
 
 
@@ -112,8 +106,8 @@ else:
     )
 
 _BUSY_MESSAGE = tr_noop(
-    "The RSPduo is busy. Is SDRuno, SDRconnect, the GNSS receiver or another SDRplay "
-    "program using it? Please release the device there or quit the program."
+    "The RSPduo is busy. Is SDRuno, SDRconnect or another SDRplay program using it? "
+    "Please release the device there or quit the program."
 )
 
 
@@ -279,8 +273,9 @@ class RspDuo:
         """Hands the packets received so far to `sink(samples, first_sample_num, reset,
         changed)`, in order, from the caller's thread; returns how many. `samples` (int16,
         I and Q interleaved) are valid during the call only; `changed` carries the API's
-        flags for a change of gain, frequency or rate that took effect with the packet. May be called from any one thread,
-        as often as wanted: the ring holds `sdr.packet_ring.RING_SECONDS` of packets."""
+        flags for a change of gain, frequency or rate that took effect with the packet.
+        May be called from any one thread, as often as wanted: the ring holds
+        `sdr.packet_ring.RING_SECONDS` of packets."""
         if self._ring is None:
             return 0
         return self._ring.drain(sink)

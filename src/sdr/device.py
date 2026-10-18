@@ -12,21 +12,19 @@ from i18n import tr, tr_noop
 from sdr.exceptions import RtlSdrError
 
 # After opening, the stick briefly delivers samples from the frequency it was tuned to
-# before. Measured on real hardware: after receiving on 5D and reopening on the empty
-# channel 5A, the first 0.1-0.4 s still contained one or two fully decodable frames
-# from 5D, even in a freshly started program. Unfiltered, their services end up in the
-# service list of the new channel (on a channel change just as on the first channel of
-# a scan), on an empty channel complete with the ensemble name. Retuning an already
+# before: the first 0.1-0.4 s can still hold one or two fully decodable frames of the
+# old channel, even in a freshly started program. Unfiltered, their services end up in
+# the service list of the new channel (on a channel change just as on the first channel
+# of a scan), on an empty channel complete with the ensemble name. Retuning an already
 # open device does not show this. The first 0.5 s after every open are therefore
 # discarded. 1 024 000 samples = 4000 * 512 bytes, a multiple of the USB packet size
 # for the synchronous reads in the scanner.
 DISCARD_AFTER_OPEN_SAMPLES = 1_024_000
 
 # Samples discarded after every retune of an open device (50 ms) to let oscillator and
-# gain control settle. On real hardware that is enough: during a scan, 5D right after
-# the ensemble on 5C contained not a single service from there, and during reception a
-# block starting 17 ms after the retune already decoded without errors. 102 400 samples
-# = 400 * 512 bytes.
+# gain control settle. That is enough: a scan finds no service of the channel before,
+# and a block starting 17 ms after the retune already decodes without errors.
+# 102 400 samples = 400 * 512 bytes.
 RETUNE_SETTLE_SAMPLES = 102_400
 
 _BUSY_MESSAGE = tr_noop("RTL-SDR device busy. Is another application already using it?")
@@ -42,9 +40,9 @@ _LIBUSB_ERROR_MESSAGES: dict[int, str] = {
 }
 if sys.platform == "win32":
     # WinUSB lets only one program at a time open the stick and reports every further
-    # attempt as LIBUSB_ERROR_ACCESS, not as LIBUSB_ERROR_BUSY like Linux does. Measured
-    # with a second process holding the stick: both reading its USB strings and opening
-    # it fail with -3. There are no udev rules to point to there either.
+    # attempt as LIBUSB_ERROR_ACCESS, not as LIBUSB_ERROR_BUSY like Linux does: with a
+    # second process holding the stick, both reading its USB strings and opening it fail
+    # with -3. There are no udev rules to point to there either.
     _LIBUSB_ERROR_MESSAGES[-3] = _BUSY_MESSAGE
 
 

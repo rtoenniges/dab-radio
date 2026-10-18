@@ -147,9 +147,9 @@ def _route(bluetooth: BluetoothManager, bus: FakeBus) -> tuple[BluetoothRoute, F
 
 
 def test_the_stream_moves_to_a_device_on_the_hands_free_profile(bluetooth, bus):
-    """The Jabra next to the JBL box (2026-10-11): after the player's lead the stream
-    to the box ends, the one to the headphones is set up, and the move is over once
-    PipeWire lists their sink with A2DP."""
+    """Headphones on the hands-free profile next to a device holding the stream: after
+    the player's lead the stream to that device ends, the one to the headphones is set
+    up, and the move is over once PipeWire lists their sink with A2DP."""
     _connect_hands_free(bus, BOSE)
     route, pactl = _route(bluetooth, bus)
     finished = _Recorder(route.finished)
@@ -176,8 +176,8 @@ def test_the_stream_moves_to_a_device_on_the_hands_free_profile(bluetooth, bus):
 
 
 def test_a_device_not_connected_is_connected_once_the_stream_is_free(bluetooth, bus):
-    """The JBL box cannot connect while another device holds the stream: it lacks the
-    hands-free profile towards the Pi and drops (2026-10-11)."""
+    """The loudspeaker cannot connect while another device holds the stream: it lacks
+    the hands-free profile towards the Pi and drops."""
     route, _pactl = _route(bluetooth, bus)
     finished = _Recorder(route.finished)
     route.move_to(bluetooth.device(JBL))
@@ -249,8 +249,8 @@ def test_without_pactl_the_stream_set_up_is_enough(bluetooth, bus, monkeypatch):
 
 def test_a_move_asked_for_as_the_last_ends_keeps_the_activity(bluetooth, bus):
     """A listener of `finished` asking for the next move at once: the end of the move
-    before must leave the new one's state alone (on the Pi its text stayed in the
-    activity and held the Bluetooth page, 2026-10-11)."""
+    before must leave the new one's state alone, or its text stays in the activity and
+    holds the Bluetooth page."""
     _connect_hands_free(bus, BOSE)
     route, _pactl = _route(bluetooth, bus)
     refuse = [True]
@@ -352,8 +352,8 @@ def test_automatic_plays_to_the_device_holding_the_stream(
 
 
 def test_automatic_gives_the_stream_to_the_device_connected_last(radio, bluetooth, bus):
-    """The user's rule (2026-10-11): with "Automatic" the headphones switched on last
-    play, and with A2DP, not over the hands-free profile."""
+    """With "Automatic" the headphones switched on last play, and with A2DP, not over
+    the hands-free profile."""
     player = _Player(radio)
     _connect_hands_free(bus, BOSE)
     assert radio._bluetooth_route.target == BOSE
@@ -407,10 +407,10 @@ def test_the_device_left_gets_the_stream_once_it_is_free(radio, bluetooth, bus):
 
 
 def test_headphones_switched_off_while_playing_are_not_set_up_again(radio, bluetooth, bus):
-    """BlueZ ends the stream of headphones going off before it reports them gone: the
-    radio set it up again to the Jabra going off, which failed, and with the tries of
-    its connecting counted the page showed "br-connection-unknown" (on the Pi,
-    2026-10-11). The ones connected before get the stream at once."""
+    """BlueZ ends the stream of headphones going off before it reports them gone: set up
+    again, the stream to them would fail and, with the tries of their connecting
+    counted, show an error on the page. The ones connected before get the stream at
+    once."""
     failures = _Recorder(bluetooth.failed)
     _connect_hands_free(bus, BOSE)
     _settle(radio)
@@ -454,9 +454,9 @@ def test_with_the_loudspeaker_chosen_a_device_falling_back_to_gets_the_stream(
 
 
 def test_a_device_refusing_at_first_gets_the_stream_at_the_next_try(radio, bluetooth, bus):
-    """The Jabra on the Pi (2026-10-11): it refused the stream 0.2 s after connecting by
-    itself and took it at the next try. The player stays silent from the first try to
-    the last, and the page is told of nothing."""
+    """Headphones may refuse the stream just after connecting by themselves and take it
+    at the next try. The player stays silent from the first try to the last, and the
+    page is told of nothing."""
     player = _Player(radio)
     failures = _Recorder(bluetooth.failed)
     refusals = [1]
@@ -504,7 +504,7 @@ def test_a_device_refusing_the_stream_is_given_up_after_its_tries(radio, bluetoo
 
 
 def test_connecting_by_hand_frees_the_stream_and_takes_the_choice(radio, bluetooth, bus):
-    """ "Connect" on the Bluetooth page: the JBL box drops without A2DP, so the stream
+    """ "Connect" on the Bluetooth page: the speaker drops without A2DP, so the stream
     is freed for it first; with a Bluetooth device chosen, the choice moves to it."""
     radio.set_audio_output(SONY_SINK)
     radio.connect_bluetooth(bluetooth.device(JBL))

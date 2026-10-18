@@ -131,8 +131,7 @@ def orbit_ring(ephemeris: Ephemeris, utc: float, points: int = 180) -> np.ndarra
     `utc` (the osculating orbit). That is the same for every system, also for GLONASS,
     which sends no elements, and for the geostationary BeiDou satellites with their
     tilted plane. The Earth's flattening takes the satellites away from it by 0.3 km in
-    an hour (measured 07.10.2026). NaN throughout where `satellite_positions` has no
-    position.
+    an hour. NaN throughout where `satellite_positions` has no position.
     """
     step = _RING_VELOCITY_SECONDS
     before, position, after = satellite_positions(ephemeris, utc + np.array([-step, 0.0, step]))

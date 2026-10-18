@@ -114,9 +114,8 @@ class Figures(QWidget):
 
     A value stays on one line and ends in "…" where it does not fit. Wrapped, it would
     make the panels above and beside it share the height by the width of its lines, and
-    squeezed a plot to a strip; at its full width, it would widen its panel and narrow
-    those beside it whenever it grew (the overview of the signal page, in German, while
-    the RSPduo reported overload)."""
+    squeeze a plot to a strip; at its full width, it would widen its panel and narrow
+    those beside it whenever it grew."""
 
     def __init__(self, rows: tuple[tuple[str, str], ...]) -> None:
         super().__init__()

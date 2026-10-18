@@ -4,7 +4,7 @@ extract of Germany, once per computer:
     uv run python tools/build_road_network.py
 
 Downloads `germany-latest.osm.pbf` from Geofabrik (some 5 GB) into the build directory
-outside OneDrive (Windows: %LOCALAPPDATA%\\dab-radio\\build\\osm, else
+outside the repository (Windows: %LOCALAPPDATA%\\dab-radio\\build\\osm, else
 ~/.cache/dab-radio/osm) unless it is there already (`--update` fetches a new one, `--pbf`
 takes another file). Reads it in three passes with pyosmium: the ways of the roads,
 borders and coast, then their nodes, then the cities and towns. Joins the pieces of each

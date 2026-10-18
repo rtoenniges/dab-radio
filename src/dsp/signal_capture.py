@@ -20,7 +20,7 @@ import numpy as np
 from dab.constants import TransmissionMode
 
 # Frames kept by default: enough to scroll from frame to frame and to see the TII,
-# which some transmitters send in every other null symbol only (5C, 2026-10-12).
+# which some transmitters send in every other null symbol only.
 CAPTURE_FRAMES = 10
 
 # Samples kept before the first null symbol and after the end of the last frame (1 ms):

@@ -2,10 +2,10 @@
 
 The API calls its stream callback from a thread of its own, about 1500 times a second at
 2.048 MS/s (1344 samples each). A Python callback needs the GIL for every call,
-and gets it at most once per switch interval while another thread computes in Python.
-Measured in the GNSS receiver (`../gnss-receiver`, 01.10.2026): with the default 5 ms,
-246 times a second next to two such threads, a tenth of what the stream needs, and the
-API dropped most of the samples. The radio's signal processing is such a thread.
+and gets it at most once per switch interval while another thread computes in Python:
+with the default 5 ms and two such threads, some 250 times a second, a tenth of what
+the stream needs, and the API drops most of the samples. The radio's signal processing
+is such a thread.
 
 Here the callback is a C function compiled with numba (`cfunc`): no Python objects, no
 GIL. It copies the packet with its sample number and reset flag into a ring of slots of
@@ -22,9 +22,6 @@ The newest packet always stays in the ring until the next one has arrived: the c
 writes samples, then metadata, then the count, and nothing orders these stores for a
 reader on another core; a packet is only read once the callback that wrote it has
 returned and the next one has run.
-
-Taken over from the GNSS receiver, without its callback for librtlsdr (the radio reads
-the RTL-SDR through pyrtlsdr) and without arrival times.
 """
 
 from __future__ import annotations
@@ -41,9 +38,9 @@ from numba import carray, cfunc, njit, types
 # pyrtlsdr's reading thread.
 RING_SECONDS = 3.0
 
-# Samples per packet of the SDRplay API at the DAB rate of 2.048 MS/s: 1344, measured on
-# both tuners of the RSPduo on 04.10.2026 (29 000 packets in 10 s, all of this size; the
-# GNSS receiver measured 1008 at 2 and 6 MS/s, 2016 at 10 MS/s). The ring is sized for it.
+# Samples per packet of the SDRplay API at the DAB rate of 2.048 MS/s, on both tuners of
+# the RSPduo; other rates give other sizes (1008 at 2 and 6 MS/s, 2016 at 10 MS/s). The
+# ring is sized for it.
 API_PACKET_SAMPLES = 1344
 
 # Samples a slot holds: one packet. A longer packet is cut into several slots.

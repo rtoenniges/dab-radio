@@ -17,10 +17,6 @@ and enums are 4-byte ints.
 Error codes are returned, not raised: what a code means for the user depends on the
 call (`sdrplay_api_Fail` from `Open` means the service is not running, from
 `SelectDevice` that another program holds the device), so `sdr.rspduo` translates them.
-
-Taken over from the GNSS receiver (`../gnss-receiver/src/sdr/sdrplay_api.py`), where the
-layout test was written against the headers; only the message for a missing library
-is the radio's own here, translated like every message the radio shows.
 """
 
 from __future__ import annotations

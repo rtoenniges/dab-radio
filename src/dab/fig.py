@@ -743,8 +743,7 @@ def _parse_fig0_ext25(payload: np.ndarray, ensemble: Ensemble) -> None:
     Entry: SId (16 bits), ASu flags (16), Rfa (6), number of targets - 1 (2), and per
     target the OE Cluster Id (8) and the EId (16) of the ensemble carrying the
     announcements. Read as V2.1.1 defines it; before, the entry held the number of EIds
-    (4 bits) and the EIds alone, which cannot be told apart from it. None of 5C, 5D, 7A
-    and 8C sent FIG 0/25 in 10 min on 06.10.2026.
+    (4 bits) and the EIds alone, which cannot be told apart from it. Not seen on air.
     """
     entries = payload[1:]
     p = 0
@@ -771,7 +770,7 @@ def _parse_fig0_ext26(payload: np.ndarray, ensemble: Ensemble) -> None:
     Entry: OE Cluster Id (8 bits), ASw flags (16), New flag (1), Rfa (3), SCIdS (4),
     target SId (16). ASw flags of zero end the announcement. Read as V2.1.1 defines it;
     before, the entry named the cluster and region in both ensembles and the EId instead
-    of the service. Not on air in 5C, 5D, 7A and 8C (see `_parse_fig0_ext25`).
+    of the service. Not seen on air either.
     """
     entries = payload[1:]
     p = 0

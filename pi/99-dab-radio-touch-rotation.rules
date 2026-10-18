@@ -1,12 +1,12 @@
 # Turns the touch input of the Raspberry Pi Touch Display 2 with the picture, which
 # pi/start-touch.sh turns to landscape with `wlr-randr --transform 270`
-# (DISPLAY_TRANSFORM in pi/touch-display.sh). cage does not
-# turn touch input with the output: it would only follow a mapping to the output
-# (WL_OUTPUT), and cage makes that once when the touchscreen appears, before the
-# outputs exist. So libinput turns the coordinates itself.
+# (DISPLAY_TRANSFORM in pi/touch-display.sh). cage does not turn touch input with the
+# output: it would only follow a mapping to the output (WL_OUTPUT), and cage makes that
+# once when the touchscreen appears, before the outputs exist. So libinput turns the
+# coordinates itself.
 #
 # The matrix belongs to the transform (derived from apply_output_transform in
-# wlroots' wlr_cursor.c, checked on the Pi on 08.10.2026):
+# wlroots' wlr_cursor.c):
 #   --transform 90:  0 -1 1 1 0 0
 #   --transform 270: 0 1 0 -1 0 1
 # Never combine it with invx/invy/swapxy on the display overlay in config.txt.

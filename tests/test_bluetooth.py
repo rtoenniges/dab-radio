@@ -159,8 +159,8 @@ def test_changed_properties_are_applied():
 
 
 def test_the_battery_byte_of_pyqt6_is_read_as_a_number():
-    # PyQt6 hands the D-Bus byte over as bytes of length 1: BlueZ said 50 % for the
-    # Jabra Elite 10, int(b"2") made it 2 % (10.10.2026), and 100 % (b"d") was no value.
+    # PyQt6 hands the D-Bus byte over as bytes of length 1: int() would read 50 % (b"2")
+    # as 2 % and 100 % (b"d") not at all.
     from PyQt6.QtCore import QMetaType, QVariant
 
     byte = QVariant(50)
@@ -376,9 +376,9 @@ def test_switching_the_adapter_sets_its_property(manager, bus):
 
 
 def test_the_qt_bus_is_made_and_called_without_a_system_bus():
-    """On the PC there is no system bus: subscribing and calling must still run
-    through, so that the names of the QtDBus API are checked here (the enum of the
-    service watcher once failed only on the Pi). On the Pi this reaches bluetoothd."""
+    """On a PC there is no system bus: subscribing and calling must still run through,
+    so that the names of the QtDBus API are checked here and not only on the Pi, where
+    this reaches bluetoothd."""
     bus = QtBus(SERVICE)
     assert isinstance(bus.connected, bool)
     bus.call("/", OBJECT_MANAGER, "GetManagedObjects", [], lambda _reply: None)

@@ -12,17 +12,15 @@ frequency into the depth (y) from -`HALF_DEPTH`, the lowest, to `HALF_DEPTH`; th
 levels upwards from the floor of the field (0) to its top (`HEIGHT`). Seen from the
 front left, the corner nearest the viewer holds the earliest time and the lowest
 frequency; the time rises along the front edge to the right, the frequency along the
-left edge into the depth (wishes of the user, 2026-10-12: both from that corner,
-first with the frequency on the right, then the other way round). It is one triangle
-strip over a grid of points (the strips of the rows joined by degenerate triangles). A
-column or row drawn as a block of its own has four points across: down at the floor,
-up, along its top, down again; between blocks the floor shows. A symbol stands over
-the samples its FFT takes, so that the floor between two is the guard interval, as
-the strip below marks it. The faces are lit flat,
-with the normal of each triangle taken from the screen-space derivatives of its position
-in the fragment shader, so the grid needs no normals; a face turned away from the viewer
-is lit from its other side, which leaves the winding (and the upside-down drawing of the
-readback) out of it.
+left edge into the depth. It is one triangle strip over a grid of points (the strips of
+the rows joined by degenerate triangles). A column or row drawn as a block of its own
+has four points across: down at the floor, up, along its top, down again; between
+blocks the floor shows. A symbol stands over the samples its FFT takes, so that the
+floor between two is the guard interval, as the strip below marks it. The faces are lit
+flat, with the normal of each triangle taken from the screen-space derivatives of its
+position in the fragment shader, so the grid needs no normals; a face turned away from
+the viewer is lit from its other side, which leaves the winding (and the upside-down
+drawing of the readback) out of it.
 
 Along the front edge of the floor, before the figures of the time, a strip shows the
 frame structure (`ui.spectrogram.Part`): null symbols, guard intervals and useful parts.

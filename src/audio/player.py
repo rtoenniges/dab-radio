@@ -36,8 +36,7 @@ PREBUFFER_SECONDS = 0.5
 # time, so a backlog once built up stays forever as latency. And backlogs build up
 # regularly: at start-up the JIT compilation of the Viterbi decoder (numba) takes a
 # good second, during which samples pile up and are then processed faster than real
-# time. Without the cap the delay on real hardware stayed above two seconds
-# permanently.
+# time. Without the cap the delay stays above two seconds for good.
 MAX_QUEUED_SECONDS = 1.0
 
 # Buffer size of the sound card itself. Without an explicit value Qt picks very
@@ -56,10 +55,10 @@ _UNREPORTED = object()
 # A sound card that has taken no audio for this long while audio waits for it has lost
 # its device: with the stream pinned to its sink (`main.PINNED_STREAM_PROPERTIES`)
 # PipeWire ends the stream when the sink goes, and Qt 6.11 reports neither that nor
-# the sink going, unless it was the default; it keeps listing the device. On the Pi the
-# sound card stopped taking audio 0.3 s after its sink went, while Qt went on calling
-# it active (2026-10-11). A healthy one takes some every few tens of milliseconds; a
-# dropout is no such thing, then no audio waits.
+# the sink going, unless it was the default; it keeps listing the device. The sound
+# card stops taking audio some 0.3 s after its sink went, while Qt goes on calling it
+# active. A healthy one takes some every few tens of milliseconds; a dropout is no such
+# thing, then no audio waits.
 STALL_SECONDS = 0.5
 _clock = time.monotonic
 
@@ -80,9 +79,9 @@ PLAYBACK_PRIMING_UNITS = 2
 # How often at most the position of a playback is reported (`playback_changed`).
 PLAYBACK_REPORT_INTERVAL_S = 0.25
 # How often at most the audio queued ahead is reported (`buffer_changed`); a dropout at
-# once. A figure read by eye: reported at every refill, every 20 ms and after every
-# superframe, it made near 60 calls a second into the GUI thread, each drawing a label
-# anew, on the touch surface even with the signal page out of sight.
+# once. A figure read by eye: reported at every refill and superframe, it would make
+# near 60 calls a second into the GUI thread, each drawing a label anew, even with the
+# page out of sight.
 BUFFER_REPORT_INTERVAL_S = 0.5
 # A recording whose sound card has not started this long after `play` is reported
 # in the log, with what the player knows: the way to find out why it stays silent.
@@ -193,8 +192,8 @@ class AudioPlayer(QObject):
     def stop(self) -> None:
         """Ends playback and releases the sound card: the station changes, or the radio
         ends. The refill timer keeps running: `start` comes once, with the thread, and
-        with the timer stopped a recording played back (`play`) starved after its
-        first fill, since only the superframes refill otherwise (seen 10.10.2026)."""
+        with the timer stopped a recording played back (`play`) would starve after its
+        first fill, since only the superframes refill otherwise."""
         self._drop_source()
         self._teardown_sink()
         self._close_decoder()
@@ -267,11 +266,11 @@ class AudioPlayer(QObject):
 
         Missing audio is replaced by silence rather than simply left out. That matters
         more than it sounds: playback runs exactly in real time, so a skipped
-        superframe permanently shortens the reserve in the output buffer. On real
-        hardware it sank from 500 ms to below 160 ms within a minute, below the
-        spacing of two data bursts from the signal processing (~192 ms), after which
-        the sound card ran dry before every burst. With silence at the gap the time
-        axis stands still and the reserve is preserved.
+        superframe permanently shortens the reserve in the output buffer. It can sink
+        from 500 ms to below 160 ms within a minute, below the spacing of two data
+        bursts from the signal processing (~192 ms), and then the sound card runs dry
+        before every burst. With silence at the gap the time axis stands still and the
+        reserve is preserved.
         """
         if self._source is not None:
             return  # a recording plays instead; the live audio is dropped undecoded
@@ -369,7 +368,7 @@ class AudioPlayer(QObject):
         except (AacDecoderError, Mp2DecoderError) as exc:
             self._decoder = None
             # The format is known all the same. Reported as None, the display would
-            # show "Audio: -" and swallow the reason, as happened when FAAD2 was not found.
+            # show "Audio: -" and swallow the reason, such as FAAD2 missing.
             self.format_changed.emit(audio_format.describe())
             self.status_changed.emit(str(exc))
             logger.warning("Audio decoder unavailable: %s", exc)
@@ -590,8 +589,8 @@ class AudioPlayer(QObject):
         # share sits in the sound card's buffer. Whole frames only (every channel of a
         # sample, two bytes each): a cut through one shifts all later samples by a byte
         # or swaps the channels, and the sound card plays loud noise until another cut
-        # happens to shift them back. Heard with rtl_tcp over Wi-Fi, whose samples
-        # arrive in bursts and so build backlogs often.
+        # happens to shift them back. rtl_tcp over Wi-Fi delivers in bursts and so
+        # builds backlogs often.
         excess = self._queued_seconds() - MAX_QUEUED_SECONDS
         if excess > 0 and self._bytes_per_second:
             frame = 2 * channels
@@ -706,9 +705,9 @@ class AudioPlayer(QObject):
         away from it: WirePlumber 0.5 marks a stream whose own target is the default as
         following the default (`checkFollowDefault`, as PulseAudio does) at its next
         rescan, which any node appearing sets off, and moves it along with the default.
-        With the loudspeaker chosen, the audio went to headphones as they connected,
-        the player still attenuating for the loudspeaker: near silence (2026-10-11).
-        A new stream to the device, no longer the default, stays there."""
+        With the loudspeaker chosen, the audio would go to headphones as they connect,
+        the player still attenuating for the loudspeaker: near silence. A new stream to
+        the device, no longer the default, stays there."""
         device = self._chosen_device()
         default = _default_output_id()
         if self._sink is not None:
@@ -729,8 +728,8 @@ class AudioPlayer(QObject):
         answers every `output_changed` with one, `ReceiverController._apply_volume`):
         the gain of the output before may be 1.0, that of a Bluetooth device applying
         its volume itself, and the new one the loudspeaker, pinned at 100 % for the
-        player to attenuate. A sink made with the next audio played at that 1.0 until
-        the answer came."""
+        player to attenuate. A sink made with the next audio would play at that 1.0
+        until the answer came."""
         device_id = None if device is None else bytes(device.id())
         if device_id != self._reported_output:
             self._reported_output = device_id

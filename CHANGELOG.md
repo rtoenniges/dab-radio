@@ -7,6 +7,15 @@ All notable changes to the radio. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Signal: The impulse response marks the transmitter behind each path by its TII, and
+  tells a reflection of a transmitter from a further transmitter
+- Signal: Transmitters too weak for the TII detection are found at their path in the
+  impulse response
+- Touch UI, Desktop: The list of transmitters shows the delay of each transmitter, its
+  ID in the colour of its marks
+
 ### Fixed
 
 - Touch UI: The rows of the traffic messages and the flow could be squeezed together

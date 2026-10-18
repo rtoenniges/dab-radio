@@ -1,10 +1,9 @@
 """The Earth in space with the satellites GEPOS sends ephemerides of, for the page
 "3D view" of the "GNSS" menu (`ui.touch.gnss_view`) and, cut to the shape of the
-slide, for the radio page (`ui.touch.display_choice`). Taken over from the 3D view of
-the gnss-receiver project (`ui/globe_tab.py`). A radio has no GNSS receiver: there are
-no range spheres, no lines of sight and no fix, only the place the listener entered
-("Location"). Satellites and orbits take the colours and symbols of their systems, as on
-the page "Sky"; those below the listener's horizon are paler.
+slide, for the radio page (`ui.touch.display_choice`). A radio has no GNSS receiver:
+there are no range spheres, no lines of sight and no fix, only the place the listener
+entered ("Location"). Satellites and orbits take the colours and symbols of their
+systems, as on the page "Sky"; those below the listener's horizon are paler.
 
 OpenGL draws the Earth and the orbits into an image (`ui.globe_gl`), in a thread of its
 own: the view asks for a new image whenever the camera or the scene changes and shows the
@@ -17,8 +16,8 @@ spread or close, both at once; three shift the centre of the view. A tap on a sa
 lets the view glide until the satellite is in the middle and turns it around it from
 then on, following it; a tap on "Location" turns it around the centre of the Earth
 again, and a double tap returns to the first view. On a PC: the wheel zooms, the right
-button held shifts (as in the gnss-receiver), the middle button held turns, a click is
-a tap and a double click a double tap.
+button held shifts, the middle button held turns, a click is a tap and a double click a
+double tap.
 """
 
 from __future__ import annotations
@@ -58,8 +57,7 @@ from ui.touch.theme import SMALL_FONT_PX
 
 # The view before the user moves it: not straight down at the listener but from the
 # south-west, so that the satellites above them stand beside the Earth, not in front of
-# it (as in the gnss-receiver); from this far, the orbits of GPS fit the height of the
-# page.
+# it; from this far, the orbits of GPS fit the height of the page.
 VIEW_DISTANCE_KM = 64_000.0
 _VIEW_OFFSET_DEG = (-24.0, -40.0)  # latitude, longitude
 
@@ -93,7 +91,7 @@ _BACKGROUND = QColor(8, 12, 22)
 _TEXT = QColor(225, 228, 235)
 _DIM_TEXT = QColor(150, 155, 168)
 _CAPTION_BACKING = QColor(8, 12, 22, 200)
-_POSITION_COLOUR = QColor(253, 216, 53)  # as in the gnss-receiver
+_POSITION_COLOUR = QColor(253, 216, 53)
 # The label of the listener's position, which also stands for it among the marks.
 # Translators: the listener's position on the globe of the 3D view.
 POSITION_LABEL = tr_noop("Location")
@@ -520,8 +518,7 @@ class GlobeView(QWidget):
     def _refresh(self) -> None:
         """The camera or the scene changed: asks for a new frame, and the view is
         painted when it comes. Until then there is nothing new to paint, and painting
-        on every touch event cost the Raspberry Pi more than the frames themselves
-        (measured 08.10.2026: the signal processing still waited 40 % of real time)."""
+        on every touch event cost the Raspberry Pi more than the frames themselves."""
         if self.isVisible():
             self._request_frame()
 

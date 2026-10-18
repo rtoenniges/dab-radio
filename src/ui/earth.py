@@ -1,6 +1,5 @@
 """The Earth of the 3D view (`ui.globe_gl`): its outlines from Natural Earth, painted as
-an image over longitude and latitude, and laid as lines on the WGS 84 ellipsoid. Taken
-over from the gnss-receiver project.
+an image over longitude and latitude, and laid as lines on the WGS 84 ellipsoid.
 
 The image only fills land and water; it is stretched over the whole globe, so that one
 of its pixels is 10 km wide and a coast in it blurs when the view comes close. The
@@ -134,8 +133,8 @@ def outline_segments(lines: list[np.ndarray], closed: bool) -> np.ndarray:
         ]
     if not lines:
         return np.empty((0, 3), dtype=np.float32)
-    # All lines in one array (a loop over the 2200 rings took 270 ms, this takes 15 ms,
-    # measured 02.10.2026): every point but the last of a line begins an edge.
+    # All lines in one array (a loop over the 2200 rings took 270 ms, this takes 15 ms):
+    # every point but the last of a line begins an edge.
     points = np.concatenate(lines)
     begins_edge = np.ones(len(points), dtype=bool)
     begins_edge[np.cumsum([len(line) for line in lines]) - 1] = False

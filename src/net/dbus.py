@@ -8,8 +8,8 @@ to one service, and the tests bring one that answers from a table. Nothing here 
 the bus: every call is asynchronous and hands its reply to a callback.
 
 PyQt6 demarshals replies and signals to Python objects by their signature (`QDBusArgument`
-has no reading methods in PyQt6, checked 09.10.2026); `plain` unwraps what is left:
-variants, object paths and byte arrays.
+has no reading methods in PyQt6); `plain` unwraps what is left: variants, object paths
+and byte arrays.
 
 The radio can also offer an object of its own on the bus (`register_object`), whose
 slots the service then calls, as BlueZ calls the agent of `net.bluetooth`; such a slot
@@ -157,7 +157,7 @@ class QtBus(Bus):
         self._bus = QDBusConnection.systemBus() if QDBusConnection is not None else None
         self._watchers: set = set()  # pending calls, kept alive until they finish
         # Subscribed even where the bus is not connected (Windows): the calls then
-        # only return False, and the tests on the PC run through this code.
+        # only return False, and the tests on Windows run through this code.
         if self._bus is None:
             return
         bus = self._bus

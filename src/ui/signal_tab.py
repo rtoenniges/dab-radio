@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import numpy as np
 import pyqtgraph as pg
+from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QCheckBox, QHBoxLayout, QVBoxLayout, QWidget
 
 from dab.constants import MODE_I, SAMPLE_RATE
+from dsp.tii import TiiResult
 from i18n import tr
+from ui.path_marks import PathMarks, TransmitterColours
 from ui.plots import PathDifferenceAxis, SmoothedRange
 
 # Upper limit for the number of constellation points drawn at once. A data block can
@@ -18,10 +21,10 @@ from ui.plots import PathDifferenceAxis, SmoothedRange
 MAX_CONSTELLATION_POINTS = 3000
 
 # The constellation axes reach to this percentile of the point magnitudes, not to the
-# largest one. At low SNR the D-QPSK product of two noisy symbols has long tails:
-# measured on the weak 9D, the largest of the points shown lay at 4x the median
-# magnitude (1.8x on 5C), and an axis fitted to it zoomed out so far that the cloud
-# shrank into the middle. The few points beyond simply fall outside the view.
+# largest one. At low SNR the D-QPSK product of two noisy symbols has long tails: on a
+# weak ensemble the largest of the points shown lies at 4x the median magnitude (under
+# 2x on a strong one), and an axis fitted to it zooms out so far that the cloud shrinks
+# into the middle. The few points beyond simply fall outside the view.
 CONSTELLATION_RANGE_PERCENTILE = 99.0
 
 # Density view: bins per axis, and how far the histogram reaches in multiples of the
@@ -32,9 +35,16 @@ DENSITY_EXTENT = 1.5
 
 # Maximum number of frame markers shown at once in the power envelope. Displayed is
 # the frame buffer (see `dsp.pipeline.DspWorker._emit_power_envelope`), which spans
-# two to three frames depending on its fill level; measured on real hardware that is
-# 1.99 markers per update on average. The pool sits above that with a safety margin.
+# two to three frames depending on its fill level, two markers per update on average.
+# The pool sits above that with a safety margin.
 MAX_FRAME_MARKERS = 4
+
+# The colours of the transmitters in the impulse response and in the list of the
+# transmitters, on the dark background of the plots: none near the cyan of the curve or
+# the red of the warnings; a path without a code in grey, the labels on black.
+TRANSMITTER_PALETTE = ("#f0a020", "#5bd17a", "#c77dd0", "#e6c84a", "#f07fa8")
+UNKNOWN_PATH_COLOUR = "#9aa4ae"
+LABEL_FILL = "#101418"
 
 
 def constellation_limit(points: np.ndarray) -> float:
@@ -71,6 +81,7 @@ class SignalTab(QWidget):
         # The constellation last drawn, to redraw it at once when the view is switched.
         self._shown_constellation: np.ndarray | None = None
         self._pending_impulse_response: tuple[np.ndarray, np.ndarray] | None = None
+        self._pending_tii: TiiResult | None = None
 
         self._spectrum_plot = pg.PlotWidget(title=tr("Spectrum"))
         self._spectrum_plot.setLabel("bottom", tr("Frequency"), units="Hz")
@@ -150,6 +161,13 @@ class SignalTab(QWidget):
         self._impulse_plot.addItem(guard_region)
         self._impulse_curve = self._impulse_plot.plot(pen="c")
         self._impulse_range = SmoothedRange()
+        self.transmitter_colours = TransmitterColours(
+            [QColor(colour) for colour in TRANSMITTER_PALETTE]
+        )
+        self.path_marks = PathMarks(self._impulse_plot, self.transmitter_colours)
+        self.path_marks.set_style(
+            self._impulse_plot.font(), QColor(UNKNOWN_PATH_COLOUR), QColor(LABEL_FILL)
+        )
         self._impulse_plot.setToolTip(
             tr(
                 "Each peak is a path on which the signal arrives: in the single frequency "
@@ -163,7 +181,13 @@ class SignalTab(QWidget):
                 "The bandwidth resolves paths only from about 0.7 µs apart; a reflection "
                 "nearby merges with its transmitter. The carriers are weighted with a Hann "
                 "window, otherwise every peak would have sidelobes of -13 dB that would look "
-                "like further paths."
+                "like further paths.\n\n"
+                "Marked is the transmitter whose identification (TII) a path carries, "
+                "compared over the last 25 s: a filled triangle with its ID, in its colour "
+                "in the list of transmitters; outlined in that colour, a later path with the "
+                "same ID: that transmitter reflected, or passed on by a transmitter fed off "
+                "air; ? a path without an ID, a reflection or a transmitter that sends no TII "
+                "or too weak a one."
             ).format(guard=guard_seconds * 1e6)
         )
 
@@ -212,9 +236,23 @@ class SignalTab(QWidget):
         # Only note it; drawing happens at the shared refresh rate.
         self._pending_impulse_response = (delays, power_db)
 
+    def update_tii(self, result: TiiResult) -> None:
+        # Only note it; drawing happens at the shared refresh rate.
+        self._pending_tii = result
+
+    def reset_transmitters(self) -> None:
+        """Forgets the transmitters and their colours (on a new frequency)."""
+        self._pending_tii = None
+        self.transmitter_colours.reset()
+        self.path_marks.clear()
+
     def render(self) -> None:
         self._render_constellation()
         self._render_impulse_response()
+        if self._pending_tii is not None:
+            self.transmitter_colours.note(self._pending_tii.transmitters)
+            self.path_marks.show(self._pending_tii.paths)
+            self._pending_tii = None
 
     def _on_density_toggled(self, density: bool) -> None:
         self._constellation_curve.setVisible(not density)
@@ -259,4 +297,7 @@ class SignalTab(QWidget):
         self._pending_impulse_response = None
 
         self._impulse_curve.setData(delays, power_db)
-        self._impulse_range.apply(self._impulse_plot, float(power_db.min()), float(power_db.max()))
+        low, high = float(power_db.min()), float(power_db.max())
+        # Room above the strongest path for its label.
+        high += self.path_marks.headroom_db(high - low)
+        self._impulse_range.apply(self._impulse_plot, low, high)

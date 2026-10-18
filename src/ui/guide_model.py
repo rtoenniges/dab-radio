@@ -5,8 +5,8 @@ far the carousel and the packets beneath it have come (for a page on the transpo
 The controller stores what is received (`ui.receiver_controller`); this model only
 keeps it in memory, combined across channels (`dab.combined_guide`), so that a surface
 can show services and schedules. It reads the stored guides on first use rather than at
-start: decoding every stored schedule takes a moment (60 ms for the guides of 5C and 7A
-on a PC), and a surface that never shows the guide should not pay for it. The touch
+start: decoding every stored schedule takes a moment (some 60 ms for the guides of two
+ensembles), and a surface that never shows the guide should not pay for it. The touch
 surface does use it at start: its radio page shows what runs on the station playing.
 The desktop's "Programme guide" tab (`ui.epg_tab`) still keeps its own.
 """

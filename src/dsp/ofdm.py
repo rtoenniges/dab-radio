@@ -161,7 +161,7 @@ def correct_residual_phase(differential_symbol: np.ndarray) -> np.ndarray:
 
     Also accepts all symbols of a frame at once, one per row; each row then gets its
     own residual phase. z^4 is formed by squaring twice: `**4` on complex numbers goes
-    through the general complex power and took most of the time here.
+    through the slow general complex power.
     """
     unit = differential_symbol / (np.abs(differential_symbol) + 1e-12)
     squared = unit * unit
@@ -171,9 +171,8 @@ def correct_residual_phase(differential_symbol: np.ndarray) -> np.ndarray:
 
 # Minimum ratio of correlation peak to mean (see `dsp.timing.find_integer_symbol_offset`)
 # for the PRS alignment of a frame to be trusted. Pure noise gives 3.2 (median, at most
-# 4.7 in 2000 trials); ~3 was also observed during multipath dropouts, where the
-# alignment was wrong. A real match lies far above, even for a weak signal: measured
-# 50-90 on channel 9D at 6-9 dB SNR, ~250 on the strong 5C.
+# 4.7 in 2000 trials), multipath dropouts with a wrong alignment about 3. A real match
+# lies far above, even for a weak signal: 50-90 at 6-9 dB SNR, ~250 for a strong one.
 MIN_INTEGER_OFFSET_CONFIDENCE = 5.0
 
 # This many symbols from the start of the frame suffice for estimating the integer
@@ -207,11 +206,10 @@ class DemodulatedFrame:
     # makes the pipeline re-acquire frame sync.
     #
     # Deliberately a statement about synchronisation only, not about the signal
-    # quality: a weak but decodable signal must not count as lost. An earlier version
-    # also rated frames by how tightly their D-QPSK points cluster; on channel 9D at
-    # ~9 dB SNR that failed every frame, the MSC chain was restarted every 10 frames
-    # and half of the audio was lost, although Reed-Solomon corrected every superframe
-    # once the restarts were gone. Noise is for the error correction to deal with.
+    # quality: a weak but decodable signal must not count as lost. Rating frames by how
+    # tightly their D-QPSK points cluster fails every frame at ~9 dB SNR, where
+    # Reed-Solomon still corrects every superframe; the restarts of the MSC chain would
+    # lose half of the audio. Noise is for the error correction to deal with.
     reliable: bool
     # Channel per subcarrier (physical order), estimated from the received against the
     # known PRS at exactly the window position used for demodulation. The path the
@@ -248,12 +246,10 @@ def demodulate_frame_symbols(
     `fallback_sample_correction` is used when the PRS cross-correlation
     (`dsp.timing.find_integer_symbol_offset`) does not deliver a sufficiently certain
     detection (confidence below `MIN_INTEGER_OFFSET_CONFIDENCE`), e.g. during brief
-    multipath dropouts in an SFN such as the German Bundesmux. Live measurements
-    showed that blindly taking an uncertain value (confidence ~3 instead of the usual
-    ~9-10) misaligns the frame by up to several hundred samples and produces a
-    constellation rotated by ~45° across all carriers, unusable for the whole frame:
-    clearly visible as a brief loss of sync (collapsed constellation cloud,
-    "fluttering" frequency offset display). Since the correction actually needed
+    multipath dropouts in an SFN such as the German Bundesmux. Blindly taking an
+    uncertain value (confidence ~3 instead of the usual ~9-10) misaligns the frame by
+    up to several hundred samples and rotates the constellation by ~45° across all
+    carriers, unusable for the whole frame. Since the correction actually needed
     hardly changes between consecutive frames (only through slow clock drift), the
     last certain correction is a far better estimate than a single uncertain
     measurement. In that case the frequency offset falls back to
@@ -289,9 +285,8 @@ def demodulate_frame_symbols(
         frame_samples, mode.fft_length, mode.guard_length, mode.symbol_length, sample_rate
     )
 
-    # The two estimates that follow only need the start of the frame, not all of it.
-    # Rotating out the frequency offset used to run up to four times over all ~196 000
-    # samples of a frame, 16 % of the total compute time according to profiling. The
+    # The two estimates that follow only need the start of the frame, not all of it,
+    # which saves rotating all ~196 000 samples of the frame for each of them. The
     # excerpts start at the frame start, so they yield exactly the same values as the
     # full frame would.
     bin_width_hz = sample_rate / mode.fft_length

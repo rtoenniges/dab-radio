@@ -109,7 +109,7 @@ def page(data_directory, make_controller, monkeypatch):
     page.close()
     page.deleteLater()
     # Now, not in whichever later test first runs the event loop: there the deletions
-    # of whole modules add up (a second, which held up a long press, 2026-10-12).
+    # of whole modules add up (up to a second, enough to hold up a long press).
     QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete.value)
 
 
@@ -368,7 +368,7 @@ def test_without_opengl_the_view_says_so(page) -> None:
 def test_the_labels_are_drawn_for_every_window_and_place(page, rows) -> None:
     """Drawn by the paint event, where an error only reaches the terminal: called here
     itself, for every length of the window at places across the capture (a window of
-    1 ms per symbol held no symbol's middle, and the empty axis failed, 2026-10-12)."""
+    1 ms per symbol can hold no symbol's middle and leave the axis empty)."""
     _captured(page)
     model, view = page.model, page.view
     model.rows = rows

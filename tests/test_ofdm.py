@@ -246,9 +246,9 @@ def test_fractional_timing_offset_cancels_in_differential_demodulation(timing_of
 
 def test_weak_but_aligned_frame_counts_as_reliable():
     """`reliable` is about synchronisation, not signal quality. At 6 dB SNR the D-QPSK
-    points scatter widely (an earlier z^4 clustering check rejected such frames, which
-    on channel 9D restarted the MSC chain every second), yet the frame is aligned and
-    the error correction can decode it."""
+    points scatter widely (a z^4 clustering check would reject such frames and restart
+    the MSC chain every second), yet the frame is aligned and the error correction can
+    decode it."""
     rng = np.random.default_rng(3)
     stream = build_stream([fib()] * 12, 2, rng, snr_db=6.0)
 

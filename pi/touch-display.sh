@@ -9,12 +9,12 @@
 #
 # The display may sit on either DSI socket of the Pi 5, CAM/DISP 0 or CAM/DISP 1; the
 # firmware finds it on both without a line in config.txt (display_auto_detect=1, as
-# Raspberry Pi OS ships it). The kernel names the connector after the socket: the
-# display here sits on CAM/DISP 1 (RP1's dsi1) and is DSI-2, so on CAM/DISP 0 it is
-# DSI-1 (11.10.2026). So the connector is looked up, never written down.
+# Raspberry Pi OS ships it). The kernel names the connector after the socket: DSI-1 on
+# CAM/DISP 0, DSI-2 on CAM/DISP 1 (RP1's dsi1). So the connector is looked up, never
+# written down.
 DISPLAY_TRANSFORM=270
 # The one mode of the panel, as /sys/class/drm/<connector>/modes lists it, and the
-# refresh rate that goes with it in the kernel's video= (as on the Pi here).
+# refresh rate that goes with it in the kernel's video=.
 DISPLAY_MODE=720x1280
 DISPLAY_REFRESH=60
 

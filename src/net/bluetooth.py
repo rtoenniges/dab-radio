@@ -17,25 +17,23 @@ signals, so there is no polling.
 Pairing goes through an agent the radio offers BlueZ (`BluetoothAgent`, capability
 NoInputNoOutput), made the default one at the start. Without any agent BlueZ switches
 the adapter's bondable mode off, and the kernel then pairs without bonding: the key is
-not kept, and a device once disconnected cannot connect again, only be paired anew (a
-JBL box showed `Paired: yes, Bonded: no` on 2026-10-11, and BlueZ dropped the pairing
-of a Jabra, while the radio registered no agent). Headphones pair "Just Works",
-which the kernel accepts by itself for such an agent; where BlueZ does ask (a
-confirmation, an authorization, the PIN of an old headset, a service of a device not
-trusted), the agent says yes only for the device the surface is pairing and refuses
-everyone else. The adapter stays as BlueZ sets it: not discoverable, so that no other
-device lists it, and taking connections only from devices it knows. A paired device is
-marked trusted, so that BlueZ lets it use its services without asking the agent.
+not kept, and a device once disconnected cannot connect again, only be paired anew
+(`Paired: yes, Bonded: no`). Headphones pair "Just Works", which the kernel accepts by
+itself for such an agent; where BlueZ does ask (a confirmation, an authorization, the
+PIN of an old headset, a service of a device not trusted), the agent says yes only for
+the device the surface is pairing and refuses everyone else. The adapter stays as
+BlueZ sets it: not discoverable, so that no other device lists it, and taking
+connections only from devices it knows. A paired device is marked trusted, so that
+BlueZ lets it use its services without asking the agent.
 
 The adapter carries the audio (A2DP) to one device at a time: BlueZ lets each of its
 local stream endpoints serve one stream, also one at rest, and PipeWire registers one
 for SBC, the codec headphones and loudspeakers share (SBC-XQ shares it, AAC is not in
 Debian's PipeWire). A second device connecting then gets no A2DP ("Unable to select
-SEP" in the log of bluetoothd) and plays over the hands-free profile, mono at 16 kHz
-(the Jabra Elite 10 next to a JBL box, 2026-10-11). The manager therefore tells which
-devices take audio (`Device.audio`), which one holds A2DP (`Device.a2dp`, from the
-transport BlueZ publishes for it) and in which order they connected; moving A2DP from
-one to the other is `audio.bluetooth_route`'s.
+SEP" in the log of bluetoothd) and plays over the hands-free profile, mono at 16 kHz.
+The manager therefore tells which devices take audio (`Device.audio`), which one holds
+A2DP (`Device.a2dp`, from the transport BlueZ publishes for it) and in which order they
+connected; moving A2DP from one to the other is `audio.bluetooth_route`'s.
 
 On Windows there is no system bus; the surface says so and leaves pairing to the
 system, where headphones are an output like any other.
@@ -476,9 +474,8 @@ class BluetoothManager(QObject):
     def stop_scan(self) -> None:
         """Ends a discovery the radio started, before `DISCOVERY_SECONDS` are over: the
         surface does so as soon as a device is tapped, since the one looked for has been
-        found then, and the inquiry takes the radio time a device playing needs (the
-        sound of headphones stuttered while it ran, with the JBL and the Jabra on the
-        Pi, 2026-10-11)."""
+        found then, and the inquiry takes the radio time a device playing needs: the
+        sound of headphones stutters while it runs."""
         if self._discovery_started:
             self._stop_discovery()
 
@@ -715,9 +712,9 @@ class BluetoothManager(QObject):
             self.adapter,
             ADAPTER,
             "SetDiscoveryFilter",
-            # A dict goes out as a{sv} with the value inside the variant already; wrapped
-            # in a QDBusVariant too it became a variant in a variant, which BlueZ refused
-            # as "Invalid arguments" (on the Pi, 09.10.2026).
+            # A dict goes out as a{sv} with the value inside the variant already;
+            # wrapped in a QDBusVariant too it becomes a variant in a variant, which
+            # BlueZ refuses as "Invalid arguments".
             [{"Transport": DISCOVERY_TRANSPORT}],
             self._on_filter_set,
         )
@@ -779,15 +776,15 @@ class BluetoothManager(QObject):
 
     def release_a2dp(self, device: Device, done: Callable[[Reply], None]) -> None:
         """Ends the radio's A2DP stream to a device, which frees it for another. A device
-        with the hands-free profile stays connected over that (the Jabra Elite 10), one
-        without goes altogether a few seconds later (the JBL box, whose hands-free
-        profile belongs to the phone; both 2026-10-11)."""
+        with the hands-free profile stays connected over that, one without goes
+        altogether a few seconds later (such as a loudspeaker whose hands-free profile
+        belongs to a phone)."""
         self._bus.call(device.path, DEVICE, "DisconnectProfile", [A2DP_SINK_UUID], done)
 
     def connect_a2dp(self, device: Device, done: Callable[[Reply], None]) -> None:
         """Sets up the radio's A2DP stream to a device connected without it; WirePlumber
-        switches its card from the hands-free profile to A2DP by itself (0.4 s with the
-        Jabra Elite 10, 2026-10-11)."""
+        switches its card from the hands-free profile to A2DP by itself, in about
+        0.4 s."""
         self._bus.call(device.path, DEVICE, "ConnectProfile", [A2DP_SINK_UUID], done)
 
     def show_activity(self, text: str) -> None:

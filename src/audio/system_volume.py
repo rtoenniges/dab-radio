@@ -7,14 +7,14 @@ passes it on to Bluetooth devices as their own volume (AVRCP absolute volume, in
 steps), so that their beeps and tones come at that level and not at their full one, and
 the buttons on such a device move the system's volume, which the radio follows
 (`changed`). Where there is no `pactl` (Windows, a Linux without the PulseAudio tools)
-`available` is False and the player attenuates as before.
+`available` is False and the player attenuates itself.
 
 The radio sets the system's volume only where it is the one program playing: the touch
 radio started through `pi/start-touch.sh` (`--system-volume`). Next to other programs,
 such as the touch surface in a window on the desktop of a Raspberry Pi, a loudspeaker
 pinned at 100 % (below) would play their sounds at full volume; there the controller
 builds this class disabled, `available` is False as without pactl, and the system's
-volume stays with the user (2026-10-11).
+volume stays with the user.
 
 Only a sink that applies its volume in the device itself is left the level: PulseAudio's
 flag HW_VOLUME_CTRL, which a Bluetooth device with AVRCP absolute volume carries.
@@ -23,16 +23,15 @@ a Bluetooth device brings its volume control up after its audio) and holds the v
 until the answer; a sink without it is reported (`software_volume`) and never set to
 a level. After a set the sink is read once more, and a device playing louder than the
 radio set is set again: WirePlumber writes back the volume it stored for a device
-right after it connects, which raced the radio's own on 2026-10-11.
+right after it connects, racing the radio's own.
 Where PipeWire applies the volume in software, the value lives on the device's route
 and has to be copied to the node that processes the samples, and after a reboot that
-copy can go missing: on 2026-10-11 the route of the HiFiBerry stood at -52.8 dB, which
-pactl reported, while its node played at 1.0, and the loudspeakers nearly blew (the same
-loss had been seen on 2026-10-10, route 0.064 and node 1.0). A set through pactl goes to
-the route as well and changes nothing when the value is the same. Such a sink is set to
-100 % (`VOLUME_NORM`) and the player attenuates: a value lost on the way can only make
-it quieter, never louder. A Bluetooth device with a volume of its own is not held so:
-it would play at 100 % of that volume, its beeps and tones too.
+copy can go missing: the route, which pactl reports, stands at a low volume while the
+node plays at 1.0, at full volume. A set through pactl goes to the route as well and
+changes nothing when the value is the same. Such a sink is set to 100 %
+(`VOLUME_NORM`) and the player attenuates: a value lost on the way can only make it
+quieter, never louder. A Bluetooth device with a volume of its own is not held so: it
+would play at 100 % of that volume, its beeps and tones too.
 
 The radio stays the source of the level: it writes the volume it remembers for an
 output whenever that output starts to play (`ReceiverController`).
@@ -80,11 +79,11 @@ _clock = time.monotonic
 # The flag of a sink whose volume the device applies itself (`pactl list sinks`).
 HARDWARE_VOLUME_FLAG = "HW_VOLUME_CTRL"
 # A Bluetooth device brings its volume control (AVRCP) up a second or two after its
-# audio, and until then PipeWire lists its sink without the flag: the Jabra Elite 10
-# was taken for a device without a volume of its own on 2026-10-11, asked at once, and
-# set to 100 % of its own volume. The flag is asked again at every change of a sink
-# and every `PROBE_RETRY_MS`, for `HARDWARE_WAIT_S`, before a sink counts as one that
-# applies its volume in software.
+# audio, and until then PipeWire lists its sink without the flag: asked at once, it
+# would be taken for a device without a volume of its own and set to 100 % of its own
+# volume. The flag is asked again at every change of a sink and every
+# `PROBE_RETRY_MS`, for `HARDWARE_WAIT_S`, before a sink counts as one that applies
+# its volume in software.
 HARDWARE_WAIT_S = 5.0
 PROBE_RETRY_MS = 500
 # When the sink is read once more after a set, the settle window being over: the
@@ -168,7 +167,7 @@ class SystemVolume(QObject):
     (`VERIFY_DELAY_MS`), and the radio never shows less than plays: a device that ended
     quieter than set is reported (`changed`, the slider follows), one that ended louder is
     set again, once, and reported if it stays louder (WirePlumber writes back the volume
-    it stored for a device right after it connects, which raced the radio's own).
+    it stored for a device right after it connects, racing the radio's own).
     """
 
     # The volume of a sink was changed elsewhere: its name, pactl's raw value (0 for

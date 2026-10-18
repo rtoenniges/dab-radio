@@ -1,15 +1,15 @@
 """The null symbol on the radio page, in the place of the slideshow
 (`ui.touch.display_choice`): the landscape of the detail view (`ui.touch.detail_view`)
-with the settings and the camera the user chose there (2026-10-13: a sliding FFT of
-1024, 4 ms, the whole band, 30 dB high, seen along the time axis from the front left),
-drawn from the stretch the signal processing cuts around the null symbol of every frame
+with fixed settings (a sliding FFT of 1024, 4 ms, the whole band, 30 dB high), seen at
+first along the time axis from the front left, drawn from the stretch the signal
+processing cuts around the null symbol of every frame
 (`dsp.signal_capture.NullSnapshotter`).
 
 It is drawn at the rate of the other plots (`render`, five times a second), from the
 newest stretch, taking turns between frames of even and of odd number. Some transmitters
-send their TII in every other null symbol only (5C), so the comb comes and goes; the
-newest stretch alone would nearly always be of the same kind, since two frames take
-192 ms against the 200 ms of the plot rate.
+send their TII in every other null symbol only, so the comb comes and goes; the newest
+stretch alone would nearly always be of the same kind, since two frames take 192 ms
+against the 200 ms of the plot rate.
 
 The stretches come only while the tile is shown. The landscape is coarser than in the
 detail view (`ROWS`, `COLUMNS`): plenty for the 640 px of the slide, and little work for
@@ -19,9 +19,9 @@ Fingers come through the slide area of the radio page, which keeps one for its l
 press: two turn the view as they move together and bring it closer or farther as they
 spread or close; on a PC the wheel zooms and the middle button held turns. Unlike the
 globe there, fingers turn it as well; like the globe, it is not shifted and has no
-double tap to return to the first view, that is for the detail view itself (wishes of
-the user, 2026-10-13). Where it was turned to stays, also over the next start
-(`SETTINGS_RADIO_NULL_SYMBOL_CAMERA`), as the globe keeps its distance.
+double tap to return to the first view, that is for the detail view itself. Where it
+was turned to stays, also over the next start (`SETTINGS_RADIO_NULL_SYMBOL_CAMERA`), as
+the globe keeps its distance.
 """
 
 from __future__ import annotations
@@ -52,18 +52,17 @@ RANGE_DB = 30.0
 ROWS = 100
 COLUMNS = 512
 # Along the time axis, from a little before the band's low edge with the strip of the
-# frame structure, so that the null symbol lies across the view: the camera the user
-# turned it to on 2026-10-13. It looks at the point the detail view looks at, the
-# middle of the landscape, which it turns around. (Looking at a point shifted so that
-# landscape and figures together stood in the middle, the landscape seemed shifted to
-# the right, the user found.)
+# frame structure, so that the null symbol lies across the view. It looks at the point
+# the detail view looks at, the middle of the landscape, which it turns around; looking
+# at a point shifted so that landscape and figures together stand in the middle makes
+# the landscape seem shifted to the right.
 CAMERA = WaterfallCamera(azimuth_deg=-75.34, elevation_deg=35.38, distance=4.4)
 
 
 def stored_camera(settings: QSettings) -> WaterfallCamera:
-    """The camera the tile was last turned to (`SETTINGS_RADIO_NULL_SYMBOL_CAMERA`), within
-    the bounds of the camera; the user's (`CAMERA`) without one, or where the setting was
-    edited by hand into something else."""
+    """The camera the tile was last turned to (`SETTINGS_RADIO_NULL_SYMBOL_CAMERA`),
+    within the bounds of the camera; the default (`CAMERA`) without one, or where the
+    setting was edited by hand into something else."""
     camera = dataclasses.replace(CAMERA)
     try:
         azimuth, elevation, distance = (

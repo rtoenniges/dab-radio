@@ -1,6 +1,4 @@
-"""OpenGL for the 3D view: the Earth and the orbits, drawn into an image. Taken over from
-the gnss-receiver project, without what belongs to a receiver there: the range spheres
-around the satellites, their circles on the ground and the map of the ionosphere.
+"""OpenGL for the 3D view: the Earth and the orbits, drawn into an image.
 
 Drawn off screen in a thread of its own, as `ui.offscreen_gl` describes; the globe's
 views share one thread (`GlobeRenderThread`) and so one context. Everything is in km,
@@ -77,8 +75,8 @@ PAN_LIMIT_KM = _SCENE_RADIUS_KM
 # ellipsoid.
 _EARTH_STEP_DEG = 2
 # The Earth's image: one pixel is 20 km wide. Coasts and borders are lines on top and
-# stay sharp; 4096 pixels would take twice as long to paint (0.16 s instead of 0.09 s on
-# the PC, measured 07.10.2026), without letting go of the GIL.
+# stay sharp; 4096 pixels would take twice as long to paint (0.16 s instead of 0.09 s),
+# without letting go of the GIL.
 SURFACE_WIDTH = 2048
 # The glow of the atmosphere ends at this many Earth radii.
 _ATMOSPHERE_SCALE = 1.05
@@ -360,9 +358,8 @@ class GlobeRenderer(OffscreenRenderer):
     Earth is in front; its camera a `Camera`.
 
     Setting up has, after the context and the shaders (`OffscreenRenderer`), three steps
-    of its own. Measured in the gnss-receiver on 02.10.2026: painting the Earth's image
-    0.18 s (here 0.09 s, `SURFACE_WIDTH`), the meshes 0.10 s; Qt does not let go of the
-    GIL in any of it.
+    of its own: painting the Earth's image (some 0.09 s, `SURFACE_WIDTH`), its texture,
+    and the meshes (0.10 s); Qt does not let go of the GIL in any of them.
     """
 
     log_name = "3D view"

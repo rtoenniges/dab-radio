@@ -3,15 +3,13 @@
 On Windows librtlsdr reaches the stick through libusb and the WinUSB driver. Without the
 pipe policy RAW_IO, WinUSB passes on one read at a time however many USB transfers
 librtlsdr keeps queued (libusb issue 490). Between two of them the stick is not polled
-for a moment, its buffer overflows, and samples are lost without any notice. Measured
-on 02.10.2026 in the GNSS receiver (`../gnss-receiver`, the same stick at the same
-2.048 MS/s) in the stick's test mode, a byte counter instead of samples: 3 jumps in
-600 s on an otherwise idle machine, each about 3600 bytes (0.9 ms), more of them and
-longer ones when the machine stutters; with RAW_IO none in 600 s. For DAB every such
-loss shifts the symbol grid in the middle of a frame (see `sdr.worker.RtlSdrWorker.run`).
-Read the way the radio reads (pyrtlsdr, transfers of 786 432 bytes), the same test
-showed no jump in 600 s with either library on 02.10.2026: with three times fewer
-transfer boundaries the losses are rarer here, the cause is the same.
+for a moment, its buffer overflows, and samples are lost without any notice. In the
+stick's test mode (a byte counter instead of samples) at 2.048 MS/s that makes a few
+jumps of about 0.9 ms in ten minutes on an otherwise idle machine, more and longer ones
+when the machine stutters; with RAW_IO none. For DAB every such loss shifts the symbol
+grid in the middle of a frame (see `sdr.worker.RtlSdrWorker.run`). With the radio's
+transfers of 786 432 bytes (pyrtlsdr) there are three times fewer transfer boundaries
+and the losses are rarer, but the cause is the same.
 
 The library bundled with `pyrtlsdrlib` (rtl-sdr 0.8.0 of the librtlsdr/librtlsdr fork)
 comes with a libusb that cannot set RAW_IO. `native/build_rtlsdr.ps1` therefore builds

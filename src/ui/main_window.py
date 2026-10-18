@@ -51,6 +51,7 @@ from ui.gnss_tab import GnssTab
 from ui.journaline_tab import JournalineTab
 from ui.language import restart_question, store_language, stored_language
 from ui.ofdm_tab import OfdmTab
+from ui.path_marks import code_text, delay_text
 from ui.programme_tab import ProgrammeTab
 from ui.receiver_controller import (
     CLIPPING_WARNING_THRESHOLD,
@@ -606,11 +607,17 @@ class MainWindow(QMainWindow):
 
         self._tii_label = QLabel(tr("Transmitters (TII): -"))
         self._tii_label.setWordWrap(True)
-        self._tii_table = QTableWidget(0, 3)
+        self._tii_table = QTableWidget(0, 4)
         self._tii_table.setHorizontalHeaderLabels(
             # Translators: the columns of the transmitter list: main and sub identifier
-            # of a transmitter (TII), its level, its share of the power.
-            [tr_context("transmitter identification", "ID"), tr("Level"), tr("Share")]
+            # of a transmitter (TII), its level, its share of the power, the delay of
+            # its first path in the impulse response.
+            [
+                tr_context("transmitter identification", "ID"),
+                tr("Level"),
+                tr("Share"),
+                tr_context("transmitter list", "Delay"),
+            ]
         )
         self._tii_table.verticalHeader().setVisible(False)
         self._tii_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
@@ -621,11 +628,13 @@ class MainWindow(QMainWindow):
             "The transmitters of the single frequency network, detected by their "
             "identification in the null symbol (TII, ETSI EN 300 401, clause 14.8). ID: main "
             "ID-sub ID. Level relative to the strongest transmitter, share of the power of all "
-            "transmitters detected.\n\n"
+            "transmitters detected. Delay: of its first path in the impulse response "
+            "(Signal tab), where it is marked in its colour.\n\n"
             "Unlike the other displays averaged, over the last {frames} null symbols: each "
             "transmitter occupies only 32 of 1536 carriers there, and only every second null "
-            "symbol carries the identification. Transmitters below the detection limit stay "
-            "undetected, even if they can be seen as a peak in the impulse response."
+            "symbol carries the identification. At the peaks of the impulse response the "
+            "identification is compared over the last 25 s; that finds transmitters well "
+            "below the detection limit, as long as they show as a peak."
         ).format(frames=TII_AVERAGED_FRAMES)
         self._tii_label.setToolTip(tii_tooltip)
         self._tii_table.setToolTip(tii_tooltip)
@@ -694,6 +703,7 @@ class MainWindow(QMainWindow):
         dsp.impulse_response_ready.connect(self._signal_tab.update_impulse_response)
         dsp.sfn_share_ready.connect(self._on_sfn_share_ready)
         dsp.tii_ready.connect(self._on_tii_ready)
+        dsp.tii_ready.connect(self._signal_tab.update_tii)
         dsp.symbol_windows_ready.connect(self._ofdm_tab.update)
         dsp.frequency_offset_ready.connect(self._on_frequency_offset_ready)
         dsp.clipping_ready.connect(self._on_clipping_ready)
@@ -919,6 +929,7 @@ class MainWindow(QMainWindow):
         self._tii_label.setText(tr("Transmitters (TII): -"))
         self._tii_table.setRowCount(0)
         self._pending_tii = None
+        self._signal_tab.reset_transmitters()
         self._clipping_label.setText(tr("Overload: -"))
         self._clipping_label.setStyleSheet("")
         self._programme_tab.reset_clock()
@@ -1080,15 +1091,25 @@ class MainWindow(QMainWindow):
                     result.frames,
                 ).format(frames=result.frames, limit=result.detection_limit_db)
             )
+        colours = self._signal_tab.transmitter_colours
+        colours.note(result.transmitters)
         self._tii_table.setRowCount(len(result.transmitters))
         for row, transmitter in enumerate(result.transmitters):
+            code = (transmitter.main_id, transmitter.sub_id)
             cells = (
-                f"{transmitter.main_id:02d}-{transmitter.sub_id:02d}",
+                code_text(code),
                 f"{transmitter.level_db:.1f} dB",
                 f"{transmitter.share * 100:.1f}%",
+                delay_text(transmitter.delay_s),
             )
             for column, text in enumerate(cells):
-                self._tii_table.setItem(row, column, QTableWidgetItem(text))
+                item = QTableWidgetItem(text)
+                if column == 0:
+                    item.setForeground(QBrush(colours.colour(code)))
+                    bold = item.font()
+                    bold.setBold(True)
+                    item.setFont(bold)
+                self._tii_table.setItem(row, column, item)
 
     def _on_alert_changed(self, active: bool) -> None:
         """Flags the programme tab while an emergency warning is on display, so that

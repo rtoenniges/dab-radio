@@ -222,8 +222,8 @@ class ChipRow(QScrollArea):
     sideways where it is wider than the page: the row keeps its natural width (`fit`),
     however many chips there are. A resizable row would be squeezed to the page
     instead: the style sheet gives every button a minimum width, and the layout shrinks
-    the chips down to it, cutting their names (seen with the eighth chip of the
-    settings, 10.10.2026). `fades` show where more lies beyond either edge."""
+    the chips down to it, cutting their names. `fades` show where more lies beyond
+    either edge."""
 
     def __init__(self, row: QWidget, parent: QWidget | None = None) -> None:
         super().__init__(parent)

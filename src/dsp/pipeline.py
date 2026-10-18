@@ -64,21 +64,21 @@ from dsp.spectrum import compute_power_spectrum, detect_clipping
 from dsp.subchannel import SubchannelDecoder
 from dsp.superframe import NUM_LOGICAL_FRAMES_PER_SUPERFRAME, SuperframeResult, decode_superframe
 from dsp.sync import find_null_symbol
-from dsp.tii import TiiDetector, null_symbol_carrier_power, null_symbol_spectrum
+from dsp.tii import TiiDetector, null_symbol_carriers, null_symbol_spectrum
 
 # Half width of the search window in which the null symbol is still searched once
-# locked. Transmitter and receiver clocks differ by only a few ppm (live: 1 sample per
-# frame, i.e. ~5 ppm), so the position of the next null symbol one frame length later
-# is predictable to within a few samples. What matters is that the window is
+# locked. Transmitter and receiver clocks differ by only a few ppm (typically 1 sample
+# per frame, i.e. ~5 ppm), so the position of the next null symbol one frame length
+# later is predictable to within a few samples. What matters is that the window is
 # guaranteed to contain ONLY ONE null symbol (they lie one frame length = 196 608
 # samples apart).
 NULL_TRACKING_WINDOW = 1024
 
 # Reserve beyond the end of the frame before a frame is processed. The PRS fine
 # alignment in `dsp.ofdm.demodulate_frame_symbols` can shift the frame start BACKWARDS
-# by up to `fft_length/2 - guard_length` samples; without this reserve the buffer
-# occasionally only sufficed for 74 instead of 75 data symbols afterwards, and the
-# frame silently dropped out for the MSC.
+# by up to `fft_length/2 - guard_length` samples; without this reserve the buffer may
+# then hold only 74 instead of 75 data symbols, and the frame silently drops out for
+# the MSC.
 FRAME_SLICE_MARGIN = 1024
 
 # This many consecutive unreliable frames (see `dsp.ofdm.demodulate_frame_symbols`)
@@ -86,8 +86,8 @@ FRAME_SLICE_MARGIN = 1024
 # afresh. Needed because tracking a frame grid once locked does not, unlike a search
 # over the whole buffer, correct itself: if acquisition locks onto a wrong position,
 # e.g. while the gain control is still settling right after start-up, it would stay
-# there forever. With intact reception a single unreliable frame is normal (live: 1
-# in 459), a whole second of them is not.
+# there forever. With intact reception a single unreliable frame is normal (about 1 in
+# 460), a whole second of them is not.
 MAX_UNRELIABLE_FRAMES = 10
 
 # Interval at which the compute load is reported (in seconds of processed signal).
@@ -345,7 +345,7 @@ class DspWorker(QObject):
         self._switch_to_announcements = False
         self._announcement_audio: AudioComponent | None = None
         self._iq_corrector = IqCorrector()
-        self._tii_detector = TiiDetector()
+        self._tii_detector = TiiDetector(sample_rate=sample_rate)
         # Same defaults as the GUI, which only reports changes.
         self._remove_dc = False
         self._correct_iq = False
@@ -598,16 +598,13 @@ class DspWorker(QObject):
         unusable for this: with every incoming read block the search span grows beyond
         two frame lengths, then contains TWO null symbols, and `find_null_symbol`
         simply returns the quieter of the two. Since the power in the null symbol
-        varies from frame to frame (live: a 16.6 dB spread, among other things because
-        of the TII signal), the later of the two is the quieter one in a good half of
-        the cases, and the frame in between is lost without replacement. For the FIC
-        that is harmless (every frame is decoded independently; live still 100 %
-        CRC-valid FIBs), for the MSC it is fatal: the time deinterleaver (see
-        `dsp.time_interleave.TimeDeinterleaver`) spreads every logical frame over 16
-        consecutive CIFs, so a single skipped frame permanently breaks the mapping and
-        makes audio decoding impossible (verified offline on a recording: with the
-        unchanged search 12.53 % bit errors after EEP, which is exactly the value for
-        pure random bits; with tracking 0.00 %).
+        varies from frame to frame (by up to some 16 dB, partly because of the TII
+        signal), the later of the two is the quieter one in a good half of the cases,
+        and the frame in between is lost without replacement. For the FIC that is
+        harmless (every frame is decoded independently), for the MSC it is fatal: the
+        time deinterleaver (see `dsp.time_interleave.TimeDeinterleaver`) spreads every
+        logical frame over 16 consecutive CIFs, so a single skipped frame permanently
+        breaks the mapping and makes audio decoding impossible.
 
         Returns:
             The absolute sample positions of the null symbols of all frames processed
@@ -861,17 +858,14 @@ class DspWorker(QObject):
 
         self._unreliable_frames = 0 if frame.reliable else self._unreliable_frames + 1
 
-        # The constellation is ALWAYS shown, for frames rated unreliable as well. An
-        # earlier version froze the display for such frames to avoid a briefly
-        # "collapsed" point cloud, but that defeats the purpose of the diagram: it is
-        # meant to show the signal actually received, especially when it is bad. For
-        # an unreliable frame `frequency_offset_hz` is the last trustworthy value (see
-        # `demodulate_frame_symbols`), i.e. exactly the frequency correction applied
-        # to this frame, so the display stays calm by itself without suppressing
-        # anything.
+        # The constellation is ALWAYS shown, for frames rated unreliable as well: the
+        # diagram is meant to show the signal actually received, especially when it is
+        # bad. For an unreliable frame `frequency_offset_hz` is the last trustworthy
+        # value (see `demodulate_frame_symbols`), i.e. exactly the frequency correction
+        # applied to this frame, so the display stays calm by itself.
         self.constellation_ready.emit(np.concatenate(frame.symbols))
         self.frequency_offset_ready.emit(frame.frequency_offset_hz)
-        self._emit_channel(frame.channel_estimate)
+        response_power = self._emit_channel(frame.channel_estimate)
         frame_start = null_index + self._mode.null_symbol_length + frame.sample_correction
         if self._signal_capture is not None:
             self._signal_capture.add_frame(
@@ -883,8 +877,12 @@ class DspWorker(QObject):
             )
             if snapshot is not None:
                 self.null_snapshot_ready.emit(snapshot)
-        self._update_tii(samples, frame_start, frame.frequency_offset_hz)
-        self._emit_symbol_windows(samples, frame_start, frame.frequency_offset_hz, frame.spectra)
+        # The null symbol preceding the frame, in the window of the TII.
+        null_spectrum = null_symbol_spectrum(
+            samples, frame_start, frame.frequency_offset_hz, self._sample_rate, self._mode
+        )
+        self._update_tii(null_spectrum, frame.channel_estimate, response_power)
+        self._emit_symbol_windows(samples, frame_start, null_spectrum, frame.spectra)
 
         # The first three data symbols of a frame (l=2,3,4) carry the FIC (ETSI EN
         # 300 401, clause 14.4.1) independently of the MSC configuration, so they can
@@ -904,8 +902,9 @@ class DspWorker(QObject):
         self._decode_msc(frame.symbols[3 : 3 + NUM_MSC_SYMBOLS_PER_FRAME])
         return True
 
-    def _emit_channel(self, channel_estimate: np.ndarray) -> None:
-        """Reports impulse response and SFN share (see `dsp.channel`).
+    def _emit_channel(self, channel_estimate: np.ndarray) -> np.ndarray:
+        """Reports impulse response and SFN share (see `dsp.channel`); returns the
+        impulse response (linear power) for the transmitter identification.
 
         Like the constellation, for every frame, unreliable ones included.
         """
@@ -917,22 +916,28 @@ class DspWorker(QObject):
         self.impulse_response_ready.emit(
             delays, 10 * np.log10(np.maximum(power / strongest, 1e-12))
         )
+        return power
 
-    def _update_tii(self, samples: np.ndarray, frame_start: int, freq_offset_hz: float) -> None:
-        """Adds the null symbol preceding the frame to the transmitter identification
-        (see `dsp.tii`).
-
-        `frame_start` is the frame position used for demodulation: behind the null
-        symbol, shifted by the fine alignment that was applied.
-        """
-        carrier_power = null_symbol_carrier_power(
-            samples, frame_start, freq_offset_hz, self._sample_rate, self._mode
-        )
-        if carrier_power is not None:
-            self.tii_ready.emit(self._tii_detector.add(carrier_power))
+    def _update_tii(
+        self,
+        null_spectrum: np.ndarray | None,
+        channel_estimate: np.ndarray,
+        response_power: np.ndarray,
+    ) -> None:
+        """Adds the null symbol preceding the frame, the frame's channel estimate and its
+        impulse response to the transmitter identification (see `dsp.tii`); skipped
+        while the null symbol does not lie entirely in the buffer."""
+        if null_spectrum is not None:
+            carriers = null_symbol_carriers(null_spectrum, self._mode)
+            result = self._tii_detector.add(carriers, channel_estimate, response_power)
+            self.tii_ready.emit(result)
 
     def _emit_symbol_windows(
-        self, samples: np.ndarray, frame_start: int, freq_offset_hz: float, spectra: np.ndarray
+        self,
+        samples: np.ndarray,
+        frame_start: int,
+        null_spectrum: np.ndarray | None,
+        spectra: np.ndarray,
     ) -> None:
         """Reports what the FFT per symbol received and delivered in this frame.
 
@@ -947,9 +952,7 @@ class DspWorker(QObject):
             SymbolWindows(
                 excerpt_start=first - frame_start,
                 magnitude=np.abs(samples[first:end]),
-                null_spectrum=null_symbol_spectrum(
-                    samples, frame_start, freq_offset_hz, self._sample_rate, mode
-                ),
+                null_spectrum=null_spectrum,
                 spectra=spectra,
             )
         )
@@ -1248,10 +1251,9 @@ class DspWorker(QObject):
 
         A superframe spans 5 logical frames, but its boundary is not tied to the frame
         clock and has to be found through the firecode. A plain sliding window over
-        the last 5 logical frames therefore systematically fails in 4 out of 5 cases
-        (measured offline: 124 valid of 619 attempts, exactly 1/5). Here the grid is
-        locked once and then counted on in steps of 5, so that every reported
-        `SuperframeResult` is a genuine statement about reception quality.
+        the last 5 logical frames therefore systematically fails in 4 out of 5 cases.
+        Here the grid is locked once and then counted on in steps of 5, so that every
+        reported `SuperframeResult` is a genuine statement about reception quality.
         """
         self._superframe_buffer.append(frame_bits)
         while len(self._superframe_buffer) >= NUM_LOGICAL_FRAMES_PER_SUPERFRAME:

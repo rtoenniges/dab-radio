@@ -111,13 +111,13 @@ class _Banner(QLabel):
 # seat's capabilities and sets the cursor image anew), which Bluetooth headphones do:
 # BlueZ gives them an input device for their buttons (AVRCP) a moment after they
 # connect and takes it away when they go. Qt learns nothing of it, so the window sets
-# the hidden cursor again, in steps, as the device may follow late (seen 09.10.2026).
+# the hidden cursor again, in steps, as the device may follow late.
 REHIDE_CURSOR_DELAYS_MS = (500, 1500, 3000, 6000)
 
 
 def rehide_cursor() -> None:
     """Tells the compositor the override cursor anew; nothing without one (a window on
-    the PC). Qt skips setting the cursor it believes is set, so it goes through another
+    a PC). Qt skips setting the cursor it believes is set, so it goes through another
     shape first, both in one round of the event loop, before anything is drawn."""
     app = QApplication.instance()
     override = app.overrideCursor() if app is not None else None

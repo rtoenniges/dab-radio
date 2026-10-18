@@ -24,8 +24,8 @@ All CRCs are the CRC-16 of DAB (CCITT, register preset to ones, result inverted)
 ARD TPEG sends one transport frame per data group, alternately a stream directory and
 one or two service frames of about 3 900 bytes: SNI, TEC (SCID 1) or TFP (SCID 2). Its
 continuity index counts modulo 4 (0, 1, 2, 3, 0, ...) where EN 300 401 has it count
-modulo 16; the decoder learns the modulus from the largest index it sees. In 240 s the
-SNI announced 655 TEC and 730 TFP messages, and 657 distinct TEC messages arrived.
+modulo 16; the decoder learns the modulus from the largest index it sees. The SNI
+announces several hundred TEC and TFP messages at a time.
 """
 
 from __future__ import annotations

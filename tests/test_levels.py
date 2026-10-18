@@ -30,7 +30,7 @@ def qapp():
 
 
 def test_the_level_is_that_of_the_sum_of_the_channels():
-    """Left the negative of right (seen between two titles of Absolut relax) sums to
+    """Left the negative of right (as in a pause between two titles on air) sums to
     silence; the same on both channels keeps its level."""
     tone = (np.sin(np.arange(1920) / 2) * 16384).astype(np.int16)
     both = np.column_stack([tone, tone]).ravel()

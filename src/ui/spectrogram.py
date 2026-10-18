@@ -9,8 +9,8 @@ The rows of the field are spectra one after another in time, cut in one of two w
   (2048 samples, 1 kHz per bin, without a window function, as the demodulator takes
   it) gives each carrier a bin of its own, but only where it lies within one symbol:
   there the spectrum is the channel, level to within a decibel; where it reaches into
-  the next symbol, the two interfere and it turns grainy (5.5 dB spread over the
-  carriers on 5C, 2026-10-12).
+  the next symbol, the two interfere and it turns grainy (some 5 dB spread over the
+  carriers).
 - `Rows.SYMBOLS`: one row per OFDM symbol, its FFT exactly where the demodulator takes
   it (the useful part; in the null symbol the window of the TII). Each column is one
   carrier, k kHz from the centre of the channel; the one at the centre is never sent.
@@ -46,8 +46,8 @@ DEFAULT_SPAN_KHZ = 2048
 NULL_LEAD = 0.2
 
 # At most this many rows and columns, unless a model is given others (`Spectrogram`):
-# the graphics card of the Raspberry Pi draws them
-# twice a second's worth of times over, and each takes an FFT.
+# the graphics card of the Raspberry Pi draws them twice a second's worth of times
+# over, and each takes an FFT.
 MAX_ROWS = 200
 MAX_COLUMNS = 1024
 # Rows of the sliding FFT come at least this many samples apart (7.8 µs).
@@ -61,7 +61,7 @@ DISCRETE_ROWS = 40
 # LEVEL_RANGES_DB below TOP_DB, to its top. The largest puts the floor a little above the
 # noise beside a strong ensemble (FLOOR_DB); the smaller ones show how level the plateau
 # is: a sliding FFT of 2048 within a symbol spreads 0.6 to 0.9 dB over the carriers,
-# reaching into the next one 4 to 5.8 dB (5C, 2026-10-12), which 50 dB of height hide.
+# reaching into the next one 4 to 6 dB, which 50 dB of height hide.
 TOP_DB = 5.0
 LEVEL_RANGES_DB = (10.0, 20.0, 30.0, 50.0)
 DEFAULT_LEVEL_RANGE_DB = 50.0
@@ -360,7 +360,7 @@ class Spectrogram:
         # each FFT is centred on it: begun there instead, every row would show what lies
         # half an FFT later, and the landscape would leave the back of the window empty
         # and push the rest over its front edge, the more the shorter the window (half of
-        # it with an FFT of 2048 over 1 ms, 2026-10-12).
+        # it with an FFT of 2048 over 1 ms).
         middle = start + (np.arange(rows) + 0.5) * hop
         starts = np.round(middle - size * average / 2).astype(np.int64)
         columns, khz = self._columns(size)

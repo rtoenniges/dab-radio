@@ -193,8 +193,8 @@ def test_a_device_chosen_is_played_to_anew_when_the_default_moves_away_from_it(
     started_player, media_devices
 ):
     """WirePlumber moves a stream whose own target was the default along with the default
-    (2026-10-11: the loudspeaker chosen, headphones connecting, the radio near silent in
-    them); a stream made anew to the device chosen, no longer the default, stays."""
+    (the loudspeaker chosen, headphones connecting: the radio near silent in them); a
+    stream made anew to the device chosen, no longer the default, stays."""
     player_, reports = started_player
     player_.set_output(SPEAKER.id())
     sink = _FakeSink()
@@ -243,9 +243,9 @@ def test_a_sound_card_taking_no_more_audio_has_lost_its_device(
 ):
     """Headphones switched off: PipeWire ends the stream pinned to their sink
     (`main.PINNED_STREAM_PROPERTIES`), and Qt 6.11 reports neither that nor the sink
-    going, it keeps listing the headphones (on the Pi, 2026-10-11). Audio waiting and
-    none taken for `STALL_SECONDS`: the device counts as gone and the default plays,
-    until Qt reports a device appearing."""
+    going, it keeps listing the headphones. Audio waiting and none taken for
+    `STALL_SECONDS`: the device counts as gone and the default plays, until Qt reports a
+    device appearing."""
     now = [100.0]
     monkeypatch.setattr(player, "_clock", lambda: now[0])
     player_, reports = started_player
@@ -453,8 +453,8 @@ def test_a_loudspeaker_stands_at_100_percent_and_the_player_attenuates(
     media_devices, system_volume, data_directory, make_controller
 ):
     """PipeWire applies the loudspeaker's volume in software, and after a reboot the
-    value it shows need not be the one its node plays at (route -52.8 dB, node 1.0 on
-    2026-10-11): the radio never leaves the level to it."""
+    value it shows need not be the one its node plays at: the radio never leaves the
+    level to it."""
     controller = make_controller(data_directory, start=False, system_volume=True)
     (system,) = system_volume
     gains = _Recorder(controller._volume_changed)

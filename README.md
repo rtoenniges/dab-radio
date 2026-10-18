@@ -27,7 +27,8 @@ Two user interfaces share one core:
   station lists of all channels and keeps them.
 - **Decoding:** null symbol detection, frame timing, frequency offset correction, OFDM
   demodulation, D-QPSK, deinterleaving, Viterbi decoding (UEP and EEP), FIC and MSC,
-  Reed-Solomon for DAB+, transmitter identification (TII) and SFN share.
+  Reed-Solomon for DAB+, transmitter identification (TII) also for each path of the
+  impulse response, telling further transmitters from reflections, and SFN share.
 - **Data services:** MOT slideshow, Dynamic Label with DL Plus, programme guide (SPI) with
   station logos, Journaline, announcements (also from other ensembles), traffic messages
   from ARD TPEG on a list and a map, and the GNSS corrections of GEPOS (RTCM 3, SSRZ) with
@@ -151,7 +152,7 @@ The Touch UI also runs in a 1280 × 720 window on a PC:
 | The RSPduo is not found | The SDRplay API service must be running, and only API 3.15 is accepted. |
 | The rtl_tcp server refuses the connection | rtl_tcp listens only on its own computer unless started with `-a 0.0.0.0` (or its address). |
 | The rtl_tcp server sends nothing | rtl_tcp serves one program at a time; another one is connected to it. |
-| Audio drops out with RTL_TCP over Wi-Fi | The radio holds one second of audio; TCP over Wi-Fi pauses for longer when packets are lost (seen while a window was dragged on the PC). A cable to the Pi is safer. |
+| Audio drops out with RTL_TCP over Wi-Fi | The radio holds one second of audio; TCP over Wi-Fi pauses for longer when packets are lost. A cable to the Pi is safer. |
 | Audio drops out with RTL_TCP while the computer is busy (Linux) | Linux limits the receive buffer the radio may ask for; allow 16 MiB with `sudo sysctl -w net.core.rmem_max=16777216` (lasting in a file under `/etc/sysctl.d/`). |
 
 ## The desktop window
@@ -202,7 +203,7 @@ details of the station playing. A click plays a station.
 
 | Tab | Shows |
 |---|---|
-| Signal | Spectrum, power envelope with the null symbols, constellation, channel impulse response |
+| Signal | Spectrum, power envelope with the null symbols, constellation, channel impulse response with the transmitter of each path |
 | OFDM | Time signal with guard intervals and FFT windows; FFT output of all symbols |
 | Data services | The data services in packet mode, and for one of them the path from Reed-Solomon to the MOT carousel |
 | Programme guide | The programme guides (SPI) of all channels |

@@ -1,9 +1,8 @@
 """Tests for the MOT slideshow according to ETSI TS 101 499 V3.2.1.
 
-The test data follow the encoding from the standard. That is the point: an earlier
-version of these tests had built category titles and URLs with a character set byte in
-front, the way the implementation wrongly expected. Both agreed with each other and
-were wrong together.
+The test data follow the encoding from the standard, not what the implementation
+expects: data built the way the implementation reads them would agree with it even
+where both are wrong.
 """
 
 from __future__ import annotations
@@ -122,8 +121,8 @@ def _in(category: int, slide: int) -> bytes:
 
 
 def test_text_parameters_are_plain_utf8():
-    """Clauses 5.3.3 and 5.3.5.4: plain UTF-8, no character set byte. With exactly
-    these values the earlier version turned into garbage or lost the first letter."""
+    """Clauses 5.3.3 and 5.3.5.4: plain UTF-8, no character set byte. Read with one in
+    front, exactly these values turn into garbage or lose the first letter."""
     slide = slide_from_object(
         _image(
             category_slide=_in(1, 1),

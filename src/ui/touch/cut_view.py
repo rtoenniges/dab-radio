@@ -81,7 +81,7 @@ END_VIEW_S = (14.0, 6.0)
 STEPS_S = (-1.0, -0.1, 0.1, 1.0)
 # How often at most the views of the stretch are painted anew: a finger reports some
 # sixty moves a second, and every picture holds the GUI thread, with the GIL the signal
-# processing needs, for some milliseconds (5 on the PC, 2026-10-13).
+# processing needs, for a few milliseconds.
 PAINT_INTERVAL_MS = 33
 # While it plays, the view turns over as the position leaves it on the right (within
 # this share of its span: not a view scrolled away by hand), the position then this far
@@ -186,9 +186,8 @@ def level_images(
     Made with numpy in a few milliseconds, much of it without the GIL, and only when
     the part shown or the level changes (`_StretchView`): painted with QPainter at
     every move, the level held the GUI thread 40 to 80 ms each time, and the signal
-    processing waited for the GIL beyond real time (2026-10-13, a handle dragged on the
-    PC). The layers of a picture share their colour, so the picture is that colour
-    times their alpha, looked up from a table."""
+    processing waited for the GIL beyond real time. The layers of a picture share their
+    colour, so the picture is that colour times their alpha, looked up from a table."""
     width = len(times) - 1
     if width <= 0 or height <= 0:
         return [QImage() for _ in pictures]

@@ -269,16 +269,14 @@ class OfdmPlots:
 
         Taken over the whole image the scale would be useless: the empty bins and the
         null symbol lie 30 to 45 dB below the carriers, so the scale would be spent
-        almost entirely on noise and all carriers would get the same colour (live: a
-        46 dB wide scale with all carriers in its top 4 dB, a single uniform block).
-        Only the data symbols on the used carriers count, therefore; whatever lies
-        below stays visible in the darkest colour.
+        almost entirely on noise and all carriers would get the same colour. Only the
+        data symbols on the used carriers count, therefore; whatever lies below stays
+        visible in the darkest colour.
 
         The lower limit follows their 1st percentile but keeps at least
         `_MIN_LEVEL_SPAN_DB` below the upper limit. Without that minimum span a flat
-        channel, the normal case with good reception (live: 1.9 dB variation across
-        the carriers), would be stretched over the full colour scale and a noise
-        ripple of one or two dB would look like a deep notch.
+        channel, the normal case with good reception, would be stretched over the full
+        colour scale and a noise ripple of one or two dB would look like a deep notch.
         """
         center = self._mode.fft_length // 2
         half = self._mode.num_carriers // 2

@@ -87,8 +87,8 @@ from ui.touch.wifi_view import WifiView
 # has rested this long, not for every step of a held button.
 RESTART_DELAY_MS = 1200
 # Restyling the whole window for the other colour scheme holds the GUI thread for a
-# moment (0.3 s on the Pi, 0.16 s on the PC, measured 2026-10-13 off screen); the
-# sheet with the choice closes first, and the scheme follows this much later.
+# moment (some 0.3 s on the Raspberry Pi); the sheet with the choice closes first, and
+# the scheme follows this much later.
 THEME_FEEDBACK_MS = 50
 
 # The list of categories on the left.
@@ -96,7 +96,7 @@ LIST_WIDTH = 300
 CATEGORY_ICON = 28
 CATEGORY_ICON_LEFT = 16
 CATEGORY_ROW_HEIGHT = 68
-# Between the parts of a state in the list ("WLAN-0815 · 5 GHz").
+# Between the parts of a state in the list ("HomeNet · 5 GHz").
 STATE_SEPARATOR = " · "
 
 _HINT = tr_noop("Changes to the device briefly restart a running reception.")
@@ -206,7 +206,7 @@ def coordinate_text(value: float, positive: str, negative: str) -> str:
 
 def sdr_state(settings: DeviceSettings) -> str:
     """The device, with the tuner of the RSPduo or the server of rtl_tcp:
-    "RSPduo · Tuner 2", "RTL_TCP · 192.168.2.55"."""
+    "RSPduo · Tuner 2", "RTL_TCP · 192.168.1.10"."""
     name = DEVICES[settings.device]
     rspduo = settings.rspduo()
     if rspduo is not None:
@@ -223,7 +223,7 @@ def audio_state(controller: ReceiverController) -> str:
 
 
 def wifi_state(wifi: WifiManager) -> str:
-    """The network and the band: "WLAN-0815 · 5 GHz"; "" where the Wi-Fi cannot be set
+    """The network and the band: "HomeNet · 5 GHz"; "" where the Wi-Fi cannot be set
     here (a PC)."""
     if not wifi.available:
         return ""
@@ -242,7 +242,7 @@ def wifi_state(wifi: WifiManager) -> str:
 
 
 def bluetooth_state(bluetooth: BluetoothManager) -> str:
-    """The device connected and its battery: "Jabra Elite 10 · Battery 50 %"; "" where
+    """The device connected and its battery: "Headset · Battery 50 %"; "" where
     Bluetooth cannot be set here (a PC)."""
     if not bluetooth.available:
         return ""
@@ -259,7 +259,7 @@ def bluetooth_state(bluetooth: BluetoothManager) -> str:
 
 def storage_state(controller: ReceiverController, volumes: VolumeManager) -> str:
     """The folder of the recordings and the space left on its drive: "USB-STICK ›
-    Aufnahmen · 12 GB free of 31 GB"."""
+    Recordings · 12 GB free of 31 GB"."""
     directory = controller.recording_directory
     text = directory_text(directory, volumes.volume_of(directory))
     if directory is None:

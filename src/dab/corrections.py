@@ -26,8 +26,8 @@ rotation during the signal's travel (Sagnac). The ionosphere uses a spherical Ea
 6370 km radius (clause 11.4.1), the troposphere the ellipsoid.
 
 Checked against the reference decoder of Geo++ (Geopp-SSRZ-Python-Demo, "state space
-influence") on the 15 minute recording of 5C; where it deviates from the format
-description, this module says so at the place.
+influence"); where it deviates from the format description, this module says so at the
+place.
 """
 
 from __future__ import annotations

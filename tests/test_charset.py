@@ -11,9 +11,8 @@ from dab.fig import decode_label
 
 
 def test_umlauts_as_received():
-    """Received exactly like this on 19 September 2026: Dlf and KLASSIK RADIO with
-    0x99 for ü, SCHLAGERPARADIES with 0xD9 for Ü, character set 0. Both used to come
-    out as "?"."""
+    """Received exactly like this: Dlf and KLASSIK RADIO with 0x99 for ü,
+    SCHLAGERPARADIES with 0xD9 for Ü, character set 0."""
     assert (
         decode_charset(b"Klassische Musik zum Wohlf\x99hlen und Entspannen", 0)
         == "Klassische Musik zum Wohlfühlen und Entspannen"
