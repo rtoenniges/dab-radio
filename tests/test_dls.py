@@ -450,7 +450,7 @@ def test_delete_object_removes_that_content_type():
         (54, 0, 4),  # reserved content type
         (64, 0, 4),  # reserved for future DL Plus additions
         (DlPlusContentType.INFO_DATE_TIME, 0, 4),  # meant for RT+ receivers only
-        (TITLE, 10, 10),  # reaches beyond the end of the text
+        (TITLE, 11, 1),  # starts behind the end of the text
     ],
 )
 def test_unusable_tags_create_no_object(tag):
@@ -460,6 +460,18 @@ def test_unusable_tags_create_no_object(tag):
     _feed_group(decoder, _dl_plus_group(_tags(tag), link=False))
 
     assert decoder.dl_plus.objects == {}
+
+
+def test_tag_reaching_past_the_text_is_cut_at_its_end():
+    """Some encoders tag every part one character too long. The part at the end of the
+    text then reaches past it and is cut there; the others lose the blank they take
+    along."""
+    decoder = DynamicLabelDecoder()
+    _send_text(decoder, "GREG KIHN BAND - JEOPARDY", toggle=False)
+
+    _feed_group(decoder, _dl_plus_group(_tags((ARTIST, 0, 15), (TITLE, 17, 9)), link=False))
+
+    assert decoder.dl_plus.objects == {ARTIST: "GREG KIHN BAND", TITLE: "JEOPARDY"}
 
 
 def test_reserved_dl_plus_command_is_ignored():

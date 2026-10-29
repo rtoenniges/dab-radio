@@ -7,6 +7,11 @@ All notable changes to the radio. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- DL Plus: A title or artist at the end of the text no longer goes missing on stations
+  that tag it a character too long
+
 ## [1.5.0] - 2026-10-18
 
 ### Added

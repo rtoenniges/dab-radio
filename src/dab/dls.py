@@ -367,8 +367,10 @@ class DynamicLabelDecoder:
             return
         start = tag[1] & 0x7F
         length = (tag[2] & 0x7F) + 1  # the length marker counts the characters after the first
-        if start + length > len(self._characters):
-            return  # does not fit the text, so it cannot belong to it
+        if start >= len(self._characters):
+            return  # starts behind the text, so it cannot belong to it
+        # Some encoders tag every part one character too long, so the part at the end of
+        # the text reaches past it: cut it there, and trim the blank the others take along.
         text = "".join(self._characters[start : start + length])
 
         # Clause 6.2: a single blank character deletes the object of that type.
@@ -380,6 +382,7 @@ class DynamicLabelDecoder:
             return
         if content_type.is_item and not item_running:
             return  # clause 5.2.1: no Item objects while no item is running
+        text = text.strip()
         if text:
             objects[content_type] = text
 
