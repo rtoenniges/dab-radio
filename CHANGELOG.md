@@ -7,6 +7,8 @@ All notable changes to the radio. The format follows
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-10-29
+
 ### Fixed
 
 - DL Plus: A title or artist at the end of the text no longer goes missing on stations
@@ -110,7 +112,8 @@ The first public release.
 - Desktop: Window for signal analysis
 - Languages: English and German
 
-[Unreleased]: https://github.com/rtoenniges/dab-radio/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/rtoenniges/dab-radio/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/rtoenniges/dab-radio/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/rtoenniges/dab-radio/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/rtoenniges/dab-radio/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/rtoenniges/dab-radio/compare/v1.3.1...v1.4.0
