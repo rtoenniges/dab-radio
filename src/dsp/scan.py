@@ -144,7 +144,13 @@ class EnsembleProbe:
         if frame is None or len(frame.symbols) < 3:
             return
 
-        for fib in extract_fibs_from_symbols(frame.symbols[:3], mode.num_carriers, mode.fft_length):
+        fibs = extract_fibs_from_symbols(
+            frame.symbols[:3],
+            mode.num_carriers,
+            mode.fft_length,
+            carrier_weights=frame.carrier_weights,
+        )
+        for fib in fibs:
             self.total_fibs += 1
             if check_fib_crc(fib):
                 self.valid_fibs += 1

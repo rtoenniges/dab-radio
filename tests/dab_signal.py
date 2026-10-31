@@ -126,6 +126,13 @@ def build_stream(
     return stream * np.exp(2j * np.pi * freq_offset_hz * n / SAMPLE_RATE)
 
 
+def interfering_carrier(num_samples: int, power: float, frequency_hz: float) -> np.ndarray:
+    """A continuous carrier of `power` at `frequency_hz` from the centre: a narrow
+    interferer in the band."""
+    n = np.arange(num_samples)
+    return np.sqrt(power) * np.exp(2j * np.pi * frequency_hz * n / SAMPLE_RATE)
+
+
 def paused_carrier(
     num_samples: int, power: float, pause_start: int, frequency_hz: float = 300_000.0
 ) -> np.ndarray:
@@ -133,8 +140,8 @@ def paused_carrier(
     frame, from `pause_start` on: its pauses make power minima that are not the
     ensemble's null symbols. On a whole subcarrier spacing it disturbs only that one
     subcarrier, so the ensemble stays decodable next to a carrier stronger than itself."""
+    carrier = interfering_carrier(num_samples, power, frequency_hz)
     n = np.arange(num_samples)
-    carrier = np.sqrt(power) * np.exp(2j * np.pi * frequency_hz * n / SAMPLE_RATE)
     carrier[(n - pause_start) % MODE_I.frame_length < MODE_I.null_symbol_length] = 0
     return carrier
 

@@ -16,7 +16,10 @@ NUM_MSC_SYMBOLS_PER_FRAME = 72  # OFDM symbols l=5..76 (transmission mode I)
 
 
 def assemble_msc_cifs(
-    msc_symbols: list[np.ndarray], num_carriers: int, fft_length: int
+    msc_symbols: list[np.ndarray],
+    num_carriers: int,
+    fft_length: int,
+    carrier_weights: np.ndarray | None = None,
 ) -> list[np.ndarray]:
     """Demaps the 72 MSC OFDM symbols of a frame (l=5..76) into the 4 CIFs they carry
     (ETSI EN 300 401, clauses 5.3.1 and 14.4).
@@ -24,8 +27,9 @@ def assemble_msc_cifs(
     The MSC counterpart of `dsp.fic.extract_fibs_from_symbols`: `msc_symbols` must be
     the already differentially demodulated D-QPSK constellation points of these 72
     symbols in physical carrier order (as delivered by
-    `dsp.ofdm.extract_used_carriers`), `num_carriers` points each. The CIFs hold soft
-    bits (see `dsp.qpsk.demap_soft_bits`).
+    `dsp.ofdm.extract_used_carriers`), `num_carriers` points each, scaled per carrier
+    by `carrier_weights` before demapping (see `dsp.qpsk.CarrierReliability`). The CIFs
+    hold soft bits (see `dsp.qpsk.demap_soft_bits`).
     """
     if len(msc_symbols) != NUM_MSC_SYMBOLS_PER_FRAME:
         raise ValueError(
@@ -33,6 +37,8 @@ def assemble_msc_cifs(
         )
 
     index = frequency_deinterleave_index(num_carriers, fft_length)
+    if carrier_weights is not None:
+        msc_symbols = [symbol * carrier_weights for symbol in msc_symbols]
     symbol_bits = [demap_soft_bits(deinterleave_frequency(symbol, index)) for symbol in msc_symbols]
     bitstream = np.concatenate(symbol_bits)
 

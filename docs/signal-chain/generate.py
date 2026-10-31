@@ -306,7 +306,7 @@ def build_block_diagram() -> Svg:
             "dsp/time_interleave.py · dsp/eep.py · dsp/uep.py · dsp/convolutional.py · dab/fig.py")
     s.block(48, 877, 190, "Frequency deinterleaving",
             ["Π(i) = 13·Π(i−1) + 511", "mod 2 048, ETSI 14.6"])
-    s.block(262, 877, 150, "QPSK demapping", ["Soft bits: Re and Im", "1 point → 2 values"])
+    s.block(262, 877, 150, "QPSK demapping", ["Soft bits: Re and Im", "weighted by carrier S/N"])
     s.arrow([(238, 906), (262, 906)])
     s.arrow([(412, 906), (450, 906)], head=False)
     s.arrow([(450, 851), (450, 961)], head=False)

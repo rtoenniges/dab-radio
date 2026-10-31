@@ -148,7 +148,7 @@ def _worker_knowing(monkeypatch, figs: tuple[str, ...] = FIGS_5C) -> DspWorker:
         parse_fib(fib(bytes.fromhex(fig)), worker._ensemble)
     # The CIFs go in directly instead of as QPSK symbols.
     monkeypatch.setattr(
-        "dsp.pipeline.assemble_msc_cifs", lambda cifs, *_: [soft_bits(cif) for cif in cifs]
+        "dsp.pipeline.assemble_msc_cifs", lambda cifs, *_, **__: [soft_bits(cif) for cif in cifs]
     )
     return worker
 

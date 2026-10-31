@@ -96,19 +96,25 @@ def split_fibs(info_bits: np.ndarray) -> list[np.ndarray]:
 
 
 def extract_fibs_from_symbols(
-    fic_symbols: list[np.ndarray], num_carriers: int, fft_length: int
+    fic_symbols: list[np.ndarray],
+    num_carriers: int,
+    fft_length: int,
+    carrier_weights: np.ndarray | None = None,
 ) -> list[np.ndarray]:
     """Decodes the 3 FIC OFDM symbols (l=2,3,4) of a frame to the 12 FIBs they contain
     (ETSI EN 300 401, clause 14.4.1).
 
     `fic_symbols` must be the already differentially demodulated D-QPSK constellation
     points of these three symbols in physical carrier order (as delivered by
-    `dsp.ofdm.extract_used_carriers`), `num_carriers` points each.
+    `dsp.ofdm.extract_used_carriers`), `num_carriers` points each. `carrier_weights`
+    scales them per carrier before demapping (see `dsp.qpsk.CarrierReliability`).
     """
     if len(fic_symbols) != 3:
         raise ValueError("FIC decoding needs exactly 3 OFDM symbols (l=2,3,4).")
 
     index = frequency_deinterleave_index(num_carriers, fft_length)
+    if carrier_weights is not None:
+        fic_symbols = [symbol * carrier_weights for symbol in fic_symbols]
     symbol_bits = [demap_soft_bits(deinterleave_frequency(symbol, index)) for symbol in fic_symbols]
     bitstream = assemble_fic_bitstream(symbol_bits)
 

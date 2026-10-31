@@ -7,11 +7,12 @@ holds the phase reference symbol and the PRS cross-correlation for the frame ali
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 
 from dab.constants import TransmissionMode
+from dsp.qpsk import RELIABILITY_SYMBOLS, CarrierReliability
 from dsp.sync import null_symbol_candidates
 from dsp.timing import find_integer_symbol_offset, generate_reference_symbol
 
@@ -221,6 +222,11 @@ class DemodulatedFrame:
     # `fft_length` bins with DC in the middle: unused edge bins included, before the
     # differential demodulation. For display.
     spectra: np.ndarray
+    # How far the soft bits of each carrier can be trusted (physical order, median 1;
+    # see `dsp.qpsk.CarrierReliability`), from the frames so far; the decoders scale the
+    # points by it before demapping, the constellation display does not. Only
+    # `FrameDemodulator` carries such an estimate over; None means equal weights.
+    carrier_weights: np.ndarray | None = None
 
 
 def demodulate_frame_symbols(
@@ -373,7 +379,8 @@ def demodulate_frame_symbols(
 
 class FrameDemodulator:
     """Demodulates frame after frame, carrying the last trustworthy sync parameters
-    over as the fallback for the next one (see `demodulate_frame_symbols`).
+    over as the fallback for the next one (see `demodulate_frame_symbols`), and the
+    reliability of each carrier (`DemodulatedFrame.carrier_weights`).
 
     Shared by reception (`dsp.pipeline.DspWorker`) and the channel scanner
     (`dsp.scan.EnsembleProbe`).
@@ -384,11 +391,14 @@ class FrameDemodulator:
         self._sample_rate = sample_rate
         self._last_sample_correction = 0
         self._last_frequency_offset = 0.0
+        self._reliability = CarrierReliability()
 
     def reset(self) -> None:
-        """Forgets the fallback values, e.g. after a channel change."""
+        """Forgets the fallback values and the carrier reliability, e.g. after a channel
+        change."""
         self._last_sample_correction = 0
         self._last_frequency_offset = 0.0
+        self._reliability.reset()
 
     def demodulate(
         self, samples: np.ndarray, null_start: int, max_data_symbols: int
@@ -402,10 +412,15 @@ class FrameDemodulator:
             fallback_sample_correction=self._last_sample_correction,
             fallback_freq_offset=self._last_frequency_offset,
         )
-        if frame is not None:
-            self._last_sample_correction = frame.sample_correction
-            self._last_frequency_offset = frame.frequency_offset_hz
-        return frame
+        if frame is None:
+            return None
+        self._last_sample_correction = frame.sample_correction
+        self._last_frequency_offset = frame.frequency_offset_hz
+        # Only a frame found for certain: the points of a misaligned one are noise and
+        # would make every carrier look equally bad.
+        if frame.reliable:
+            self._reliability.update(np.asarray(frame.symbols[:RELIABILITY_SYMBOLS]))
+        return replace(frame, carrier_weights=self._reliability.weights)
 
     def acquire(
         self, samples: np.ndarray, max_start: int, max_data_symbols: int
@@ -418,7 +433,8 @@ class FrameDemodulator:
         without a signal, or while the gain is still settling, no position is better.
         Checking right away instead of tracking a wrong candidate until it counts as
         lost costs a few demodulations, and only when the deepest one fails. A failed
-        check leaves the fallback values as they were (see `demodulate`).
+        check leaves the fallback values and the carrier reliability as they were (see
+        `demodulate`).
 
         `samples` must hold a whole frame behind each of the first `max_start`
         positions.

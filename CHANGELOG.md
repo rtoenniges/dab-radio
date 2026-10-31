@@ -7,6 +7,11 @@ All notable changes to the radio. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Reception, scan: A narrow interferer in the band no longer causes audio dropouts and
+  missing service information
+
 ## [1.5.2] - 2026-10-31
 
 ### Fixed

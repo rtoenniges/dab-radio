@@ -893,7 +893,7 @@ class DspWorker(QObject):
         # be decoded here unconditionally. An unreliable frame mostly yields FIBs with
         # a wrong CRC anyway, which are discarded automatically right there.
         if len(frame.symbols) >= 3:
-            self._decode_fic(frame.symbols[:3])
+            self._decode_fic(frame.symbols[:3], frame.carrier_weights)
 
         # The MSC needs ALL 72 symbols l=5..76. A truncated frame must not simply be
         # skipped silently: for the time deinterleaver that would be exactly the gap
@@ -903,7 +903,7 @@ class DspWorker(QObject):
             return True
         if len(frame.symbols) < 3 + NUM_MSC_SYMBOLS_PER_FRAME:
             return False
-        self._decode_msc(frame.symbols[3 : 3 + NUM_MSC_SYMBOLS_PER_FRAME])
+        self._decode_msc(frame.symbols[3 : 3 + NUM_MSC_SYMBOLS_PER_FRAME], frame.carrier_weights)
         return True
 
     def _emit_channel(self, channel_estimate: np.ndarray) -> np.ndarray:
@@ -961,9 +961,14 @@ class DspWorker(QObject):
             )
         )
 
-    def _decode_fic(self, fic_symbols: list[np.ndarray]) -> None:
+    def _decode_fic(
+        self, fic_symbols: list[np.ndarray], carrier_weights: np.ndarray | None = None
+    ) -> None:
         fibs = extract_fibs_from_symbols(
-            fic_symbols, self._mode.num_carriers, self._mode.fft_length
+            fic_symbols,
+            self._mode.num_carriers,
+            self._mode.fft_length,
+            carrier_weights=carrier_weights,
         )
         ensemble = self._ensemble
 
@@ -1106,8 +1111,15 @@ class DspWorker(QObject):
             return None, None
         return component, self._ensemble.subchannels.get(component.subchannel_id)
 
-    def _decode_msc(self, msc_symbols: list[np.ndarray]) -> None:
-        cifs = assemble_msc_cifs(msc_symbols, self._mode.num_carriers, self._mode.fft_length)
+    def _decode_msc(
+        self, msc_symbols: list[np.ndarray], carrier_weights: np.ndarray | None = None
+    ) -> None:
+        cifs = assemble_msc_cifs(
+            msc_symbols,
+            self._mode.num_carriers,
+            self._mode.fft_length,
+            carrier_weights=carrier_weights,
+        )
         if self._selected_sid is not None:
             self._decode_audio_subchannel(cifs)
         if self._data_components:

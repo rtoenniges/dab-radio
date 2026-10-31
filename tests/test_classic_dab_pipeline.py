@@ -77,7 +77,7 @@ def test_classic_dab_service_yields_mp2_frames_and_dynamic_label(monkeypatch):
     worker.dynamic_label_ready.connect(labels.append)
     # The CIFs go in directly instead of as QPSK symbols.
     monkeypatch.setattr(
-        "dsp.pipeline.assemble_msc_cifs", lambda cifs, *_: [soft_bits(cif) for cif in cifs]
+        "dsp.pipeline.assemble_msc_cifs", lambda cifs, *_, **__: [soft_bits(cif) for cif in cifs]
     )
 
     cifs = _transmitted_cifs(logical_frames, subchannel)
