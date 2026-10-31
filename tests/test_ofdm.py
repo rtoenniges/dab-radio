@@ -3,6 +3,7 @@ import pytest
 
 from dab.constants import MODE_I, TransmissionMode
 from dsp.ofdm import (
+    FrameDemodulator,
     correct_frequency_offset,
     demodulate_frame_symbols,
     demodulate_symbol,
@@ -10,8 +11,9 @@ from dsp.ofdm import (
     estimate_frequency_offset,
     extract_used_carriers,
 )
+from dsp.sync import find_null_symbol
 from dsp.timing import generate_reference_symbol, physical_carrier_indices
-from tests.dab_signal import build_stream, fib, noise
+from tests.dab_signal import build_stream, fib, noise, paused_carrier
 
 SAMPLE_RATE = 2_048_000.0
 QPSK_ALPHABET = np.array([1 + 1j, 1 - 1j, -1 + 1j, -1 - 1j]) / np.sqrt(2)
@@ -264,6 +266,36 @@ def test_frame_without_dab_signal_is_unreliable():
         noise(3 * MODE_I.frame_length, rng), 0, MODE_I, SAMPLE_RATE, max_data_symbols=75
     )
 
+    assert not frame.reliable
+
+
+def test_acquire_takes_the_null_symbol_behind_which_the_prs_lies():
+    """The pauses of a carrier in the band, twice as strong as the ensemble, make the
+    deepest power minimum; the check for the PRS passes over them."""
+    null_start = MODE_I.frame_length - 50_000
+    pause = null_start - 23_900
+    stream = build_stream([fib()] * 12, 3, np.random.default_rng(12), start_offset=50_000)
+    stream = stream + paused_carrier(len(stream), 2 * np.mean(np.abs(stream) ** 2), pause)
+    assert abs(find_null_symbol(stream, MODE_I, MODE_I.frame_length) - pause) < 50
+
+    null_index, frame = FrameDemodulator(MODE_I, SAMPLE_RATE).acquire(
+        stream, MODE_I.frame_length, 16
+    )
+
+    assert frame.reliable
+    assert abs(null_index + frame.sample_correction - null_start) <= 1
+
+
+def test_acquire_without_a_prs_takes_the_deepest_minimum():
+    quiet = 70_000
+    samples = noise(2 * MODE_I.frame_length, np.random.default_rng(13))
+    samples[quiet : quiet + MODE_I.null_symbol_length] *= 0.1
+
+    null_index, frame = FrameDemodulator(MODE_I, SAMPLE_RATE).acquire(
+        samples, MODE_I.frame_length, 16
+    )
+
+    assert abs(null_index - quiet) <= 2
     assert not frame.reliable
 
 

@@ -7,6 +7,11 @@ All notable changes to the radio. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Reception, scan: Ensembles next to stronger neighbouring channels are received instead of
+  never locking
+
 ## [1.5.1] - 2026-10-29
 
 ### Fixed

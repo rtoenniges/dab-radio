@@ -11,7 +11,6 @@ from dab.ensemble_cache import SOURCE_SCAN, EnsembleInfo
 from dab.fig import Ensemble, parse_fib
 from dsp.fic import check_fib_crc, extract_fibs_from_symbols
 from dsp.ofdm import FrameDemodulator
-from dsp.sync import find_null_symbol
 
 # This many CRC-valid FIBs make a channel count as receivable. Pure noise passes the
 # 16-bit CRC with a probability of 1/65536 per FIB. On an empty channel about 70 FIBs
@@ -141,8 +140,7 @@ class EnsembleProbe:
 
     def _decode_frame(self, samples: np.ndarray) -> None:
         mode = self._mode
-        null_index = find_null_symbol(samples, mode.null_symbol_length, max_start=mode.frame_length)
-        frame = self._demodulator.demodulate(samples, null_index, PROBE_DATA_SYMBOLS)
+        _, frame = self._demodulator.acquire(samples, mode.frame_length, PROBE_DATA_SYMBOLS)
         if frame is None or len(frame.symbols) < 3:
             return
 

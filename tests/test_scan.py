@@ -15,6 +15,7 @@ from tests.dab_signal import (
     fig1_ensemble_label,
     fig1_service_label,
     noise,
+    paused_carrier,
 )
 
 _BLOCK_SECONDS = SCAN_BLOCK_SAMPLES / SAMPLE_RATE
@@ -73,6 +74,24 @@ def test_probe_finds_ensemble_and_complete_service_list():
     assert info.eid == 0x10BC
     assert info.frequencies == ()  # the ensemble sends no FIG 0/21
     assert info.service_ensembles == ()  # nor FIG 0/24
+
+
+def test_probe_finds_the_ensemble_next_to_a_stronger_interferer_with_pauses():
+    """The pauses of a carrier in the band, twice as strong as the ensemble, are the
+    deepest power minima of every frame."""
+    rng = np.random.default_rng(6)
+    stream = build_stream(
+        _ensemble_fibs([0xD001, 0xD002]), num_frames=24, rng=rng, start_offset=70_000
+    )
+    pause = MODE_I.frame_length - 70_000 - 23_900
+    stream = stream + paused_carrier(len(stream), 2 * np.mean(np.abs(stream) ** 2), pause)
+    probe = EnsembleProbe(MODE_I, SAMPLE_RATE)
+
+    _feed_until_finished(probe, stream)
+
+    info = probe.result()
+    assert info is not None
+    assert info.label == "Test Mux"
 
 
 def test_probe_rejects_empty_channel_after_no_signal_time():

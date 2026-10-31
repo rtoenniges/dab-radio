@@ -12,6 +12,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from dab.constants import TransmissionMode
+from dsp.sync import null_symbol_candidates
 from dsp.timing import find_integer_symbol_offset, generate_reference_symbol
 
 
@@ -405,3 +406,31 @@ class FrameDemodulator:
             self._last_sample_correction = frame.sample_correction
             self._last_frequency_offset = frame.frequency_offset_hz
         return frame
+
+    def acquire(
+        self, samples: np.ndarray, max_start: int, max_data_symbols: int
+    ) -> tuple[int, DemodulatedFrame | None]:
+        """Finds a frame without a lock and demodulates it.
+
+        Tries the null symbol candidates among the first `max_start` positions
+        (`dsp.sync.null_symbol_candidates`), deepest first, and takes the first behind
+        which the PRS is found, i.e. whose frame is reliable. If none is, the deepest:
+        without a signal, or while the gain is still settling, no position is better.
+        Checking right away instead of tracking a wrong candidate until it counts as
+        lost costs a few demodulations, and only when the deepest one fails. A failed
+        check leaves the fallback values as they were (see `demodulate`).
+
+        `samples` must hold a whole frame behind each of the first `max_start`
+        positions.
+
+        Returns:
+            The position of the null symbol and the frame demodulated behind it (None
+            if not even one data symbol fits).
+        """
+        tried: list[tuple[int, DemodulatedFrame | None]] = []
+        for null_index in null_symbol_candidates(samples, self._mode, max_start):
+            frame = self.demodulate(samples, null_index, max_data_symbols)
+            if frame is not None and frame.reliable:
+                return null_index, frame
+            tried.append((null_index, frame))
+        return tried[0]

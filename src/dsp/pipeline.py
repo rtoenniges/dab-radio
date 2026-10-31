@@ -646,9 +646,10 @@ class DspWorker(QObject):
         """Position of the next null symbol in the buffer, or None (wait for more).
 
         Without a lock the search span is limited to at most ONE frame length so that
-        it is guaranteed to contain only one null symbol; afterwards the search is
-        confined to a narrow window around the predicted position (see
-        `_drain_complete_frames`).
+        it is guaranteed to contain only one null symbol of the ensemble, and the
+        candidates in it are checked for the PRS (see `FrameDemodulator.acquire`);
+        afterwards the search is confined to a narrow window around the predicted
+        position (see `_drain_complete_frames`).
         """
         mode = self._mode
         buffer = self._frame_buffer
@@ -657,14 +658,17 @@ class DspWorker(QObject):
             span = min(len(buffer) - mode.frame_length, mode.frame_length)
             if span < mode.null_symbol_length:
                 return None
-            return find_null_symbol(buffer, mode.null_symbol_length, max_start=span)
+            # `_process_frame` demodulates the frame found once more, with as many
+            # symbols as it needs; acquisition is rare.
+            null_index, _ = self._demodulator.acquire(buffer, span, self._max_data_symbols)
+            return null_index
 
         low = max(0, self._expected_null - NULL_TRACKING_WINDOW)
         high = self._expected_null + NULL_TRACKING_WINDOW
         if len(buffer) < high + mode.null_symbol_length:
             return None
         window = buffer[low : high + mode.null_symbol_length]
-        return low + find_null_symbol(window, mode.null_symbol_length, max_start=high - low)
+        return low + find_null_symbol(window, mode, max_start=high - low)
 
     def _invalidate_msc_chain(self) -> None:
         """Discards the state of all stages that require a gapless CIF sequence: time

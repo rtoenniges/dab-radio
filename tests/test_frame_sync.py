@@ -23,6 +23,14 @@ from dsp.pipeline import (
     _DataSubchannelChain,
 )
 from sdr.worker import DEFAULT_READ_SIZE
+from tests.dab_signal import (
+    FIBS_PER_FRAME,
+    SAMPLE_RATE,
+    build_stream,
+    fib,
+    fig1_ensemble_label,
+    paused_carrier,
+)
 
 _MARKER_OFFSET = 100  # distance of the frame number marker behind the null symbol
 _MARKER_HALF_WIDTH = 20  # marker as a short block so that it survives sample jitter
@@ -219,6 +227,37 @@ def test_reliable_frames_keep_the_lock():
 
     assert calls["n"] > 10, "enough frames must have been processed"
     assert worker._expected_null is not None, "the lock must not be discarded"
+
+
+def test_acquisition_passes_over_the_pauses_of_a_stronger_interferer():
+    """A carrier in the band, twice as strong as the ensemble, falls silent once per
+    frame at a time of its own, so the deepest power minimum is its pause. Locked onto
+    it, no frame would be reliable, and every new acquisition would find the same pause
+    again: acquisition has to take the null symbol behind which the PRS lies."""
+    frame_length = MODE_I.frame_length
+    null_start = frame_length - 50_000
+    fibs = [fib(fig1_ensemble_label(0x10BC, "Test Mux"))] + [fib()] * (FIBS_PER_FRAME - 1)
+    stream = build_stream(fibs, 6, np.random.default_rng(7), start_offset=50_000)
+    power = 2 * np.mean(np.abs(stream) ** 2)
+    stream = stream + paused_carrier(len(stream), power, null_start - 23_900)
+    worker = DspWorker(SAMPLE_RATE, MODE_I)
+    starts: list[int] = []
+    decode = worker._process_frame
+
+    def record(samples: np.ndarray, null_index: int) -> bool:
+        starts.append(worker._buffer_start + null_index)
+        return decode(samples, null_index)
+
+    worker._process_frame = record  # type: ignore[method-assign]
+    for off in range(0, len(stream) - DEFAULT_READ_SIZE + 1, DEFAULT_READ_SIZE):
+        worker.process_samples(stream[off : off + DEFAULT_READ_SIZE])
+
+    assert starts
+    for start in starts:
+        assert (
+            abs((start - null_start + frame_length // 2) % frame_length - frame_length // 2) < 200
+        )
+    assert worker._ensemble.label == "Test Mux"
 
 
 def test_constellation_is_shown_for_unreliable_frames_too(monkeypatch):

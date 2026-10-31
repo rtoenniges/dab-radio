@@ -235,7 +235,7 @@ def build_block_diagram() -> Svg:
             disp=["Receiver errors"], ctrl="DC · IQ on/off")
     s.block(414, 334, 180, "Frame buffer", ["Concatenates blocks", "no frame is lost"])
     s.block(628, 334, 230, "Null symbol search",
-            ["Power minimum over 2 656 samples", "first whole frame, then ±1 024"],
+            ["Power in the band, min. over 2 656", "candidates checked by PRS, then ±1 024"],
             disp=["Power envelope"])
     s.dot(110, 363)
     s.arrow([(110, 363), (110, 298)])
