@@ -125,7 +125,7 @@ wheels = [
 
 [[package]]
 name = "dab-radio"
-version = "1.5.2"
+version = "1.5.3"
 source = { virtual = "." }
 dependencies = [
     { name = "numba" },

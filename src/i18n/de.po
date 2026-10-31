@@ -2,7 +2,7 @@
 # Brought up to date by src/i18n/update_catalogs.py.
 msgid ""
 msgstr ""
-"Project-Id-Version: dab-radio 1.5.2\n"
+"Project-Id-Version: dab-radio 1.5.3\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
 "POT-Creation-Date: 2026-10-10 16:51+0000\n"
 "PO-Revision-Date: 2026-10-10 16:51+0000\n"

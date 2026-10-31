@@ -122,7 +122,7 @@ logger = logging.getLogger(__name__)
 APPLICATION_NAME = "dab-radio"
 # Version of the radio (semantic versioning); the same as in pyproject.toml, which
 # `tests/test_version.py` checks.
-APPLICATION_VERSION = "1.5.2"
+APPLICATION_VERSION = "1.5.3"
 ENSEMBLE_CACHE_FILENAME = "ensembles.json"
 # Directory of the stored programme guides, one subdirectory per channel.
 GUIDE_CACHE_DIRECTORY = "programme_guides"
