@@ -283,7 +283,15 @@ class AlertSelector:
 
     def observe(self, state: EwsState, now: float) -> None:
         """Notes the alerts signalled at `now` (seconds, monotonic). The start of an
-        incident clears what the listener dismissed for its identifier (clause 7.4.2)."""
+        incident clears what the listener dismissed for its identifier (clause 7.4.2).
+
+        What was last seen longer ago is forgotten first: the state is reported only when
+        it changes, so the same alert sent again minutes later (EId, stage and IId
+        repeat) may be the first sighting since; it is a new alert message."""
+        self._sightings = {
+            key: seen for key, seen in self._sightings.items() if now - seen <= FORGET_SECONDS
+        }
+        self._done &= self._sightings.keys()
         for alert in state.alerts:
             if alert.key not in self._sightings and alert.stage in _STARTS:
                 self._dismissals.pop(alert.incident_key, None)
@@ -291,10 +299,6 @@ class AlertSelector:
             dismissal = self._dismissals.get(alert.incident_key)
             if dismissal is not None:
                 dismissal.seen = now
-        self._sightings = {
-            key: seen for key, seen in self._sightings.items() if now - seen <= FORGET_SECONDS
-        }
-        self._done &= self._sightings.keys()
         self._dismissals = {
             key: dismissal
             for key, dismissal in self._dismissals.items()

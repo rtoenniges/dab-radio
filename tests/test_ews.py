@@ -20,7 +20,7 @@ from dab.ews import (
     stage_matches,
 )
 from dab.fig import Ensemble, EwsSignal, parse_ews_signal, parse_fib
-from dab.location_code import LocationCode, location_code
+from dab.location_code import LocationCode, location_code, parse_presentation
 from tests.dab_signal import fib, fig0_2_audio_services
 
 EID = 0x10BC  # 5C, which takes part
@@ -120,12 +120,13 @@ def test_a_trigger_without_its_status_is_dropped():
 # --- Following the signals over time ------------------------------------------------------
 
 
-def _ensemble(*, subchannel: bool = True) -> Ensemble:
+def _ensemble(*, subchannel: bool = True, subchannel_id: int = ALERT_SUBCHANNEL) -> Ensemble:
     """5C as far as an alert needs it: EId (FIG 0/0), the alert service in FIG 0/2 and,
     unless left out, its subchannel in FIG 0/1."""
-    figs = [bytes.fromhex("050010bc2342"), fig0_2_audio_services([(ALERT_SID, ALERT_SUBCHANNEL)])]
+    figs = [bytes.fromhex("050010bc2342"), fig0_2_audio_services([(ALERT_SID, subchannel_id)])]
     if subchannel:
-        figs.append(bytes.fromhex("05011400" + "8824"))  # SubChId 5, EEP-3A, 36 CU
+        # The subchannel at the start of the CIF, EEP-3A, 36 CU.
+        figs.append(bytes([0x05, 0x01, subchannel_id << 2, 0x00, 0x88, 0x24]))
     ensemble = Ensemble()
     for fig in figs:
         parse_fib(fib(fig), ensemble)
@@ -326,6 +327,67 @@ def test_an_alert_played_is_not_played_again_while_signalled():
     assert _choose(selector, alert, now=20.0 + FORGET_SECONDS) is None  # seen at 20 s
     selector.observe(EwsState(), 21.0 + 2 * FORGET_SECONDS)
     assert _choose(selector, alert, now=22.0 + 2 * FORGET_SECONDS) == alert
+
+
+def test_the_same_alert_sent_again_minutes_later_plays_again():
+    """The state is reported only when it changes: the next sighting of an alert sent
+    again with the same EId, stage and IId, as the ASA function test every five
+    minutes, comes long after the last one. It is a new alert message."""
+    selector = AlertSelector()
+    alert = _alert()
+    _choose(selector, alert, now=0.0)
+    selector.finished(alert, 30.0)
+    selector.observe(EwsState(participating=True, eid=EID), 30.0)  # its end
+
+    assert _choose(selector, alert, now=300.0) == alert
+
+
+# The ASA function test as sent on 5C every five minutes (FIG 0/15 fields): an alert of
+# level 1 in subchannel 1 for the four cells around the Eiffel Tower, the test code
+# 1253-3513-3668 among them; the pre-trigger in the seconds before it (P/D set, start
+# second 63), the trigger several times a second for five seconds, the sustain once a
+# second while the announcement plays, then the end.
+FUNCTION_TEST_PRE_TRIGGER = "2f013f8f01c894090033"
+FUNCTION_TEST_TRIGGER = "0f418f01c894090033"
+FUNCTION_TEST_SUSTAIN = "8f81"
+FUNCTION_TEST_END = "afc1"
+REICHSTAG = location_code(52.5186538, 13.3761015)
+
+
+def test_the_asa_function_test_as_sent():
+    ensemble = _ensemble(subchannel_id=1)
+    monitor, selector = EwsMonitor(), AlertSelector()
+    test_code = parse_presentation("1253-3513-3668")
+
+    def at(now: float, *fields_hex: str) -> EwsState:
+        monitor.update(_signals(*fields_hex), now)
+        state = monitor.state(ensemble, now)
+        selector.observe(state, now)
+        return state
+
+    (pre_trigger,) = _signals(FUNCTION_TEST_PRE_TRIGGER)
+    assert (pre_trigger.phase, pre_trigger.start_second) == (Phase.PRE_TRIGGER, 63)
+    for second in range(3):
+        assert at(second, FUNCTION_TEST_PRE_TRIGGER).alerts == ()
+    state = at(5.0, *[FUNCTION_TEST_TRIGGER] * 10)
+    (alert,) = state.alerts
+    assert (alert.stage, alert.incident, alert.subchannel_id) == (Stage.LEVEL_1_START, 15, 1)
+    assert (alert.sid, alert.receivable) == (ALERT_SID, True)
+    assert alert.locations == {LocationCode(1, f"89409{area}") for area in "0145"}
+    assert test_code in alert.locations
+    assert selector.choose(state, test_code, lambda _alert: True) == alert
+    assert selector.choose(state, test_code, lambda _alert: True, monitor=True) == alert
+    assert selector.choose(state, REICHSTAG, lambda _alert: True) is None
+    selector.finished(alert, 5.0)
+
+    for second in range(10, 35):
+        state = at(second, FUNCTION_TEST_SUSTAIN)
+    assert (state.alerts, state.running) == ((), {1})
+    assert at(35.0, FUNCTION_TEST_END).running == frozenset()
+
+    # Five minutes later the same again.
+    state = at(305.0, FUNCTION_TEST_TRIGGER)
+    assert selector.choose(state, test_code, lambda _alert: True) == alert
 
 
 def test_dismissing_repeats_and_incidents():
