@@ -9,7 +9,8 @@ rail, the level beside the volume slider of the radio page, the constellation as
 or as a density, when the screen dims and goes off, `ui.touch.backlight`; the
 listener's position), Audio (the output, `audio.outputs`; the ceiling of the volume,
 `audio.volume`; the equalizer: on or off, the way to it, for all stations or per
-station, deleting all its settings; switching to announcements), Wi-Fi
+station, deleting all its settings; switching to announcements; the emergency
+warnings, ASA: on or off, the location code, their volume), Wi-Fi
 (`ui.touch.wifi_view`), Bluetooth (`ui.touch.bluetooth_view`), Storage (the USB drives
 and the directory for the recordings, `ui.touch.storage_view`), Recording
 (`ui.touch.recording_view`) and MQTT (the radio at the broker of a smart home,
@@ -37,6 +38,7 @@ from PyQt6.QtWidgets import (
 
 from audio.volume import CEILING_RANGE_DB
 from dab.gnss import Observer
+from dab.location_code import parse_presentation
 from i18n import available_languages, join, tr, tr_noop, tr_plural
 from net.bluetooth import BluetoothManager
 from net.mqtt import MqttBridge
@@ -46,6 +48,7 @@ from sdr.rtl_tcp import PORT_RANGE as RTL_TCP_PORT_RANGE
 from storage.volumes import VolumeManager, free_space
 from ui.language import restart_question, store_language, stored_language
 from ui.receiver_controller import (
+    ALARM_VOLUME_RANGE,
     APPLICATION_VERSION,
     DEVICES,
     HEIGHT_RANGE_M,
@@ -123,6 +126,20 @@ _OUTPUT_HINT = tr_noop(
 _ANNOUNCEMENT_HINT = tr_noop(
     "For an announcement from another ensemble the radio tunes there and returns afterwards."
 )
+# The emergency warnings (`dab.ews`): what the switch does, and how things stand with
+# the ensemble received.
+_EWS_HINT = tr_noop("Over every station, at their own volume, where they concern the location.")
+_EWS_TAKES_PART = tr_noop("The ensemble received takes part.")
+_EWS_NO_PART = tr_noop(
+    "The ensemble received sends no warnings: none reach the radio while it plays."
+)
+_CODE_DETAIL = tr_noop(
+    "Warnings for an area play only inside it. Enter the code of a place, or take the "
+    "one of the location under Display."
+)
+_ALARM_VOLUME_HINT = tr_noop("On the scale of the volume slider, also when muted.")
+_NO_LOCATION_HINT = tr_noop("No location yet: only warnings for a whole ensemble play.")
+ALARM_VOLUME_STEP = 5
 _NO_BACKLIGHT_HINT = tr_noop(
     "There is no backlight to switch here; "
     "on the Raspberry Pi the setting applies to the Touch Display 2."
@@ -651,6 +668,21 @@ class SettingsPage(QWidget):
         self._announcement_switch = Toggle()
         self._announcement_switch.setChecked(controller.announcement_switching)
         self._announcement_switch.toggled.connect(controller.set_announcement_switching)
+        # The emergency warnings: on or off, with how things stand with the ensemble
+        # received; the location code, from the position or entered; their volume.
+        self._ews_switch = Toggle()
+        self._ews_switch.clicked.connect(controller.set_ews_enabled)
+        self._ews_row = switch_row(tr("Play warnings"), self._ews_switch, tr(_EWS_HINT))
+        self._location_code = value_row(tr("Location code"), subtitle=" ")
+        self._location_code.tapped.connect(self._ask_location_code)
+        low, high = ALARM_VOLUME_RANGE
+        self._alarm_volume = Stepper(
+            range(low, high + 1, ALARM_VOLUME_STEP), lambda percent: f"{percent} %"
+        )
+        self._alarm_volume.value_changed.connect(controller.set_alarm_volume_percent)
+        self._show_ews()
+        controller.ews_changed.connect(self._show_ews)
+        controller.state_changed.connect(self._show_ews)
         audio_page = self._subpage(
             Card(
                 tr("Output"),
@@ -676,6 +708,14 @@ class SettingsPage(QWidget):
                         self._announcement_switch,
                         tr(_ANNOUNCEMENT_HINT),
                     )
+                ],
+            ),
+            Card(
+                tr("Emergency warnings"),
+                [
+                    self._ews_row,
+                    self._location_code,
+                    stepper_row(tr("Alarm volume"), self._alarm_volume, tr(_ALARM_VOLUME_HINT)),
                 ],
             ),
         )
@@ -890,6 +930,52 @@ class SettingsPage(QWidget):
                 "off and set to Flat."
             ),
             [(tr("Delete"), "danger", self._controller.reset_equalizers)],
+        )
+
+    # --- Emergency warnings -------------------------------------------------------------
+
+    def _show_ews(self, *_args: object) -> None:
+        controller = self._controller
+        self._ews_switch.setChecked(controller.ews_enabled)
+        if not controller.ews_enabled or not controller.is_receiving:
+            hint = tr(_EWS_HINT)
+        elif controller.ews_state.participating:
+            hint = tr(_EWS_TAKES_PART)
+        else:
+            hint = tr(_EWS_NO_PART)
+        self._ews_row.set_subtitle(hint)
+        code = controller.ews_location
+        # Translators: no location code is known, as the value of the row.
+        self._location_code.setText(code.presentation if code is not None else tr("None"))
+        self._location_code.set_placeholder(code is None)
+        if controller.ews_location_entered:
+            # Translators: the location code was typed in, beneath it.
+            source = tr("Entered")
+        elif code is not None:
+            source = tr("From the location under Display")
+        else:
+            source = tr(_NO_LOCATION_HINT)
+        self._location_code.set_subtitle(source)
+        self._alarm_volume.set_value(controller.alarm_volume_percent)
+
+    def _ask_location_code(self) -> None:
+        """The code to enter, or the location to take instead of one entered."""
+        actions = []
+        if self._controller.ews_location_entered:
+            actions.append(
+                (tr("Use location"), "", lambda: self._controller.set_ews_location(None))
+            )
+        actions.append((tr("Enter code"), "accent", self._edit_location_code))
+        self.action_sheet().open(tr("Location code"), tr(_CODE_DETAIL), actions)
+
+    def _edit_location_code(self) -> None:
+        code = self._controller.ews_location
+        self.number_pad().open_code(
+            tr("Location code"),
+            code.presentation if code is not None else "",
+            lambda text: self._controller.set_ews_location(parse_presentation(text)),
+            lambda text: parse_presentation(text) is not None,
+            tr("Twelve digits from 1 to 8"),
         )
 
     # --- Position ---------------------------------------------------------------------

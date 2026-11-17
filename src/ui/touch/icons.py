@@ -364,11 +364,29 @@ def _home(p: QPainter) -> None:
     p.drawPolyline(_polygon((6, 10.5), (6, 20), (18, 20), (18, 10.5)))
 
 
+def _alert(p: QPainter) -> None:
+    """A warning triangle with an exclamation mark: the emergency warnings."""
+    color = p.pen().color()
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    p.drawPolygon(_polygon((12, 3), (21.5, 20), (2.5, 20)))
+    p.drawLine(QPointF(12, 9), QPointF(12, 13.5))
+    p.setBrush(color)
+    p.drawEllipse(QPointF(12, 16.8), 1.1, 1.1)
+
+
+def _alert_off(p: QPainter) -> None:
+    """The warning triangle struck through: no warnings reach the radio."""
+    _alert(p)
+    p.drawLine(QPointF(4, 22), QPointF(20, 2))
+
+
 _SYMBOLS: dict[str, Callable[[QPainter], None]] = {
     "antenna": _antenna,
     "screen": _screen,
     "record": _record,
     "home": _home,
+    "alert": _alert,
+    "alert_off": _alert_off,
     "play": _play,
     "pause": _pause,
     "stop": _stop,

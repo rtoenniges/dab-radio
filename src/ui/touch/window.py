@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from dab.ews import EWS_TIMEOUT_SECONDS
 from dab.timecode import ReferenceClock
 from i18n import format_date, tr, tr_noop, weekday
 from net.wifi import BAND_5_GHZ
@@ -29,9 +30,10 @@ from ui.guide_model import GuideModel
 from ui.journaline_model import JournalineModel
 from ui.offscreen_gl import RenderThread
 from ui.receiver_controller import LOAD_WARNING_THRESHOLD, ReceiverController, ReceptionState
+from ui.touch.alert_view import AlertDialog
 from ui.touch.backlight import Backlight, Level, ScreenDimmer
 from ui.touch.glow import GlowingSymbol
-from ui.touch.icons import badged_pixmap, symbol_icon
+from ui.touch.icons import badged_pixmap, symbol_icon, symbol_pixmap
 from ui.touch.notification_view import NotificationDialog
 from ui.touch.radio_page import RadioPage
 from ui.touch.services_page import ServicesPage
@@ -65,7 +67,7 @@ _PAGES = (
 NAV_BUTTON_HEIGHT = 96
 NAV_ICON = QSize(36, 36)
 # The symbols above the clock (`TouchWindow._show_connectivity`): the Wi-Fi and
-# Bluetooth, each while it is on.
+# Bluetooth, each while it is on, and the emergency warnings (`_show_ews`).
 STATUS_ICON = 24
 
 # Key of the setting whether the rail shows the load (settings page, "Display"); hidden
@@ -268,13 +270,14 @@ class TouchWindow(QMainWindow):
         # keeps its height with both off, so that nothing above it moves.
         self._wifi_icon = QLabel()
         self._bluetooth_icon = QLabel()
+        self._ews_icon = QLabel()
         self._status_row = set_role(QWidget(), "transparent")
         self._status_row.setFixedHeight(STATUS_ICON)
         status_layout = QHBoxLayout(self._status_row)
         status_layout.setContentsMargins(0, 0, 0, 0)
         status_layout.setSpacing(12)
         status_layout.addStretch()
-        for icon in (self._wifi_icon, self._bluetooth_icon):
+        for icon in (self._wifi_icon, self._bluetooth_icon, self._ews_icon):
             icon.setFixedSize(STATUS_ICON, STATUS_ICON)
             status_layout.addWidget(icon)
         status_layout.addStretch()
@@ -314,6 +317,21 @@ class TouchWindow(QMainWindow):
         # wakes the screen, at night as much as by day.
         self._notification_dialog = NotificationDialog(self, controller.notifications)
         controller.notifications.posted.connect(lambda _notification: self._screen.touched())
+        # The emergency warning playing over everything, notifications included; one
+        # coming wakes the screen likewise.
+        self._alert_dialog = AlertDialog(self, controller)
+        controller.notifications.changed.connect(self._alert_dialog.keep_on_top)
+        controller.alert_changed.connect(self._on_alert_changed)
+        # Whether the ensemble received has had the time to tell that it takes part in
+        # the emergency warnings (`_show_ews`).
+        self._ews_settled = False
+        self._ews_settle_timer = QTimer(self)
+        self._ews_settle_timer.setSingleShot(True)
+        self._ews_settle_timer.setInterval(round(EWS_TIMEOUT_SECONDS * 1000))
+        self._ews_settle_timer.timeout.connect(self._on_ews_settled)
+        controller.live_reset.connect(self._on_live_reset)
+        controller.ews_changed.connect(self._show_ews)
+        controller.state_changed.connect(self._show_ews)
 
         self._radio_page.stations_requested.connect(lambda: self.show_page(STATIONS))
         self._radio_page.guide_requested.connect(self._show_guide)
@@ -445,6 +463,7 @@ class TouchWindow(QMainWindow):
             self._nav_buttons[page_key].setIcon(symbol_icon(symbol, muted, NAV_ICON, accent))
         self._overload_glow.set_theme(theme)
         self._show_connectivity()
+        self._show_ews()
         self._radio_page.apply_theme(theme)
         self._stations_page.apply_theme(theme)
         self._services_page.apply_theme(theme)
@@ -530,6 +549,45 @@ class TouchWindow(QMainWindow):
             bluetooth.powered,
             bluetooth.powered and bluetooth.connected_device is not None,
         )
+
+    def _on_alert_changed(self, playback: object) -> None:
+        if playback is not None:
+            self._screen.touched()
+        self._show_ews()
+
+    def _on_live_reset(self) -> None:
+        self._ews_settled = False
+        self._ews_settle_timer.start()
+        self._show_ews()
+
+    def _on_ews_settled(self) -> None:
+        self._ews_settled = True
+        self._show_ews()
+
+    def _show_ews(self, *_args: object) -> None:
+        """The warning triangle above the clock while warnings are on and reception
+        runs: in the colour of the text while the ensemble received takes part, red
+        while a warning plays; struck through and muted once the ensemble has not told
+        within `EWS_TIMEOUT_SECONDS` that it takes part, since no warning reaches the
+        radio then (ETSI TS 104 089, clause 7.2.1)."""
+        controller = self._controller
+        receiving = controller.state is ReceptionState.RECEIVING
+        participating = controller.ews_state.participating
+        playing = controller.alert is not None
+        on = (
+            controller.ews_enabled and receiving and (participating or playing or self._ews_settled)
+        )
+        if on:
+            if playing:
+                symbol, color = "alert", self._theme.color("danger")
+            elif participating:
+                symbol, color = "alert", self._theme.color("text")
+            else:
+                symbol, color = "alert_off", self._theme.color("muted")
+            self._ews_icon.setPixmap(
+                symbol_pixmap(symbol, color, STATUS_ICON, self.devicePixelRatioF())
+            )
+        self._ews_icon.setVisible(on)
 
     def _show_status_icon(
         self, label: QLabel, symbol: str, on: bool, connected: bool, badge: str = ""

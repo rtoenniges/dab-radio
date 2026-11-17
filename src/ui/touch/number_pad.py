@@ -1,6 +1,6 @@
 """A number pad over the whole window, for numbers a stepper would take too many steps
-to reach (the listener's position) and for IPv4 addresses: the touch display has no
-keyboard."""
+to reach (the listener's position), for IPv4 addresses and for the location code of
+the emergency warnings: the touch display has no keyboard."""
 
 from __future__ import annotations
 
@@ -38,6 +38,11 @@ SIGN = "±"
 ADDRESS_DOT = "."
 LIST_COMMA = ","
 LIST_SEPARATOR = ", "
+# A location code (`dab.location_code`): twelve symbols 1 to 8, shown in groups of four.
+CODE_SYMBOLS = "12345678"
+CODE_LENGTH = 12
+CODE_GROUP = 4
+CODE_SEPARATOR = "-"
 
 # The keys: digits like a telephone turned upside down (as on a calculator), with the
 # decimal separator and zero beneath; backspace and sign on the right.
@@ -92,6 +97,9 @@ class NumberPad(Overlay):
     first digit replaces the text there too, but backspace takes off one character
     (", " at once), so that the end of an address is changed quickly; a comma adds to
     the list as it stands.
+
+    `open_code` edits a location code: only the keys 1 to 8 write, the groups of four
+    part by themselves.
     """
 
     def __init__(self, parent: QWidget) -> None:
@@ -105,6 +113,7 @@ class NumberPad(Overlay):
         self._on_accept: Callable[[float], None] | None = None
         # Editing an address (`open_address`).
         self._address = False
+        self._code = False  # a location code (`open_code`)
         self._several = False
         self._check: Callable[[str], bool] = bool
         self._on_text: Callable[[str], None] | None = None
@@ -200,10 +209,37 @@ class NumberPad(Overlay):
         self._show()
         self.show_over()
 
-    def _set_address_mode(self, address: bool) -> None:
+    def open_code(
+        self,
+        title: str,
+        text: str,
+        on_accept: Callable[[str], None],
+        check: Callable[[str], bool],
+        hint: str,
+    ) -> None:
+        """Shows the pad with the location code `text` ("1255-4467-1251"); "Apply"
+        waits for `check`, `hint` beneath the keys turns red while it fails, and
+        `on_accept` gets the code taken over, in groups."""
+        self._set_address_mode(True, code=True)
+        self._title.setText(title)
+        self._check = check
+        self._range_text = hint
+        self._on_text = on_accept
+        self._text = text
+        self._fresh = True
+        self._show()
+        self.show_over()
+
+    def _set_address_mode(self, address: bool, code: bool = False) -> None:
         self._address = address
+        self._code = code
         self._keys[DECIMAL].setText(ADDRESS_DOT if address else decimal_separator())
         self._keys[SIGN].setText(LIST_COMMA if address else SIGN)
+        for key in ("0", "9"):
+            self._keys[key].setEnabled(not code)
+        if code:
+            self._keys[DECIMAL].setEnabled(False)
+            self._keys[SIGN].setEnabled(False)
 
     def dismiss(self) -> None:
         self._on_accept = None
@@ -255,6 +291,9 @@ class NumberPad(Overlay):
         self._show()
 
     def _press_address(self, key: str) -> None:
+        if self._code:
+            self._press_code(key)
+            return
         if key == BACKSPACE:
             cut = len(LIST_SEPARATOR) if self._text.endswith(LIST_SEPARATOR) else 1
             self._text = self._text[:-cut]
@@ -268,6 +307,20 @@ class NumberPad(Overlay):
             if len(self._text) < MAX_ADDRESS_CHARS:
                 self._text += character
         self._fresh = False
+
+    def _press_code(self, key: str) -> None:
+        symbols = self._text.replace(CODE_SEPARATOR, "")
+        if key == BACKSPACE:
+            symbols = symbols[:-1]
+        elif key in CODE_SYMBOLS:
+            if self._fresh:
+                symbols = ""
+            if len(symbols) < CODE_LENGTH:
+                symbols += key
+        self._fresh = False
+        self._text = CODE_SEPARATOR.join(
+            symbols[i : i + CODE_GROUP] for i in range(0, len(symbols), CODE_GROUP)
+        )
 
     def _show(self) -> None:
         if self._address:

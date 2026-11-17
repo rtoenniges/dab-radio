@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import html
+
 from PyQt6.QtCore import QSignalBlocker, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QActionGroup, QBrush, QCloseEvent, QColor, QIcon
 from PyQt6.QtWidgets import (
@@ -32,6 +34,7 @@ from PyQt6.QtWidgets import (
 from dab.announcement import AnnouncementStatus, announcement_types
 from dab.channels import BAND_III_CHANNELS
 from dab.constants import MODE_I, SAMPLE_RATE
+from dab.ews import stage_text
 from dab.journaline import JournalineParameters
 from dsp.channel import MAIN_PATH_HALF_WIDTH_SECONDS
 from dsp.iq_correction import IqCorrectionReport
@@ -61,6 +64,7 @@ from ui.receiver_controller import (
     LOAD_WARNING_THRESHOLD,
     RSPDUO_TUNERS,
     RTLSDR_PPM_RANGE,
+    AlertPlayback,
     AnnouncementVisit,
     DeviceSettings,
     ReceiverController,
@@ -116,6 +120,8 @@ class MainWindow(QMainWindow):
         # SId -> logo from the programme guides, for the service list.
         self._service_logos: dict[int, QIcon] = {}
         self._restart_box: QMessageBox | None = None
+        # The emergency warning playing, while it plays (`_on_ews_alert_changed`).
+        self._ews_box: QMessageBox | None = None
 
         self._build_menu()
         controls_layout = self._build_controls()
@@ -756,6 +762,7 @@ class MainWindow(QMainWindow):
         controller.guide_store_failed.connect(self._epg_tab.show_store_error)
         controller.announcement_changed.connect(self._on_announcement_changed)
         controller.announcement_visit_changed.connect(self._on_announcement_visit_changed)
+        controller.alert_changed.connect(self._on_ews_alert_changed)
         controller.load_changed.connect(self._on_load_changed)
         controller.scan_spectrum_ready.connect(self._signal_tab.update_spectrum)
 
@@ -1140,6 +1147,50 @@ class MainWindow(QMainWindow):
         self._tabs.setTabText(
             self._service_tab_index, tr("Station (announcement)") if active else tr("Station")
         )
+
+    def _on_ews_alert_changed(self, playback: AlertPlayback | None) -> None:
+        """An emergency warning plays (`ReceiverController.alert`, ASA): a box over the
+        window says what it is, with the station and its text, and offers to break it
+        off, once, with the repeats of its incident or with the incident; it closes
+        when the warning ends. Not modal: the radio goes on."""
+        box = self._ews_box
+        if playback is None:
+            if box is not None:
+                self._ews_box = None
+                box.done(0)
+            return
+        if box is None:
+            box = QMessageBox(self)
+            box.setIcon(QMessageBox.Icon.Warning)
+            box.setWindowTitle(self.windowTitle())
+            box.setTextFormat(Qt.TextFormat.PlainText)
+            repeats = box.addButton(tr("Skip repeats"), QMessageBox.ButtonRole.ActionRole)
+            incident = box.addButton(tr("Skip incident"), QMessageBox.ButtonRole.ActionRole)
+            end = box.addButton(tr("End"), QMessageBox.ButtonRole.RejectRole)
+            box.setDefaultButton(end)
+            box.buttonClicked.connect(
+                lambda button: self._end_ews_alert(
+                    repeats=button is repeats, incident=button is incident
+                )
+            )
+            box.finished.connect(box.deleteLater)
+            # Not even modal for the window (as `open` would make it): the volume, for
+            # one, stays at hand.
+            box.setWindowModality(Qt.WindowModality.NonModal)
+            box.show()
+            self._ews_box = box
+        box.setText(stage_text(playback.alert.stage))
+        if playback.subchannel_id is None:
+            station = tr("Looking for it on channel {channel} …").format(channel=playback.channel)
+        else:
+            station = playback.label or ""
+        details = [part for part in (station, playback.text) if part]
+        # As rich text, so that what the station sent shows as it was sent.
+        box.setInformativeText("<p>" + "<br>".join(html.escape(part) for part in details) + "</p>")
+
+    def _end_ews_alert(self, *, repeats: bool, incident: bool) -> None:
+        self._ews_box = None  # it closes with the button
+        self._controller.end_alert(dismiss_repeats=repeats, dismiss_incident=incident)
 
     def _on_journaline_parameters_ready(self, parameters: JournalineParameters | None) -> None:
         """FIG 0/13 names the point of entry of the selected service's Journaline."""

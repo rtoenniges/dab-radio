@@ -5384,6 +5384,29 @@ msgstr "Programm (Notfallwarnung)"
 msgid "Station (announcement)"
 msgstr "Sender (Durchsage)"
 
+#. breaks off the emergency warning and skips the repeats of its
+#. incident; updates still play.
+#: src/ui/main_window.py src/ui/touch/alert_view.py
+msgid "Skip repeats"
+msgstr "Wiederholungen ignorieren"
+
+#. breaks off the emergency warning and skips the rest of its
+#. incident but a critical warning.
+#: src/ui/main_window.py src/ui/touch/alert_view.py
+msgid "Skip incident"
+msgstr "Ereignis ignorieren"
+
+#. breaks off the emergency warning playing; its repeats would play
+#. again.
+#: src/ui/main_window.py src/ui/touch/alert_view.py
+msgid "End"
+msgstr "Beenden"
+
+#: src/ui/main_window.py src/ui/touch/alert_view.py
+#, python-brace-format
+msgid "Looking for it on channel {channel} …"
+msgstr "Suche auf Kanal {channel} …"
+
 #: src/ui/main_window.py src/ui/touch/stations_page.py
 #, python-brace-format
 msgid "Channel {channel}"
@@ -8931,6 +8954,40 @@ msgstr ""
 " und kehrt danach zurück."
 
 #: src/ui/touch/settings_page.py
+msgid "Over every station, at their own volume, where they concern the location."
+msgstr ""
+"Über jedem Sender, mit eigener Lautstärke, wenn sie den Standort "
+"betreffen."
+
+#: src/ui/touch/settings_page.py
+msgid "The ensemble received takes part."
+msgstr "Das empfangene Ensemble nimmt teil."
+
+#: src/ui/touch/settings_page.py
+msgid ""
+"The ensemble received sends no warnings: none reach the radio while it "
+"plays."
+msgstr ""
+"Das empfangene Ensemble sendet keine Warnungen: Solange es läuft, "
+"erreicht das Radio keine."
+
+#: src/ui/touch/settings_page.py
+msgid ""
+"Warnings for an area play only inside it. Enter the code of a place, or "
+"take the one of the location under Display."
+msgstr ""
+"Warnungen für ein Gebiet erklingen nur darin. Gib den Code eines Ortes "
+"ein (etwa von asa.radio) oder nimm den des Standorts unter „Anzeige“."
+
+#: src/ui/touch/settings_page.py
+msgid "On the scale of the volume slider, also when muted."
+msgstr "Auf der Skala des Lautstärkereglers, auch bei stummgeschaltetem Ton."
+
+#: src/ui/touch/settings_page.py
+msgid "No location yet: only warnings for a whole ensemble play."
+msgstr "Noch kein Standort: Nur Warnungen für ein ganzes Ensemble erklingen."
+
+#: src/ui/touch/settings_page.py
 msgid ""
 "There is no backlight to switch here; on the Raspberry Pi the setting "
 "applies to the Touch Display 2."
@@ -9116,6 +9173,14 @@ msgid "Delete all sound settings"
 msgstr "Alle Klangeinstellungen löschen"
 
 #: src/ui/touch/settings_page.py
+msgid "Play warnings"
+msgstr "Warnungen abspielen"
+
+#: src/ui/touch/settings_page.py
+msgid "Location code"
+msgstr "Standortcode"
+
+#: src/ui/touch/settings_page.py
 msgid "Maximum volume"
 msgstr "Maximale Lautstärke"
 
@@ -9130,6 +9195,14 @@ msgstr "Durchsagen"
 #: src/ui/touch/settings_page.py
 msgid "Switch to the station of the announcement"
 msgstr "Zum Sender der Durchsage umschalten"
+
+#: src/ui/touch/settings_page.py
+msgid "Emergency warnings"
+msgstr "Warnmeldungen (ASA)"
+
+#: src/ui/touch/settings_page.py
+msgid "Alarm volume"
+msgstr "Alarmlautstärke"
 
 #: src/ui/touch/settings_page.py
 #, python-brace-format
@@ -9151,6 +9224,32 @@ msgid ""
 msgstr ""
 "Der Equalizer jedes Senders und der für alle Sender werden ausgeschaltet "
 "und auf Linear gestellt."
+
+#. no location code is known, as the value of the row.
+#: src/ui/touch/settings_page.py
+msgid "None"
+msgstr "Keiner"
+
+#. the location code was typed in, beneath it.
+#: src/ui/touch/settings_page.py
+msgid "Entered"
+msgstr "Eingegeben"
+
+#: src/ui/touch/settings_page.py
+msgid "From the location under Display"
+msgstr "Aus dem Standort unter „Anzeige“"
+
+#: src/ui/touch/settings_page.py
+msgid "Use location"
+msgstr "Standort verwenden"
+
+#: src/ui/touch/settings_page.py
+msgid "Enter code"
+msgstr "Code eingeben"
+
+#: src/ui/touch/settings_page.py
+msgid "Twelve digits from 1 to 8"
+msgstr "Zwölf Ziffern von 1 bis 8"
 
 #: src/ui/touch/settings_page.py
 msgid "Latitude (south negative)"

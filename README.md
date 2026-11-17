@@ -33,6 +33,9 @@ Two user interfaces share one core:
   station logos, Journaline, announcements (also from other ensembles), traffic messages
   from ARD TPEG on a list and a map, and the GNSS corrections of GEPOS (RTCM 3, SSRZ) with
   a sky plot and a 3D view of the orbits.
+- **Emergency warnings** (ETSI TS 104 089, in Germany ASA): warnings for the listener's
+  location play over every station at an alarm volume of their own, also from other
+  ensembles; the location comes from the position or a location code entered.
 - **Audio:** a five-band equalizer for all stations or per station, output to the sound
   card, a USB sound card or Bluetooth devices.
 - **Recording** (Touch UI): the last titles played, split at the title changes and
@@ -136,7 +139,7 @@ A rail on the left leads to five pages:
 | Stations | All known stations as tiles, filtered by favourites or ensemble. A long press marks a favourite; **Scan** reads all channels. |
 | Services | Data services, programme guide, GNSS and traffic |
 | Signal | Overview, synchronisation, OFDM, a 3D detail view of one captured second, single frequency network, error correction |
-| Settings | SDR, display, audio, Wi-Fi, Bluetooth, storage, recording, MQTT |
+| Settings | SDR, display, audio with the emergency warnings, Wi-Fi, Bluetooth, storage, recording, MQTT |
 
 The Touch UI also runs in a 1280 × 720 window on a PC:
 `uv run python src/main.py --touch`.

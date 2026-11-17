@@ -7,6 +7,20 @@ All notable changes to the radio. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Emergency warnings (ASA, ETSI TS 104 089): The radio plays the warnings of the
+  ensemble received that concern the listener's location, over every station
+- Emergency warnings: A warning carried in another ensemble is heard there, and the radio
+  returns afterwards
+- Emergency warnings: Warnings play at a volume of their own, also when muted
+- Touch UI: A dialog shows the warning playing, with buttons to end it or to skip the
+  repeats or the rest of its incident
+- Touch UI: The menu bar shows whether warnings reach the radio on the ensemble received
+- Touch UI: Settings › Audio has a card for the warnings: on/off, the location code
+  (from the location or entered) and the alarm volume
+- Desktop: A box shows the warning playing, with the same buttons
+
 ## [1.5.3] - 2026-11-01
 
 ### Fixed
