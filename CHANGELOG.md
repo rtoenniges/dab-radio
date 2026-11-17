@@ -7,6 +7,8 @@ All notable changes to the radio. The format follows
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-11-17
+
 ### Added
 
 - Emergency warnings (ASA, ETSI TS 104 089): The radio plays the warnings of the
@@ -145,7 +147,8 @@ The first public release.
 - Desktop: Window for signal analysis
 - Languages: English and German
 
-[Unreleased]: https://github.com/rtoenniges/dab-radio/compare/v1.5.3...HEAD
+[Unreleased]: https://github.com/rtoenniges/dab-radio/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/rtoenniges/dab-radio/compare/v1.5.3...v1.6.0
 [1.5.3]: https://github.com/rtoenniges/dab-radio/compare/v1.5.2...v1.5.3
 [1.5.2]: https://github.com/rtoenniges/dab-radio/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/rtoenniges/dab-radio/compare/v1.5.0...v1.5.1
