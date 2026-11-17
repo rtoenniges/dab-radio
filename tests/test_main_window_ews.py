@@ -39,6 +39,7 @@ def window(data_directory, make_controller, fake_workers):
     cache.put("5C", EnsembleInfo("DR Deutschland", SERVICES, 0.0, SOURCE_SCAN, eid=EID_5C))
     cache.save()
     controller = make_controller(data_directory, start=False)
+    controller.set_ews_enabled(True)
     window = MainWindow(controller)
     controller.start()
     window.show()

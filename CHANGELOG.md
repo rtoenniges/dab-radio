@@ -10,7 +10,8 @@ All notable changes to the radio. The format follows
 ### Added
 
 - Emergency warnings (ASA, ETSI TS 104 089): The radio plays the warnings of the
-  ensemble received that concern the listener's location, over every station
+  ensemble received that concern the listener's location, over every station, once
+  they are switched on
 - Emergency warnings: A warning carried in another ensemble is heard there, and the radio
   returns afterwards
 - Emergency warnings: Warnings play at a volume of their own, also when muted

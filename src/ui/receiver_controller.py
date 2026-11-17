@@ -858,8 +858,9 @@ class ReceiverController(QObject):
 
         # The emergency warnings (`dab.ews`): the settings, what the tuned ensemble
         # signals, what was played and dismissed, the warning playing and, while one
-        # plays, the volume it plays at (the slider's own stays as it was).
-        self._ews_enabled = self._stored(_SETTINGS_EWS_ENABLED, True)
+        # plays, the volume it plays at (the slider's own stays as it was). Off until
+        # the listener switches them on: they cut in over everything, also when muted.
+        self._ews_enabled = self._stored(_SETTINGS_EWS_ENABLED, False)
         self._ews_code = parse_presentation(self._stored(_SETTINGS_EWS_LOCATION, ""))
         self._alarm_volume = _clamp(
             self._stored(_SETTINGS_ALARM_VOLUME, DEFAULT_ALARM_VOLUME_PERCENT),

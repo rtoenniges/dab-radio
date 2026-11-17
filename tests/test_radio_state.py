@@ -588,7 +588,7 @@ def test_warning_section_and_commands(radio, fake_workers):
     _receive(controller, fake_workers, services=[*SERVICES_5C, (ASA_DE, "ASA DE")])
     controller.select_service(DLF)
     assert model.section("warning") == {
-        "enabled": True,
+        "enabled": False,  # until switched on
         "location_code": None,  # neither entered nor a position
         "location_entered": False,
         "alarm_volume_percent": DEFAULT_ALARM_VOLUME_PERCENT,
@@ -604,6 +604,8 @@ def test_warning_section_and_commands(radio, fake_workers):
         "“code” must be a string, not 1253."
     )
     assert model.execute("set_warning_location", {"code": TEST_CODE}) is None
+    assert model.execute("set_warnings_enabled", {"enabled": True}) is None
+    assert model.section("warning")["enabled"] is True
     assert model.section("warning")["location_code"] == TEST_CODE
     assert model.section("warning")["location_entered"] is True
 

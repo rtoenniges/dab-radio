@@ -64,6 +64,7 @@ def window(data_directory, make_controller, fake_workers, monkeypatch):
     controller.start()
     window.show()
     window._alert_dialog._guard_ms = 0
+    controller.set_ews_enabled(True)
     controller.set_observer(POSITION)
     controller.play_service("5C", SERVICES_5C[1][0])
     worker = fake_workers[-1]

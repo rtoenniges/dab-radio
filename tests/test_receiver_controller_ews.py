@@ -79,6 +79,7 @@ def receiving(data_directory, make_controller, fake_workers, monkeypatch):
     cache.save()
     controller = make_controller(data_directory)
     controller.set_observer(REICHSTAG)
+    controller.set_ews_enabled(True)
     controller.set_volume_percent(40)
     controller.play_service("5C", DLF_KULTUR)
     worker = fake_workers[-1]
@@ -177,6 +178,7 @@ def test_without_a_position_only_warnings_for_the_whole_area_play(
     data_directory, make_controller, fake_workers
 ):
     controller = make_controller(data_directory)
+    controller.set_ews_enabled(True)
     controller.play_service("5C", DLF_KULTUR)
     worker = fake_workers[-1]
     worker.connected.emit("Connected.")
@@ -342,16 +344,16 @@ def test_closing_there_keeps_the_service_left_behind_for_the_next_start(data_dir
 
 def test_the_settings_are_kept(data_directory, make_controller):
     controller = make_controller(data_directory, start=False)
-    assert controller.ews_enabled
+    assert not controller.ews_enabled  # until the listener switches them on
     assert controller.alarm_volume_percent == DEFAULT_ALARM_VOLUME_PERCENT
-    controller.set_ews_enabled(False)
+    controller.set_ews_enabled(True)
     controller.set_ews_location(parse_presentation("1255-4467-1251"))
     controller.set_alarm_volume_percent(0)  # never silent
     controller.settings.sync()
 
     again = make_controller(data_directory, start=False)
 
-    assert not again.ews_enabled
+    assert again.ews_enabled
     assert again.ews_location == LocationCode(1, "91BB81")
     assert again.alarm_volume_percent == 5
     with pytest.raises(ValueError):

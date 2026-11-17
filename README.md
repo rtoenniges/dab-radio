@@ -35,7 +35,8 @@ Two user interfaces share one core:
   a sky plot and a 3D view of the orbits.
 - **Emergency warnings** (ETSI TS 104 089, in Germany ASA): warnings for the listener's
   location play over every station at an alarm volume of their own, also from other
-  ensembles; the location comes from the position or a location code entered.
+  ensembles; the location comes from the position or a location code entered. Off
+  until switched on in the settings.
 - **Audio:** a five-band equalizer for all stations or per station, output to the sound
   card, a USB sound card or Bluetooth devices.
 - **Recording** (Touch UI): the last titles played, split at the title changes and
