@@ -249,9 +249,10 @@ If the radio runs under another account (`--user NAME`), use that account and
 ## Remote control over MQTT
 
 The radio connects to the MQTT broker of a smart home (Mosquitto, Home Assistant,
-openHAB, ioBroker …). It publishes its state and the slideshow, takes commands (station,
-volume, output, equalizer, recording and more) and shows notifications with buttons on
-the display. With MQTT discovery the entities appear in Home Assistant automatically.
+openHAB, ioBroker …). It publishes its state, the slideshow and the emergency warning
+playing, takes commands (station, volume, output, equalizer, recording, emergency
+warnings and more) and shows notifications with buttons on the display. With MQTT
+discovery the entities appear in Home Assistant automatically.
 MQTT is set up on the Touch UI under Settings › MQTT; the desktop window has no MQTT.
 The interface is described in [docs/mqtt.md](docs/mqtt.md).
 

@@ -7,6 +7,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+from dataclasses import replace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -16,6 +17,7 @@ from PyQt6.QtGui import QImage
 
 import i18n
 from dab.ensemble_cache import SOURCE_SCAN, EnsembleCache, EnsembleInfo
+from dab.ews import EwsAlert, EwsState, Stage
 from dab.mot import CONTENT_TYPE_IMAGE, MotObject
 from dab.slideshow import PARAM_TRIGGER_TIME
 from net.mqtt import (
@@ -341,6 +343,68 @@ def test_set_topics_drive_the_commands(setup, fake_workers):
     assert len(results) == 11
 
 
+def test_emergency_warnings_for_home_assistant(setup, fake_workers):
+    bridge, _model, controller = setup
+    client = _connect(bridge)
+    warning = client.last_json(f"homeassistant/binary_sensor/{NODE}/warning/config")
+    assert warning["state_topic"] == "dabradio/state/warning"
+    assert warning["value_template"] == "{{ 'ON' if value_json.playing else 'OFF' }}"
+    assert warning["device_class"] == "safety"
+    assert warning["json_attributes_topic"] == "dabradio/state/warning"
+    end = client.last_json(f"homeassistant/button/{NODE}/end_warning/config")
+    assert (end["command_topic"], end["payload_press"]) == ("dabradio/set/end_warning", "END")
+    skip = client.last_json(f"homeassistant/button/{NODE}/skip_warning_incident/config")
+    assert (skip["command_topic"], skip["payload_press"]) == (
+        "dabradio/set/end_warning",
+        "INCIDENT",
+    )
+    volume = client.last_json(f"homeassistant/number/{NODE}/alarm_volume/config")
+    assert (volume["min"], volume["max"], volume["step"]) == (5, 100, 5)
+    assert volume["value_template"] == "{{ value_json.alarm_volume_percent }}"
+
+    client.deliver("dabradio/set/alarm_volume", "80")
+    assert controller.alarm_volume_percent == 80
+    assert client.last_json("dabradio/state/warning")["alarm_volume_percent"] == 80
+    client.deliver("dabradio/set/warnings", "OFF")
+    assert controller.ews_enabled is False
+    client.deliver("dabradio/set/warnings", "ON")
+    assert client.last_json("dabradio/state/warning")["enabled"] is True
+    client.deliver("dabradio/set/end_warning", "END")
+    assert client.last_json("dabradio/result") == {
+        "command": "end_warning",
+        "arguments": {},
+        "ok": False,
+        "message": "No emergency warning is playing.",
+    }
+    client.deliver("dabradio/set/end_warning", "later")
+    assert client.last_json("dabradio/result")["message"] == (
+        "“later” is neither END, REPEATS nor INCIDENT."
+    )
+
+    # A warning for the whole area plays; the button skips the rest of its incident.
+    _receive(controller, fake_workers)
+    alert = EwsAlert(False, 0x10BC, Stage.LEVEL_1_START, 2, whole_area=True, subchannel_id=1)
+    alert = replace(alert, sid=0x10C4, receivable=True)
+    controller.dsp_worker.ews_ready.emit(
+        EwsState(True, 0x10BC, (alert,), frozenset({1}), ((1, 0x10C4),))
+    )
+    playing = client.last_json("dabradio/state/warning")["playing"]
+    assert (playing["stage"], playing["whole_area"], playing["concerns_location"]) == (
+        "level_1_start",
+        True,
+        True,
+    )
+    client.deliver("dabradio/set/end_warning", "incident")
+    assert controller.alert is None
+    assert client.last_json("dabradio/result") == {
+        "command": "end_warning",
+        "arguments": {"skip": "incident"},
+        "ok": True,
+        "message": None,
+    }
+    assert client.last_json("dabradio/state/warning")["playing"] is None
+
+
 def test_command_topic_takes_json_arguments(setup):
     bridge, _model, controller = setup
     client = _connect(bridge)
@@ -369,7 +433,7 @@ def test_withdrawing_entities_and_moving_the_prefix(setup):
     bridge, _model, _controller = setup
     client = _connect(bridge)
     configs = [topic for topic in client.topics() if topic.endswith("/config")]
-    assert len(configs) == 23
+    assert len(configs) == 31
 
     bridge.apply(MqttSettings(enabled=True, host="broker", discovery=False))
     # The old client cleared every config before the connection was made anew.

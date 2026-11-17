@@ -31,6 +31,9 @@ comes from there, and the controller offers no accessor for the list on display.
 Notifications (`notify`) go to `ui.notifications.NotificationCenter` of the controller,
 which the touch surface shows; the open ones are the section `notifications`, and
 `notification_answered` reports how each one ended.
+
+The emergency warnings (ASA, `dab.ews`) are the section `warning`: the settings, whether
+the ensemble received takes part, the warning playing and those signalled.
 """
 
 from __future__ import annotations
@@ -51,7 +54,9 @@ from audio.outputs import AudioOutput
 from dab.announcement import ALARM_CLUSTER, AnnouncementStatus, announcement_types
 from dab.channels import BAND_III_CHANNELS
 from dab.dls import DynamicLabel
+from dab.ews import EwsAlert, location_matches, stage_text
 from dab.fig import Announcement, OeAnnouncement
+from dab.location_code import LocationCode, parse_presentation
 from dab.mot import MotObject
 from dab.programme_type import programme_type_name
 from dab.slideshow import SlideStore
@@ -80,7 +85,7 @@ from ui.notifications import (
 from ui.touch.quality import ReceptionQuality
 
 if TYPE_CHECKING:
-    from ui.receiver_controller import AnnouncementVisit, ReceiverController
+    from ui.receiver_controller import AlertPlayback, AnnouncementVisit, ReceiverController
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +97,7 @@ SECTIONS = (
     "audio",
     "signal",
     "announcement",
+    "warning",
     "favourites",
     "recorder",
     "recordings",
@@ -142,6 +148,10 @@ COMMANDS = (
     "set_favourite",
     "set_announcement_switching",
     "return_from_announcement",
+    "end_warning",
+    "set_warnings_enabled",
+    "set_alarm_volume",
+    "set_warning_location",
     "set_recording_enabled",
     "keep_recording",
     "delete_recording",
@@ -166,6 +176,11 @@ _BUSY = {
     "CONNECTING": "Reception is just starting.",
     "SCANNING": "The scan is running.",
 }
+# The volume of the emergency warnings, as the controller takes it
+# (`ui.receiver_controller.ALARM_VOLUME_RANGE`, not imported for the same reason).
+_ALARM_VOLUME_RANGE = (5, 100)
+# What `end_warning` may skip besides ending the warning playing.
+_WARNING_SKIPS = ("repeats", "incident")
 
 
 # --- Arguments --------------------------------------------------------------------------
@@ -442,6 +457,22 @@ def _announcement_json(announcement: Announcement | OeAnnouncement, source: str 
     }
 
 
+def _alert_json(alert: EwsAlert, here: LocationCode | None) -> dict:
+    """An alert as the section `warning` names it; `here` is the place warnings are
+    matched against."""
+    stage = alert.stage
+    return {
+        "stage": stage.name.lower(),
+        "text": english(stage_text(stage)),
+        "incident": alert.incident,
+        "ensemble_id": _hex(alert.eid),
+        "other_ensemble": alert.other_ensemble,
+        "whole_area": alert.whole_area,
+        "locations": sorted(str(code) for code in alert.locations),
+        "concerns_location": location_matches(alert, here),
+    }
+
+
 def _notification_json(notification: Notification) -> dict:
     return {
         "id": notification.id,
@@ -594,6 +625,8 @@ class RadioStateModel(QObject):
         controller.announcement_switching_changed.connect(
             lambda _enabled: self._refresh("announcement")
         )
+        controller.ews_changed.connect(lambda: self._refresh("warning"))
+        controller.alert_changed.connect(lambda _playback: self._refresh("warning"))
         controller.recordings_changed.connect(self._on_recorder)
         controller.recorder_status_changed.connect(lambda _status: self._on_recorder())
         controller.recording_directory_changed.connect(lambda _d: self._on_recorder())
@@ -747,6 +780,40 @@ class RadioStateModel(QObject):
         if self._controller.announcement_visit is None:
             raise CommandRejected("Reception is not at an announcement of another ensemble.")
         self._controller.return_from_announcement()
+
+    def _command_end_warning(self, arguments: Arguments) -> None:
+        """Ends the emergency warning playing; with `skip` "repeats" or "incident" also
+        what the listener does not want to hear of its incident any more, as the
+        buttons of the surfaces."""
+        skip = arguments.get("skip")
+        if skip is not None and skip not in _WARNING_SKIPS:
+            raise CommandRejected(f"“skip” must be “repeats” or “incident”, not {skip!r}.")
+        if self._controller.alert is None:
+            raise CommandRejected("No emergency warning is playing.")
+        self._controller.end_alert(
+            dismiss_repeats=skip == "repeats", dismiss_incident=skip == "incident"
+        )
+
+    def _command_set_warnings_enabled(self, arguments: Arguments) -> None:
+        self._controller.set_ews_enabled(_bool_argument(arguments, "enabled"))
+
+    def _command_set_alarm_volume(self, arguments: Arguments) -> None:
+        percent = _int_argument(arguments, "percent", *_ALARM_VOLUME_RANGE)
+        self._controller.set_alarm_volume_percent(percent)
+
+    def _command_set_warning_location(self, arguments: Arguments) -> None:
+        """Matches the warnings against a location code of twelve digits (ASA code), or
+        with `code` null or empty against the position again."""
+        code = arguments.get("code")
+        if code is None or code == "":
+            self._controller.set_ews_location(None)
+            return
+        if not isinstance(code, str):
+            raise CommandRejected(f"“code” must be a string, not {code!r}.")
+        location = parse_presentation(code)
+        if location is None:
+            raise CommandRejected(f"“{code}” is not a location code.")
+        self._controller.set_ews_location(location)
 
     def _command_set_recording_enabled(self, arguments: Arguments) -> None:
         self._controller.set_recording_enabled(_bool_argument(arguments, "enabled"))
@@ -995,6 +1062,38 @@ class RadioStateModel(QObject):
             "origin_channel": visit.origin_channel,
             "origin_sid": _hex(visit.origin_sid),
             "origin_name": visit.origin_label,
+        }
+
+    def _build_warning(self) -> dict:
+        controller = self._controller
+        state = controller.ews_state
+        here = controller.ews_location
+        return {
+            "enabled": controller.ews_enabled,
+            "location_code": None if here is None else here.presentation,
+            "location_entered": controller.ews_location_entered,
+            "alarm_volume_percent": controller.alarm_volume_percent,
+            "participating": state.participating,
+            "ensemble_id": _hex(state.eid),
+            "playing": self._alert_playback_json(controller.alert, here),
+            "signalled": [_alert_json(alert, here) for alert in state.alerts],
+        }
+
+    def _alert_playback_json(
+        self, playback: AlertPlayback | None, here: LocationCode | None
+    ) -> dict | None:
+        if playback is None:
+            return None
+        origin = playback.origin
+        return {
+            **_alert_json(playback.alert, here),
+            "channel": playback.channel or self._controller.channel,
+            "sid": _hex(playback.sid),
+            "name": playback.label,
+            "dynamic_label": playback.text,
+            "found": playback.subchannel_id is not None,
+            "origin_channel": None if origin is None else origin[0],
+            "origin_sid": None if origin is None else _hex(origin[1]),
         }
 
     def _build_favourites(self) -> dict:

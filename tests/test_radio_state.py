@@ -18,7 +18,9 @@ import i18n
 from dab.announcement import AnnouncementStatus, announcement_types
 from dab.dls import DlPlus, DlPlusContentType, DynamicLabel
 from dab.ensemble_cache import SOURCE_SCAN, EnsembleCache, EnsembleInfo
+from dab.ews import EwsAlert, EwsState, Stage
 from dab.fig import Announcement, AudioComponent, Subchannel
+from dab.location_code import LocationCode
 from dab.mot import CONTENT_TYPE_IMAGE, MotObject
 from dab.programme_type import programme_type_name
 from dab.slideshow import PARAM_TRIGGER_TIME
@@ -30,12 +32,48 @@ from recording.playback import PAUSED, PLAYING, PlaybackState
 from recording.recorder import RECORDING, RecorderStatus, Recording
 from tests.fake_receiver import ENSEMBLE_5C, SERVICES_5C, SERVICES_11D
 from ui import receiver_controller
-from ui.receiver_controller import APPLICATION_VERSION, ReceptionState
+from ui.receiver_controller import (
+    APPLICATION_VERSION,
+    DEFAULT_ALARM_VOLUME_PERCENT,
+    ReceptionState,
+)
 from ui.touch.quality import ReceptionQuality
 
 DLF, DLF_KULTUR = (sid for sid, _ in SERVICES_5C)
 NDR_2 = SERVICES_11D[0][0]
 START = 1_791_000_000.0
+
+
+# The ASA function test as sent on 5C: level 1 start, incident 15, in subchannel 1 for
+# the four cells around the Eiffel Tower (the test code 1253-3513-3668 is one of them).
+EID_5C = 0x10BC
+ASA_DE = 0x10C4
+TEST_CODE = "1253-3513-3668"
+EIFFEL_TOWER = frozenset(LocationCode(1, f"89409{area}") for area in "0145")
+
+
+def _function_test(**changes) -> EwsAlert:
+    alert = EwsAlert(
+        other_ensemble=False,
+        eid=EID_5C,
+        stage=Stage.LEVEL_1_START,
+        incident=15,
+        locations=EIFFEL_TOWER,
+        subchannel_id=1,
+        sid=ASA_DE,
+        receivable=True,
+    )
+    return replace(alert, **changes)
+
+
+def _ews(*alerts: EwsAlert, running=()) -> EwsState:
+    return EwsState(
+        participating=True,
+        eid=EID_5C,
+        alerts=alerts,
+        running=frozenset(running),
+        services=tuple((subchannel, ASA_DE) for subchannel in running),
+    )
 
 
 class _Log:
@@ -545,6 +583,90 @@ def test_announcement_section(radio, fake_workers):
     assert model.section("announcement")["active"] is None
 
 
+def test_warning_section_and_commands(radio, fake_workers):
+    model, controller = radio
+    _receive(controller, fake_workers, services=[*SERVICES_5C, (ASA_DE, "ASA DE")])
+    controller.select_service(DLF)
+    assert model.section("warning") == {
+        "enabled": True,
+        "location_code": None,  # neither entered nor a position
+        "location_entered": False,
+        "alarm_volume_percent": DEFAULT_ALARM_VOLUME_PERCENT,
+        "participating": False,
+        "ensemble_id": None,
+        "playing": None,
+        "signalled": [],
+    }
+    assert model.execute("set_warning_location", {"code": "1253-3513-3667"}) == (
+        "“1253-3513-3667” is not a location code."
+    )
+    assert model.execute("set_warning_location", {"code": 1253}) == (
+        "“code” must be a string, not 1253."
+    )
+    assert model.execute("set_warning_location", {"code": TEST_CODE}) is None
+    assert model.section("warning")["location_code"] == TEST_CODE
+    assert model.section("warning")["location_entered"] is True
+
+    # The function test, and a warning of level 2 in another ensemble for Berlin.
+    berlin = EwsAlert(True, 0x1188, Stage.LEVEL_2_START, 3, frozenset({LocationCode(1, "91B")}))
+    controller.dsp_worker.ews_ready.emit(_ews(_function_test(), berlin, running=[1]))
+    controller.dsp_worker.alert_label_ready.emit(DynamicLabel("Probealarm"))
+    warning = model.section("warning")
+    test = {
+        "stage": "level_1_start",
+        "text": "Warning",
+        "incident": 15,
+        "ensemble_id": "10BC",
+        "other_ensemble": False,
+        "whole_area": False,
+        "locations": ["Z1:894090", "Z1:894091", "Z1:894094", "Z1:894095"],
+        "concerns_location": True,
+    }
+    assert (warning["participating"], warning["ensemble_id"]) == (True, "10BC")
+    assert warning["signalled"] == [
+        test,
+        {
+            "stage": "level_2_start",
+            "text": "Warning",
+            "incident": 3,
+            "ensemble_id": "1188",
+            "other_ensemble": True,
+            "whole_area": False,
+            "locations": ["Z1:91B"],
+            "concerns_location": False,
+        },
+    ]
+    assert warning["playing"] == {
+        **test,
+        "channel": "5C",
+        "sid": "10C4",
+        "name": "ASA DE",
+        "dynamic_label": "Probealarm",
+        "found": True,
+        "origin_channel": None,
+        "origin_sid": None,
+    }
+
+    assert model.execute("end_warning", {"skip": "later"}) == (
+        "“skip” must be “repeats” or “incident”, not 'later'."
+    )
+    assert model.execute("end_warning", {"skip": "repeats"}) is None
+    assert controller.alert is None
+    assert model.section("warning")["playing"] is None
+    assert model.execute("end_warning") == "No emergency warning is playing."
+
+    assert model.execute("set_alarm_volume", {"percent": 3}) == (
+        "“percent” must be between 5 and 100."
+    )
+    assert model.execute("set_alarm_volume", {"percent": "85"}) is None
+    assert model.section("warning")["alarm_volume_percent"] == 85
+    assert model.execute("set_warnings_enabled", {"enabled": "off"}) is None
+    assert model.section("warning")["enabled"] is False
+    assert model.execute("set_warning_location", {"code": None}) is None
+    assert model.section("warning")["location_code"] is None
+    assert model.section("warning")["location_entered"] is False
+
+
 @pytest.fixture
 def german():
     """The surfaces in German, as chosen on the radio; English again after the test."""
@@ -586,6 +708,8 @@ def test_the_remote_interfaces_stay_english_when_the_surfaces_are_german(
         AnnouncementStatus(None, alarm_enabled=False, active=traffic, source_sid=DLF_KULTUR)
     )
     assert model.section("announcement")["active"]["types"] == ["Road Traffic flash"]
+    dsp.ews_ready.emit(_ews(_function_test()))
+    assert model.section("warning")["signalled"][0]["text"] == "Warning"  # "Warnung"
 
     assert model.execute("dance") == "Unknown command “dance”."
     assert model.execute("set_volume", {"percent": "loud"}) == (

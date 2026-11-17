@@ -18,7 +18,8 @@ Topics, under the prefix of the settings (`MqttSettings.prefix`, "dabradio"):
                               arguments as a JSON object, or empty
   <prefix>/set/<key>          a value for one entity (`SET_KEYS`): the station or output by
                               name, the volume in percent, ON or OFF for the switches,
-                              the text of a notification
+                              the text of a notification, END, REPEATS or INCIDENT to
+                              end the emergency warning playing
   <prefix>/result             what became of a command (JSON: command, arguments, ok,
                               message), not retained
   <prefix>/notification/answer  how a notification ended (`notify`; JSON: id, reason,
@@ -30,11 +31,14 @@ an automation waiting. Everything else goes at most once (QoS 0).
 The smart home finds the radio through MQTT Discovery, the scheme of Home Assistant
 that openHAB, Domoticz and others read as well (configs retained under
 `<discovery prefix>/<component>/<node>/<key>/config`): selects for the station (the
-favourites and the services of the ensemble) and the audio output, a number for the
-volume, switches for mute, reception, scan, recording, announcement switching and
-equalizer, sensors for station, ensemble, channel, text, title, artist, reception,
-status, recorder, codec and bit rate, the slideshow as an image, a notify entity for
-notifications of text alone and an event entity for their answers. The names, the
+favourites and the services of the ensemble) and the audio output, numbers for the
+volume and the alarm volume, switches for mute, reception, scan, recording,
+announcement switching, equalizer and the emergency warnings, sensors for station,
+ensemble, channel, text, title, artist, reception, status, recorder, codec, bit rate and
+the text of the emergency warning, binary sensors for the emergency warning playing and
+for whether the ensemble received carries warnings, buttons to end the warning, the
+slideshow as an image, a notify entity for notifications of text alone and an event
+entity for their answers. The names, the
 `result` texts and the name of the default output among the options are English,
 whatever the surfaces show; the status of the bridge, for the settings page, is
 translated.
@@ -86,7 +90,13 @@ SET_KEYS = (
     "equalizer",
     "output",
     "notify",
+    "warnings",
+    "alarm_volume",
+    "end_warning",
 )
+# The payloads of `set/end_warning`, from the buttons in the smart home: what to skip
+# besides ending the warning (`net.radio_state`, command `end_warning`).
+END_WARNING_PAYLOADS = {"END": None, "REPEATS": "repeats", "INCIDENT": "incident"}
 # The audio output that follows the default of the system, an option of the output select
 # in the smart home. Everything on MQTT is English, whatever the surfaces show.
 OUTPUT_AUTOMATIC = "Automatic"
@@ -428,6 +438,16 @@ class MqttBridge(QObject):
             case "notify":
                 # The notify entity of Home Assistant sends the message alone.
                 return "notify", {"message": text}
+            case "warnings":
+                return "set_warnings_enabled", {"enabled": text}
+            case "alarm_volume":
+                return "set_alarm_volume", {"percent": text}
+            case "end_warning":
+                payload = text.strip().upper()
+                if payload not in END_WARNING_PAYLOADS:
+                    raise ValueError(f"“{text}” is neither END, REPEATS nor INCIDENT.")
+                skip = END_WARNING_PAYLOADS[payload]
+                return "end_warning", {} if skip is None else {"skip": skip}
         raise ValueError(f"Unknown key “{key}”.")
 
     def _on_command_finished(self, name: str, arguments: object, answer: object) -> None:
@@ -650,6 +670,81 @@ class MqttBridge(QObject):
                 settings,
                 "mdi:equalizer",
             ),
+            self._switch(
+                "warnings",
+                "Emergency warnings",
+                "warning",
+                "value_json.enabled",
+                settings,
+                "mdi:alert",
+            ),
+            self._entity(
+                "number",
+                "alarm_volume",
+                "Alarm volume",
+                settings,
+                command_topic=self._topic("set/alarm_volume", settings),
+                state_topic=state["warning"],
+                value_template="{{ value_json.alarm_volume_percent }}",
+                min=5,
+                max=100,
+                step=5,
+                unit_of_measurement="%",
+                mode="slider",
+                icon="mdi:alarm-light",
+            ),
+            self._entity(
+                "binary_sensor",
+                "warning",
+                "Emergency warning",
+                settings,
+                state_topic=state["warning"],
+                value_template="{{ 'ON' if value_json.playing else 'OFF' }}",
+                payload_on="ON",
+                payload_off="OFF",
+                device_class="safety",
+                # The warning playing, with its stage, station and text.
+                json_attributes_topic=state["warning"],
+                json_attributes_template="{{ (value_json.playing or {}) | to_json }}",
+            ),
+            self._entity(
+                "sensor",
+                "warning_text",
+                "Warning text",
+                settings,
+                state_topic=state["warning"],
+                value_template=(
+                    "{{ value_json.playing.dynamic_label or '' if value_json.playing else '' }}"
+                ),
+                icon="mdi:alert-outline",
+            ),
+            self._entity(
+                "binary_sensor",
+                "warning_system",
+                "Warnings received",
+                settings,
+                state_topic=state["warning"],
+                value_template="{{ 'ON' if value_json.participating else 'OFF' }}",
+                payload_on="ON",
+                payload_off="OFF",
+                entity_category="diagnostic",
+                icon="mdi:shield-check-outline",
+            ),
+            self._button("end_warning", "End warning", "END", settings, "mdi:close-octagon"),
+            self._button(
+                "skip_warning_repeats",
+                "Skip warning repeats",
+                "REPEATS",
+                settings,
+                "mdi:skip-next",
+            ),
+            self._button(
+                "skip_warning_incident",
+                "Skip warning incident",
+                "INCIDENT",
+                settings,
+                "mdi:skip-forward",
+            ),
             self._sensor("service", "Station", "service", "name", settings, "mdi:radio"),
             self._sensor("ensemble", "Ensemble", "receiver", "ensemble", settings),
             self._sensor("channel", "Channel", "receiver", "channel", settings),
@@ -748,6 +843,20 @@ class MqttBridge(QObject):
             value_template="{{ 'ON' if " + condition + " else 'OFF' }}",
             payload_on="ON",
             payload_off="OFF",
+            icon=icon,
+        )
+
+    def _button(
+        self, key: str, name: str, payload: str, settings: MqttSettings, icon: str
+    ) -> tuple[str, dict]:
+        """A button that ends the emergency warning playing (`set/end_warning`)."""
+        return self._entity(
+            "button",
+            key,
+            name,
+            settings,
+            command_topic=self._topic("set/end_warning", settings),
+            payload_press=payload,
             icon=icon,
         )
 

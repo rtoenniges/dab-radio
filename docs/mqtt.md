@@ -223,6 +223,61 @@ of those, outside the guard interval, `load` the processing load (shares of real
 alarm announcement; `types` names the kinds (“Road Traffic flash”, “Area weather flash”,
 “Alarm” …).
 
+#### `warning`: emergency warnings
+
+```json
+{
+  "enabled": true,
+  "location_code": "1253-3513-3668",
+  "location_entered": true,
+  "alarm_volume_percent": 70,
+  "participating": true,
+  "ensemble_id": "10BC",
+  "playing": {
+    "stage": "level_1_start",
+    "text": "Warning",
+    "incident": 15,
+    "ensemble_id": "10BC",
+    "other_ensemble": false,
+    "whole_area": false,
+    "locations": ["Z1:894090", "Z1:894091", "Z1:894094", "Z1:894095"],
+    "concerns_location": true,
+    "channel": "5C",
+    "sid": "10C4",
+    "name": "ASA DE",
+    "dynamic_label": null,
+    "found": true,
+    "origin_channel": null,
+    "origin_sid": null
+  },
+  "signalled": []
+}
+```
+
+The emergency warnings of DAB (ETSI TS 104 089, in Germany ASA), here during the ASA
+function test, which is sent for a location code near the Eiffel Tower. `enabled` says
+whether the radio plays warnings, `location_code` is the location they are matched
+against as twelve digits, as asa.radio gives it, and `location_entered` whether it was
+entered; otherwise it is the code of the position set on the radio, `null` if neither is
+known (then only warnings for the whole area play). `alarm_volume_percent` is the volume
+warnings play at. `participating` says whether the ensemble received takes part in the
+warning system; only then can a warning reach the radio.
+
+`playing` is the warning the radio plays, `null` for none; `signalled` lists the
+warnings the ensemble announces right now, whether they concern the radio's location or
+not (each is announced for a few seconds as it starts). A warning has its `stage`
+(`level_1_start`, `level_1_update`, `level_1_repeat`, `level_1_critical`,
+`level_2_start`, `level_2_update`, `level_2_repeat`, `test`; level 1 also reaches a
+muted radio, level 2 only one that plays), `text` as the display names the stage
+(“Warning”, “Update”, “Repeat”, “Critical warning”, “Test”), the `incident` it belongs to
+(0 to 15), the ensemble carrying it (`ensemble_id`, `other_ensemble` if that is not the
+one received), its area (`whole_area`, or the location codes in `locations`, zone and
+digits as the standard writes them) and `concerns_location`, whether the radio's
+location lies within. `playing` adds the channel, SId and name of the station whose
+audio carries it, `dynamic_label` its text, `found` (false while the radio is still
+looking for it in another ensemble) and `origin_channel`/`origin_sid` of the station it
+goes back to afterwards (`null` while the station selected stays selected).
+
 #### `favourites`: the favourites
 
 ```json
@@ -319,6 +374,9 @@ For the entities of a smart home, one topic with a simple value each is enough:
 | `dabradio/set/equalizer` | ON or OFF | Equalizer on or off. |
 | `dabradio/set/output` | A name from `dabradio/output` or from the options of the output select, “Automatic” for the default output | Audio output. |
 | `dabradio/set/notify` | Any text | Shows the text as a notification with “OK” (as `notify` with `message` alone). |
+| `dabradio/set/warnings` | ON or OFF | Play emergency warnings. |
+| `dabradio/set/alarm_volume` | `5` to `100` | Volume of the emergency warnings in percent of the slider position. |
+| `dabradio/set/end_warning` | END, REPEATS or INCIDENT | Ends the emergency warning playing; REPEATS also skips its repeats, INCIDENT the rest of its incident (as `end_warning`). |
 
 The radio also understands ON and OFF as `on`/`off`, `true`/`false`, `1`/`0`, and the
 German `an`/`ein` and `aus`, whatever the language, case-insensitive.
@@ -349,6 +407,10 @@ list, case-insensitive).
 | `set_favourite` | `sid` or `name`, `favourite` (bool), optional `channel` | Add or remove a favourite; without `channel` the channel on display. |
 | `set_announcement_switching` | `enabled` (bool) | Switch to announcements. |
 | `return_from_announcement` | – | Return from the announcement of another ensemble. |
+| `end_warning` | optional `skip` (`"repeats"` or `"incident"`) | End the emergency warning playing, as the buttons on the display: with `"repeats"` its incident's repeats are not played any more, with `"incident"` nothing more of it but a critical warning or its next start. |
+| `set_warnings_enabled` | `enabled` (bool) | Play emergency warnings. |
+| `set_alarm_volume` | `percent` (5 to 100) | Volume of the emergency warnings. |
+| `set_warning_location` | `code` (twelve digits 1 to 8, with or without hyphens; `null` or `""` for the position) | The location the emergency warnings are matched against. |
 | `set_recording_enabled` | `enabled` (bool) | Recording on or off. |
 | `keep_recording` | `id` | Keep a title of the ring (the one being recorded too). |
 | `delete_recording` | `id` | Delete a title of the ring or a kept one. |
@@ -476,6 +538,14 @@ the commands go via the `set` topics.
 | switch | `recording` | Recording | `recorder.enabled` | `set/recording` |
 | switch | `announcement_switching` | Switch to announcements | `announcement.switching` | `set/announcement_switching` |
 | switch | `equalizer` | Equalizer | `audio.equalizer.enabled` | `set/equalizer` |
+| switch | `warnings` | Emergency warnings | `warning.enabled` | `set/warnings` |
+| number | `alarm_volume` | Alarm volume | `warning.alarm_volume_percent` | `set/alarm_volume` |
+| binary_sensor | `warning` | Emergency warning | `warning.playing` (the warning as attributes) | – |
+| sensor | `warning_text` | Warning text | `warning.playing.dynamic_label` | – |
+| binary_sensor | `warning_system` | Warnings received | `warning.participating` | – |
+| button | `end_warning` | End warning | – | `set/end_warning` (END) |
+| button | `skip_warning_repeats` | Skip warning repeats | – | `set/end_warning` (REPEATS) |
+| button | `skip_warning_incident` | Skip warning incident | – | `set/end_warning` (INCIDENT) |
 | sensor | `service` | Station | `service.name` | – |
 | sensor | `ensemble` | Ensemble | `receiver.ensemble` | – |
 | sensor | `channel` | Channel | `receiver.channel` | – |
@@ -573,9 +643,23 @@ actions:
       entity_id: lock.front_door
 ```
 
+A message to the phone while the radio plays an emergency warning:
+
+```yaml
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.dab_radio_emergency_warning
+    to: "on"
+actions:
+  - action: notify.mobile_app_phone
+    data:
+      title: "{{ state_attr('binary_sensor.dab_radio_emergency_warning', 'text') }}"
+      message: "{{ state_attr('binary_sensor.dab_radio_emergency_warning', 'name') }}"
+```
+
 ## What MQTT cannot do
 
-Device and gain, location, equalizer curves, the recording settings beyond on/off,
+Device and gain, the position, equalizer curves, the recording settings beyond on/off,
 Wi-Fi, Bluetooth and drives remain reserved for the user interface. A notification plays
 no sound and does not lower the radio. The data services
 (programme guide, GNSS, traffic) are not part of the state; nor are signal displays

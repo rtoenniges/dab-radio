@@ -20,6 +20,10 @@ All notable changes to the radio. The format follows
 - Touch UI: Settings › Audio has a card for the warnings: on/off, the location code
   (from the location or entered) and the alarm volume
 - Desktop: A box shows the warning playing, with the same buttons
+- MQTT: A section for the emergency warnings: the warning playing, those signalled and
+  whether the ensemble takes part
+- MQTT: Emergency warnings on or off, alarm volume, location code and ending a warning,
+  also as entities for Home Assistant
 
 ## [1.5.3] - 2026-11-01
 
