@@ -74,6 +74,7 @@ class Stage(IntEnum):
 _STARTS = (Stage.LEVEL_1_START, Stage.LEVEL_2_START)
 _UPDATES = (Stage.LEVEL_1_UPDATE, Stage.LEVEL_2_UPDATE)
 _REPEATS = (Stage.LEVEL_1_REPEAT, Stage.LEVEL_2_REPEAT)
+_LEVEL_2 = (Stage.LEVEL_2_START, Stage.LEVEL_2_UPDATE, Stage.LEVEL_2_REPEAT)
 
 
 def stage_text(stage: Stage) -> str:
@@ -133,8 +134,10 @@ class EwsState:
     # In their trigger phase: those carried in the tuned ensemble first, then those of
     # other ensembles, each in the order they began.
     alerts: tuple[EwsAlert, ...] = ()
-    # The subchannels whose alert message is under way (trigger or sustain phase).
+    # The subchannels whose alert message is under way (trigger or sustain phase), and
+    # for those FIG 0/2 has audio in, (SubChId, SId).
     running: frozenset[int] = frozenset()
+    services: tuple[tuple[int, int], ...] = ()
 
 
 @dataclass
@@ -220,6 +223,11 @@ class EwsMonitor:
                     receivable=identifier in ensemble.subchannels,
                 )
             alerts.append(alert)
+        services = []
+        for subchannel in sorted(self._running):
+            source = audio_in_subchannel(ensemble, subchannel)
+            if source is not None:
+                services.append((subchannel, source[0]))
         return EwsState(
             participating=(
                 self._last_signal is not None and now - self._last_signal <= EWS_TIMEOUT_SECONDS
@@ -227,13 +235,19 @@ class EwsMonitor:
             eid=ensemble.eid,
             alerts=tuple(alerts),
             running=frozenset(self._running),
+            services=tuple(services),
         )
 
 
-def stage_matches(stage: Stage, *, repeats_dismissed: bool, incident_dismissed: bool) -> bool:
+def stage_matches(
+    stage: Stage, *, repeats_dismissed: bool, incident_dismissed: bool, monitor: bool = False
+) -> bool:
     """Table 1 of clause 7.5.3 for a receiver playing audio: the start of an incident
     and a critical alert always, an update unless the listener dismissed the incident,
-    a repeat unless the listener dismissed it or its repeats, a test never."""
+    a repeat unless the listener dismissed it or its repeats, a test never. A receiver
+    putting out no audio (`monitor`) takes level 1 only."""
+    if monitor and stage in _LEVEL_2:
+        return False
     if stage in _UPDATES:
         return not incident_dismissed
     if stage in _REPEATS:
@@ -292,11 +306,14 @@ class AlertSelector:
         state: EwsState,
         receiver: LocationCode | None,
         receivable: Callable[[EwsAlert], bool],
+        *,
+        monitor: bool = False,
     ) -> EwsAlert | None:
         """The alert to play: the first that matches by stage, location and
         receivability (clause 7.5) and has not been played already, those of the tuned
         ensemble before those of others (clause 6.1). `receivable` decides for alerts of
-        other ensembles whether that ensemble can be tuned to."""
+        other ensembles whether that ensemble can be tuned to; `monitor`, for a receiver
+        putting out no audio, leaves out the alerts of level 2."""
         for alert in state.alerts:
             if alert.key in self._done:
                 continue
@@ -305,6 +322,7 @@ class AlertSelector:
                 alert.stage,
                 repeats_dismissed=dismissal.repeats,
                 incident_dismissed=dismissal.incident,
+                monitor=monitor,
             ):
                 continue
             if not location_matches(alert, receiver):

@@ -62,6 +62,7 @@ from dab.announcement import ALARM_CLUSTER, AnnouncementStatus
 from dab.channels import BAND_III_CHANNELS, DEFAULT_CHANNEL
 from dab.constants import MODE_I, SAMPLE_RATE
 from dab.data_services import USER_APPLICATION_SPI, DataComponent
+from dab.dls import DynamicLabel
 from dab.ensemble_cache import (
     SOURCE_LIVE,
     SOURCE_SCAN,
@@ -69,9 +70,11 @@ from dab.ensemble_cache import (
     EnsembleInfo,
     keep_service_ensembles,
 )
+from dab.ews import AlertSelector, EwsAlert, EwsState
 from dab.fig import OeAnnouncement
 from dab.gnss import Observer
 from dab.guide_cache import GuideCache
+from dab.location_code import LocationCode, location_code, parse_presentation
 from dab.mot_directory import MotDirectory
 from dab.service_following import EnsembleLocation, locate_ensemble, other_ensembles
 from dab.spi import Schedule, ServiceInformation
@@ -179,6 +182,12 @@ _SETTINGS_DATA_SWITCHED_OFF = "data/switched_off"
 _SETTINGS_LATITUDE = "gnss/latitude"
 _SETTINGS_LONGITUDE = "gnss/longitude"
 _SETTINGS_HEIGHT = "gnss/height"
+# The emergency warnings (ASA, see `ReceiverController.ews_enabled`): whether they are
+# played, the location code the listener entered in the presentation format ("" for
+# that of the position above) and the volume they play at.
+_SETTINGS_EWS_ENABLED = "ews/enabled"
+_SETTINGS_EWS_LOCATION = "ews/location_code"
+_SETTINGS_ALARM_VOLUME = "ews/alarm_volume"
 # Where the recordings go (see `ReceiverController.recording_directory`): a directory
 # on a USB drive (`storage.volumes`), stored as its path; missing while none is chosen.
 _SETTINGS_RECORDING_DIRECTORY = "recording/directory"
@@ -284,6 +293,14 @@ OVERLOAD_HOLD_MS = 2000
 # back. Retuning and the FIC take some 2 s; FIG 0/19 comes ten times per second at the
 # start of an announcement and once per second after.
 ANNOUNCEMENT_SEARCH_MS = 10_000
+# The volume emergency warnings play at until the listener sets one: what the slider
+# starts at. Never silent.
+DEFAULT_ALARM_VOLUME_PERCENT = DEFAULT_VOLUME_PERCENT
+ALARM_VOLUME_RANGE = (5, 100)
+# Gone to another ensemble for an emergency warning: if FIG 0/15 there names no alert
+# message under way within this time, reception goes back (ETSI TS 104 089, clause
+# 7.6.3). FIG 0/15 comes once per second at the least.
+ALERT_SEARCH_MS = 10_000
 
 
 class ReceptionState(Enum):
@@ -401,6 +418,25 @@ class AnnouncementVisit:
     origin_label: str | None
 
 
+@dataclass(frozen=True)
+class AlertPlayback:
+    """An emergency warning the receiver plays (ETSI TS 104 089, clause 7.6; see
+    `dab.ews`)."""
+
+    alert: EwsAlert  # as signalled when it was chosen
+    # Where reception goes back to after it, (channel, SId), if it left there for the
+    # warning (another ensemble's, or one where it had gone for an announcement); None
+    # while the service listened to stays selected throughout.
+    origin: tuple[str | None, int] | None = None
+    channel: str | None = None  # another ensemble's: the channel tuned to for it
+    # The subchannel played and the service with its audio there (FIG 0/2); None while
+    # reception still looks for it in the other ensemble.
+    subchannel_id: int | None = None
+    sid: int | None = None
+    label: str | None = None  # the name of that service, once known
+    text: str | None = None  # the dynamic label of its audio, once received
+
+
 class _StationDelay:
     """A delay in seconds against the dynamic label (`recording.recorder`): a default
     for every station and values of stations' own, kept in the settings, `key_default`
@@ -490,6 +526,7 @@ class ReceiverController(QObject):
     _signal_capture_requested = pyqtSignal(int)  # frames to capture
     _null_snapshots_toggled = pyqtSignal(bool)
     _announcement_switching_toggled = pyqtSignal(bool)
+    _alert_played = pyqtSignal(object)  # SubChId of the emergency warning to play, None = none
     _audio_enabled_toggled = pyqtSignal(bool)
     _volume_changed = pyqtSignal(float)
     _equalizer_set = pyqtSignal(object)  # EqualizerSettings, None = off
@@ -574,6 +611,13 @@ class ReceiverController(QObject):
     announcement_visit_changed = pyqtSignal(object)
     # Switching to announcements was turned on or off (`announcement_switching`).
     announcement_switching_changed = pyqtSignal(bool)
+    # The emergency warnings: what the tuned ensemble signals, whether they are played,
+    # the location they are matched against or their volume changed (`ews_state`,
+    # `ews_enabled`, `ews_location`, `alarm_volume_percent`).
+    ews_changed = pyqtSignal()
+    # An emergency warning plays, as an `AlertPlayback`, again whenever its label or text
+    # comes; None once it is over.
+    alert_changed = pyqtSignal(object)
     # Compute demand of the signal processing as a fraction of real time, the share of
     # real time its thread spent waiting in that (for the GIL above all, see
     # `DspWorker._report_load`), and the CPU load of the whole program in cores;
@@ -702,6 +746,7 @@ class ReceiverController(QObject):
         # Whether the player is held silent (`_hold_audio`); the pause before the next
         # try after one failed.
         self._audio_held_now = False
+        self._player_held = False  # what the player was told (`_update_audio_hold`)
         self._bluetooth_retry = QTimer(self)
         self._bluetooth_retry.setSingleShot(True)
         self._bluetooth_retry.setInterval(BLUETOOTH_RETRY_MS)
@@ -710,6 +755,9 @@ class ReceiverController(QObject):
         self._media_devices = QMediaDevices(self)
         self._media_devices.audioOutputsChanged.connect(self.audio_outputs_changed)
         self._observer = self._load_observer()
+        # Whether the listener set a position: `DEFAULT_OBSERVER`, standing in until
+        # then, is no place to match emergency warnings against.
+        self._observer_set = self._settings.contains(_SETTINGS_LATITUDE)
         self._favourites = self._load_favourites()
         # Off at first (`EqualizerState`): a new feature should not change how the radio
         # sounds.
@@ -808,6 +856,24 @@ class ReceiverController(QObject):
         self._revisit_timer.setInterval(ANNOUNCEMENT_SEARCH_MS)
         self._revisit_timer.timeout.connect(self._on_revisit_timeout)
 
+        # The emergency warnings (`dab.ews`): the settings, what the tuned ensemble
+        # signals, what was played and dismissed, the warning playing and, while one
+        # plays, the volume it plays at (the slider's own stays as it was).
+        self._ews_enabled = self._stored(_SETTINGS_EWS_ENABLED, True)
+        self._ews_code = parse_presentation(self._stored(_SETTINGS_EWS_LOCATION, ""))
+        self._alarm_volume = _clamp(
+            self._stored(_SETTINGS_ALARM_VOLUME, DEFAULT_ALARM_VOLUME_PERCENT),
+            *ALARM_VOLUME_RANGE,
+        )
+        self._ews_state = EwsState()
+        self._alert_selector = AlertSelector()
+        self._alert: AlertPlayback | None = None
+        self._alert_volume: int | None = None
+        self._alert_timer = QTimer(self)
+        self._alert_timer.setSingleShot(True)
+        self._alert_timer.setInterval(ALERT_SEARCH_MS)
+        self._alert_timer.timeout.connect(self._on_alert_search_timeout)
+
         # The data components of the received ensemble (FIC), the SCIds being decoded
         # and those asked for since the tuning; SCIds only mean something within one
         # ensemble. Switched off by hand (`_data_key`) is kept across tunings and
@@ -837,6 +903,8 @@ class ReceiverController(QObject):
         dsp.load_ready.connect(self._on_load_ready)
         dsp.clipping_ready.connect(self._on_clipping_ready)
         dsp.announcement_ready.connect(self._on_announcement_ready)
+        dsp.ews_ready.connect(self._on_ews_ready)
+        dsp.alert_label_ready.connect(self._on_alert_label)
         dsp.stream_restarted.connect(self._on_stream_restarted)
         dsp.data_services_updated.connect(self._on_data_services_updated)
         dsp.data_decoding_ready.connect(self._on_data_decoding_ready)
@@ -853,6 +921,7 @@ class ReceiverController(QObject):
         self._signal_capture_requested.connect(dsp.capture_signal)
         self._null_snapshots_toggled.connect(dsp.set_null_snapshots)
         self._announcement_switching_toggled.connect(dsp.set_announcement_switching_enabled)
+        self._alert_played.connect(dsp.play_alert)
 
         self._audio_thread = QThread()
         self._audio_player = AudioPlayer()
@@ -990,6 +1059,13 @@ class ReceiverController(QObject):
             self._settings.setValue(_SETTINGS_CHANNEL, visit.origin_channel)
             self._settings.setValue(_SETTINGS_FREQUENCY, BAND_III_CHANNELS[visit.origin_channel])
             self._settings.setValue(_SETTINGS_SERVICE, visit.origin_sid)
+        alert = self._alert
+        if alert is not None and alert.origin is not None and alert.origin[0] is not None:
+            # Likewise not in the middle of another ensemble's emergency warning.
+            channel, sid = alert.origin
+            self._settings.setValue(_SETTINGS_CHANNEL, channel)
+            self._settings.setValue(_SETTINGS_FREQUENCY, BAND_III_CHANNELS[channel])
+            self._settings.setValue(_SETTINGS_SERVICE, sid)
         if self._worker is not None:
             self._worker.stop()
         if self._scanner is not None:
@@ -1152,12 +1228,18 @@ class ReceiverController(QObject):
 
     @property
     def audio_enabled(self) -> bool:
-        return self._audio_enabled
+        """Not muted, or an emergency warning plays."""
+        return self._audio_enabled or self._alert is not None
 
     @property
     def volume_percent(self) -> int:
-        """The slider position, even in decibels (`audio.volume`)."""
-        return self._volume_percent
+        """The slider position, even in decibels (`audio.volume`); while an emergency
+        warning plays the level it plays at."""
+        return self._level_percent
+
+    @property
+    def _level_percent(self) -> int:
+        return self._volume_percent if self._alert_volume is None else self._alert_volume
 
     @property
     def volume_ceiling_db(self) -> int:
@@ -1170,8 +1252,8 @@ class ReceiverController(QObject):
         output with a volume of its own the nominal value of its share on the cubic
         scale (`audio.volume.db_of_share`); what the device makes of it is its own."""
         if self._output_has_own_volume():
-            return db_of_share(device_share(self._volume_percent, self._volume_ceiling_db))
-        return volume_db(self._volume_percent, self._volume_ceiling_db)
+            return db_of_share(device_share(self._level_percent, self._volume_ceiling_db))
+        return volume_db(self._level_percent, self._volume_ceiling_db)
 
     @property
     def volume_device_percent(self) -> int | None:
@@ -1180,7 +1262,7 @@ class ReceiverController(QObject):
         place of decibels (`volume_text`); None for every other output."""
         if not self._output_has_own_volume():
             return None
-        return round(100.0 * device_share(self._volume_percent, self._volume_ceiling_db))
+        return round(100.0 * device_share(self._level_percent, self._volume_ceiling_db))
 
     @property
     def audio_outputs(self) -> list[AudioOutput]:
@@ -1394,12 +1476,23 @@ class ReceiverController(QObject):
         self.announcement_switching_changed.emit(enabled)
 
     def set_audio_enabled(self, enabled: bool) -> None:
+        """Mutes or unmutes; muting breaks off an emergency warning playing
+        (`end_alert`)."""
         self._audio_enabled = enabled
         self._settings.setValue(_SETTINGS_AUDIO, enabled)
-        self._audio_enabled_toggled.emit(enabled)
-        self.audio_enabled_changed.emit(enabled)
+        if not enabled and self._alert is not None:
+            self.end_alert()  # which reports the audio
+            return
+        self._audio_enabled_toggled.emit(self.audio_enabled)
+        self.audio_enabled_changed.emit(self.audio_enabled)
 
     def set_volume_percent(self, percent: int) -> None:
+        """Sets the slider; while an emergency warning plays, the level of the warning,
+        for as long as it plays."""
+        if self._alert_volume is not None:
+            self._alert_volume = _clamp(percent, 0, 100)
+            self._apply_volume()
+            return
         self._volume_percent = _clamp(percent, 0, 100)
         self._settings.setValue(_SETTINGS_VOLUME, self._volume_percent)
         self._store_output_volume()
@@ -1539,6 +1632,17 @@ class ReceiverController(QObject):
         (`AudioPlayer.set_held`)."""
         if held != self._audio_held_now:
             self._audio_held_now = held
+            self._update_audio_hold()
+
+    def _update_audio_hold(self) -> None:
+        """Holds the player while the Bluetooth audio moves, and while reception looks
+        for an emergency warning in another ensemble, whose stations are not to be
+        heard at the warning's volume meanwhile."""
+        held = self._audio_held_now or (
+            self._alert is not None and self._alert.subchannel_id is None
+        )
+        if held != self._player_held:
+            self._player_held = held
             self._audio_held.emit(held)
 
     def _bluetooth_target(self) -> Device | None:
@@ -1684,8 +1788,8 @@ class ReceiverController(QObject):
         """The level for the sink in pactl's raw scale: the share of its own range for
         an output that has one, else the gain in dB."""
         if self._output_has_own_volume():
-            return raw_of_share(device_share(self._volume_percent, self._volume_ceiling_db))
-        return raw_volume(volume_db(self._volume_percent, self._volume_ceiling_db))
+            return raw_of_share(device_share(self._level_percent, self._volume_ceiling_db))
+        return raw_volume(volume_db(self._level_percent, self._volume_ceiling_db))
 
     def _pin_system_volume(self, sink: str) -> None:
         """Sets a sink the radio does not leave the level to at 100 %: the player
@@ -1750,10 +1854,13 @@ class ReceiverController(QObject):
                 percent = percent_of_db(db, ceiling_db)
             level = "silence" if db is None else f"{db:.1f} dB"
         logger.info("Volume of %s changed elsewhere: %s, slider %d %%", sink, level, percent)
-        if percent != self._volume_percent:
-            self._volume_percent = percent
-            self._settings.setValue(_SETTINGS_VOLUME, percent)
-            self._store_output_volume()
+        if percent != self._level_percent:
+            if self._alert_volume is not None:
+                self._alert_volume = percent  # for the warning playing only
+            else:
+                self._volume_percent = percent
+                self._settings.setValue(_SETTINGS_VOLUME, percent)
+                self._store_output_volume()
             self.volume_changed.emit()
         if above:
             self._system_volume.set_volume(sink, self._system_raw())
@@ -1892,13 +1999,17 @@ class ReceiverController(QObject):
             _clamp(float(observer.longitude), *LONGITUDE_RANGE),
             _clamp(float(observer.height), *HEIGHT_RANGE_M),
         )
-        if observer == self._observer:
+        if observer == self._observer and self._observer_set:
             return
         self._observer = observer
+        self._observer_set = True
         self._settings.setValue(_SETTINGS_LATITUDE, observer.latitude)
         self._settings.setValue(_SETTINGS_LONGITUDE, observer.longitude)
         self._settings.setValue(_SETTINGS_HEIGHT, observer.height)
         self.observer_changed.emit(observer)
+        if self._ews_code is None:
+            self.ews_changed.emit()  # the warnings follow the position
+            self._follow_alerts()
 
     def set_recording_directory(self, directory: Path | str | None) -> None:
         """Stores where the recordings go; None clears the choice. The directory need
@@ -2682,6 +2793,13 @@ class ReceiverController(QObject):
         self._data_requested = set()
         self._decoded_spi = None
         self._reset_service()
+        self._set_ews_state(EwsState())
+        if self._alert is not None and self._alert.subchannel_id is not None:
+            # The signal processing dropped the warning with the tuning: to be found
+            # anew.
+            self._alert = replace(self._alert, subchannel_id=None)
+            self._alert_timer.start()
+            self._update_audio_hold()
         self.live_reset.emit()
         self.data_components_changed.emit()
 
@@ -2729,6 +2847,7 @@ class ReceiverController(QObject):
         self._emit_load()
         # Without reception nothing confirms a running announcement any more.
         self._on_announcement_ready(None)
+        self._set_ews_state(EwsState())
         self._set_state(ReceptionState.IDLE)
         kept = bool(self._live_ensemble_label or self._live_services)
         if kept:
@@ -2745,6 +2864,11 @@ class ReceiverController(QObject):
             # from, ready for the next start.
             self._select_channel(visit.origin_channel)
             self._select_service(visit.origin_sid)
+        alert = self._abandon_alert()
+        if alert is not None and alert.origin is not None:
+            # Ended in another ensemble's emergency warning: back likewise.
+            self._select_channel(alert.origin[0])
+            self._select_service(alert.origin[1])
         if self._restart_pending:
             self._restart_pending = False
             self.start_reception()
@@ -2830,6 +2954,7 @@ class ReceiverController(QObject):
         self._live_programme_types = dict(programme_types)
         self._list_services = list(services)
         self._push_recorder_station()  # the name of the service recorded
+        self._name_alert()
         self.service_list_changed.emit(ensemble_label, list(services), dict(programme_types))
         self.ensemble_received.emit(ensemble_label, dict(services))
         self._update_service_source()
@@ -2921,6 +3046,293 @@ class ReceiverController(QObject):
         self.announcement_changed.emit(status, source)
         self._follow_announcements(status)
 
+    # --- Emergency warnings -------------------------------------------------------------
+
+    @property
+    def ews_state(self) -> EwsState:
+        """What the tuned ensemble signals for the Emergency Warning System (FIG 0/15);
+        empty without reception. While the ensemble does not take part
+        (`EwsState.participating`), no warning reaches the listener: the radio has one
+        tuner (ETSI TS 104 089, clause 7.2.1)."""
+        return self._ews_state
+
+    @property
+    def ews_enabled(self) -> bool:
+        """Whether emergency warnings that concern the listener are played."""
+        return self._ews_enabled
+
+    @property
+    def ews_location(self) -> LocationCode | None:
+        """The place emergency warnings are matched against (`dab.location_code`): the
+        code the listener entered, else that of the listener's position. None while
+        neither is known; then only warnings for the whole coverage area of their
+        ensemble are played (clause 7.2.3)."""
+        if self._ews_code is not None:
+            return self._ews_code
+        if self._observer_set:
+            return location_code(self._observer.latitude, self._observer.longitude)
+        return None
+
+    @property
+    def ews_location_entered(self) -> bool:
+        """Whether `ews_location` is a code the listener entered rather than the one of
+        the position."""
+        return self._ews_code is not None
+
+    @property
+    def alarm_volume_percent(self) -> int:
+        """The volume emergency warnings play at, on the scale of the slider."""
+        return self._alarm_volume
+
+    @property
+    def alert(self) -> AlertPlayback | None:
+        """The emergency warning playing, None for none."""
+        return self._alert
+
+    def set_ews_enabled(self, enabled: bool) -> None:
+        """Plays emergency warnings that concern the listener, or none; switching off
+        ends one playing."""
+        if enabled == self._ews_enabled:
+            return
+        self._ews_enabled = enabled
+        self._settings.setValue(_SETTINGS_EWS_ENABLED, enabled)
+        if not enabled:
+            self.end_alert()
+        self.ews_changed.emit()
+        self._follow_alerts()
+
+    def set_ews_location(self, code: LocationCode | None) -> None:
+        """Matches emergency warnings against this location code of six digits, as the
+        listener entered it; with None against the listener's position again."""
+        if code is not None and code.presentation is None:
+            raise ValueError(f"A location code of six digits is needed, not {code}")
+        self._ews_code = code
+        self._settings.setValue(_SETTINGS_EWS_LOCATION, "" if code is None else code.presentation)
+        self.ews_changed.emit()
+        self._follow_alerts()
+
+    def set_alarm_volume_percent(self, percent: int) -> None:
+        """Sets the volume emergency warnings play at; one playing takes it at once."""
+        self._alarm_volume = _clamp(int(percent), *ALARM_VOLUME_RANGE)
+        self._settings.setValue(_SETTINGS_ALARM_VOLUME, self._alarm_volume)
+        if self._alert_volume is not None:
+            self._alert_volume = self._alarm_volume
+            self._apply_volume()
+        self.ews_changed.emit()
+
+    def end_alert(self, *, dismiss_repeats: bool = False, dismiss_incident: bool = False) -> None:
+        """Breaks off the emergency warning playing (clause 7.6.4); reception goes back
+        to where it was. With the listener's wish not to hear the repeats of its
+        incident, or nothing more of it but a critical warning or its next start
+        (clause 7.4.2)."""
+        playing = self._alert
+        if playing is None:
+            return
+        now = time.monotonic()
+        if dismiss_repeats or dismiss_incident:
+            self._alert_selector.dismiss(
+                playing.alert, now, repeats=dismiss_repeats, incident=dismiss_incident
+            )
+        self._alert_selector.finished(playing.alert, now)
+        logger.info("Emergency warning broken off")
+        self._stop_alert(back=True)
+        if playing.origin is None:
+            self._follow_alerts()  # another one may be signalled
+
+    def _set_ews_state(self, state: EwsState) -> None:
+        if state != self._ews_state:
+            self._ews_state = state
+            self.ews_changed.emit()
+
+    def _on_ews_ready(self, state: EwsState) -> None:
+        """Only during reception and from the frequency on display, as for
+        announcements."""
+        if self._worker is None or self._awaited_tuning is not None:
+            return
+        self._set_ews_state(state)
+        self._alert_selector.observe(state, time.monotonic())
+        self._follow_alerts()
+
+    def _follow_alerts(self) -> None:
+        """Plays an emergency warning that concerns the listener, keeps it going while
+        the ensemble signals its alert message under way, and after it goes back or
+        plays the next one (clauses 7.5, 7.6). A new alert of the ensemble cuts the one
+        playing short (clause 7.6.4). Muted, the radio puts out no audio and takes the
+        warnings of level 1 only, as a receiver in monitor mode (clause 7.5.3)."""
+        state = self._ews_state
+        playing = self._alert
+        if playing is not None:
+            if playing.subchannel_id is None:
+                self._find_alert(state)
+                return
+            followed = any(
+                not alert.other_ensemble and alert.key != playing.alert.key
+                for alert in state.alerts
+            )
+            if playing.subchannel_id in state.running and not followed:
+                return
+            logger.info("Emergency warning over")
+            self._alert_selector.finished(playing.alert, time.monotonic())
+        chosen = None
+        if self._ews_enabled and self._state is ReceptionState.RECEIVING:
+            chosen = self._alert_selector.choose(
+                state,
+                self.ews_location,
+                self._can_tune_to_alert,
+                monitor=not self._audio_enabled,
+            )
+        if playing is None:
+            if chosen is not None:
+                self._start_alert(chosen)
+        elif chosen is not None and not chosen.other_ensemble:
+            self._start_alert(chosen, follows=playing)
+        else:
+            self._stop_alert(back=True)
+
+    def _can_tune_to_alert(self, alert: EwsAlert) -> bool:
+        """Whether reception can go to the ensemble carrying another ensemble's warning:
+        it is in the tuning memory (clause 7.5.2), a stored service list came from it.
+        Not from a manual frequency, which could not be come back to."""
+        if alert.eid is None or self._channel is None:
+            return False
+        channel = self._channel_of_ensemble(alert.eid)
+        if channel is None or channel == self._channel:
+            return False
+        info = self._ensemble_cache.get(channel)
+        return info is not None and info.eid == alert.eid and bool(info.services)
+
+    def _start_alert(self, alert: EwsAlert, follows: AlertPlayback | None = None) -> None:
+        """Plays an emergency warning (clause 7.6): one of the tuned ensemble at once,
+        another ensemble's after tuning there. Where reception was is kept to come back
+        to (clause 7.6.1); in the tuned ensemble the service stays selected anyway."""
+        self.stop_playback()  # a recording would hide it
+        if follows is not None:
+            origin = follows.origin
+        elif self._visit is not None:
+            visit = self._end_visit()
+            origin = (visit.origin_channel, visit.origin_sid)
+        elif alert.other_ensemble and self._selected_sid is not None:
+            origin = (self._channel, self._selected_sid)
+        else:
+            origin = None
+        if not alert.other_ensemble:
+            self._alert = AlertPlayback(
+                alert,
+                origin=origin,
+                subchannel_id=alert.subchannel_id,
+                sid=alert.sid,
+                label=self._live_label(alert.sid),
+            )
+            logger.info("Emergency warning in subchannel %d: playing it", alert.subchannel_id)
+            if self._selected_sid is None and alert.sid is not None:
+                self._select_service(alert.sid)  # nothing else to decode the audio for
+            self._alert_played.emit(alert.subchannel_id)
+        else:
+            channel = self._channel_of_ensemble(alert.eid)
+            info = self._ensemble_cache.get(channel)
+            sid = next(iter(dict(info.services)))
+            self._alert = AlertPlayback(alert, origin=origin, channel=channel)
+            logger.info(
+                "Emergency warning in ensemble %04X: going to channel %s", alert.eid, channel
+            )
+            self._play(channel, sid)
+            self._alert_timer.start()
+            self._update_audio_hold()
+        self._apply_alert_level()
+        self.alert_changed.emit(self._alert)
+
+    def _find_alert(self, state: EwsState) -> None:
+        """Gone to another ensemble for its warning: plays the alert message it has
+        under way once its FIG 0/15 names it, the one signalled if it is in its trigger
+        phase still (clause 7.6.3)."""
+        playing = self._alert
+        same = next(
+            (
+                alert
+                for alert in state.alerts
+                if not alert.other_ensemble and alert.key == playing.alert.key and alert.receivable
+            ),
+            None,
+        )
+        if same is not None:
+            subchannel = same.subchannel_id
+        elif state.running:
+            subchannel = min(state.running)
+        else:
+            return  # not yet, or until `ALERT_SEARCH_MS` has passed
+        sid = dict(state.services).get(subchannel)
+        self._alert_timer.stop()
+        self._alert = replace(
+            playing, subchannel_id=subchannel, sid=sid, label=self._live_label(sid)
+        )
+        logger.info("Emergency warning found in subchannel %d: playing it", subchannel)
+        self._alert_played.emit(subchannel)
+        self._update_audio_hold()
+        self.alert_changed.emit(self._alert)
+
+    def _on_alert_search_timeout(self) -> None:
+        playing = self._alert
+        if playing is not None and playing.subchannel_id is None:
+            logger.info("Emergency warning not found on channel %s", playing.channel)
+            self._alert_selector.finished(playing.alert, time.monotonic())
+            self._stop_alert(back=True)
+
+    def _stop_alert(self, *, back: bool) -> AlertPlayback | None:
+        """Ends the emergency warning playing, if one does: the service's audio again,
+        with the volume and mute it had. With `back`, reception goes back to where it
+        was if it left there for the warning. Returns the warning ended."""
+        playing = self._alert
+        if playing is None:
+            return None
+        self._alert = None
+        self._alert_timer.stop()
+        self._alert_played.emit(None)
+        self._update_audio_hold()
+        self._apply_alert_level()
+        self.alert_changed.emit(None)
+        if back and playing.origin is not None:
+            channel, sid = playing.origin
+            logger.info("Emergency warning over: back to %04X on channel %s", sid, channel)
+            self._play(channel, sid)
+        return playing
+
+    def _abandon_alert(self) -> AlertPlayback | None:
+        """The user chose something else, or reception ended: the warning ends where
+        reception is, and is not played again while it is signalled."""
+        playing = self._alert
+        if playing is not None:
+            self._alert_selector.finished(playing.alert, time.monotonic())
+        return self._stop_alert(back=False)
+
+    def _apply_alert_level(self) -> None:
+        """While a warning plays the audio is on, at the alarm volume, whatever mute and
+        slider say; after it both are as they were."""
+        if self._alert is None:
+            self._alert_volume = None
+        elif self._alert_volume is None:
+            self._alert_volume = self._alarm_volume
+        self._audio_enabled_toggled.emit(self.audio_enabled)
+        self._apply_volume()
+        self.audio_enabled_changed.emit(self.audio_enabled)
+
+    def _on_alert_label(self, label: DynamicLabel) -> None:
+        if self._alert is not None and label.text != self._alert.text:
+            self._alert = replace(self._alert, text=label.text)
+            self.alert_changed.emit(self._alert)
+
+    def _name_alert(self) -> None:
+        """The service list came in: the warning playing may have a name now."""
+        playing = self._alert
+        if playing is None or playing.label is not None:
+            return
+        label = self._live_label(playing.sid)
+        if label is not None:
+            self._alert = replace(playing, label=label)
+            self.alert_changed.emit(self._alert)
+
+    def _live_label(self, sid: int | None) -> str | None:
+        return None if sid is None else dict(self._live_services).get(sid)
+
     # --- Favourites -------------------------------------------------------------------
 
     @property
@@ -2965,6 +3377,8 @@ class ReceiverController(QObject):
         """
         if self._awaited_tuning is not None:
             return
+        if self._alert is not None:
+            return  # an emergency warning goes before
         if self._visit is not None:
             if status is None:
                 return
@@ -3036,8 +3450,9 @@ class ReceiverController(QObject):
 
     def _stay_from_visit(self) -> None:
         """The user chose a channel or service: the announcement visited no longer
-        leads back."""
+        leads back, and an emergency warning playing ends without going back either."""
         self._end_visit()
+        self._abandon_alert()
 
     def _end_visit(self) -> AnnouncementVisit | None:
         """Forgets the visit, if there is one, and returns it."""

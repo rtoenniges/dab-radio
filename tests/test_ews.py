@@ -235,6 +235,20 @@ def test_stage_matching_in_audio_mode(stage, repeats, incident, expected):
     assert stage_matches(stage, repeats_dismissed=repeats, incident_dismissed=incident) is expected
 
 
+@pytest.mark.parametrize("stage", list(Stage))
+def test_stage_matching_without_audio(stage):
+    """The column for receivers in monitor mode: level 2 never, level 1 as before."""
+    expected = stage in (
+        Stage.LEVEL_1_START,
+        Stage.LEVEL_1_UPDATE,
+        Stage.LEVEL_1_REPEAT,
+        Stage.LEVEL_1_CRITICAL,
+    )
+    matches = stage_matches(stage, repeats_dismissed=False, incident_dismissed=False, monitor=True)
+
+    assert matches is expected
+
+
 def _alert(
     stage: Stage = Stage.LEVEL_1_START,
     *,

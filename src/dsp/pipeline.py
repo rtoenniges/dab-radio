@@ -19,7 +19,7 @@ from dataclasses import dataclass
 import numpy as np
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 
-from dab.announcement import AnnouncementMonitor, AnnouncementStatus
+from dab.announcement import AnnouncementMonitor, AnnouncementStatus, audio_in_subchannel
 from dab.constants import TransmissionMode
 from dab.data_group import DataGroup
 from dab.data_services import (
@@ -34,6 +34,7 @@ from dab.data_services import (
     xpad_applications,
 )
 from dab.dls import DynamicLabelDecoder
+from dab.ews import EwsMonitor, EwsState
 from dab.fig import (
     FEC_SCHEME_RS,
     Announcement,
@@ -143,12 +144,15 @@ class SubchannelStatus:
     Both fields fill in as FIG 0/2 (component) and FIG 0/1 (subchannel) arrive; the
     GUI shows a waiting message for whatever is still None. During an announcement the
     receiver switched to (see `DspWorker.set_announcement_switching_enabled`), they
-    describe the announcement's subchannel, and `announcement` is set.
+    describe the announcement's subchannel, and `announcement` is set; during an
+    emergency warning played in another subchannel (`DspWorker.play_alert`) its
+    subchannel, and `alert` is set.
     """
 
     component: AudioComponent | None
     subchannel: Subchannel | None
     announcement: Announcement | None = None
+    alert: bool = False
 
 
 @dataclass(frozen=True)
@@ -304,6 +308,12 @@ class DspWorker(QObject):
     # dab.announcement.AnnouncementStatus of the selected service (FIG 0/18, 0/19), None
     # while none is selected; on every change and on every service selection.
     announcement_ready = pyqtSignal(object)
+    # dab.ews.EwsState: what the ensemble signals for the Emergency Warning System
+    # (FIG 0/15); on every change, and empty after every restart of the stream.
+    ews_ready = pyqtSignal(object)
+    # dab.dls.DynamicLabel of the emergency warning played (`play_alert`), which is not
+    # the label of the selected service.
+    alert_label_ready = pyqtSignal(object)
     # Number of the tuning (see `sdr.worker.RtlSdrWorker.tuned`) that all results emitted
     # from here on belong to; see `restart_stream`.
     stream_restarted = pyqtSignal(int)
@@ -343,7 +353,15 @@ class DspWorker(QObject):
         # Off by default, like the GUI setting: whether the audio follows a running
         # announcement into its subchannel, and the component decoded while it does.
         self._switch_to_announcements = False
+        # The component decoded instead of the selected service's: an announcement's or
+        # that of the emergency warning played.
         self._announcement_audio: AudioComponent | None = None
+        self._ews_monitor = EwsMonitor()
+        self._ews_state = EwsState()  # as last reported
+        # The subchannel of the emergency warning the receiver plays, None for none; and
+        # the dynamic label of its audio.
+        self._alert_subchannel: int | None = None
+        self._alert_label = DynamicLabelDecoder()
         self._iq_corrector = IqCorrector()
         self._tii_detector = TiiDetector(sample_rate=sample_rate)
         # Same defaults as the GUI, which only reports changes.
@@ -393,6 +411,11 @@ class DspWorker(QObject):
         self._set_xpad_applications(None)
         self._announcement_monitor.reset()
         self._announcement_audio = None
+        # A subchannel only means something within its ensemble; the receiver asks for
+        # the alert there anew.
+        self._ews_monitor.reset()
+        self._ews_state = EwsState()
+        self._alert_subchannel = None
         # A data component is identified by its SCId, which only means something within
         # one ensemble.
         self._data_components.clear()
@@ -423,6 +446,7 @@ class DspWorker(QObject):
         self.service_ensembles_updated.emit({})
         self._emit_subchannel_info()
         self._update_announcements(force=True)
+        self.ews_ready.emit(self._ews_state)
         self.data_services_updated.emit([])
         self._emit_data_decoding()
         self.stream_restarted.emit(tuning)
@@ -481,6 +505,18 @@ class DspWorker(QObject):
         service; the service itself stays selected throughout.
         """
         self._switch_to_announcements = enabled
+        self._update_announcements()
+
+    @pyqtSlot(object)
+    def play_alert(self, subchannel_id: int | None) -> None:
+        """Decodes the audio of the emergency warning in this subchannel of the ensemble
+        instead of the selected service's (ETSI TS 104 089, clause 7.6.2), with None
+        that of the service again. Whether a warning is to be played is the receiver's
+        decision (`dab.ews.AlertSelector`); the service stays selected throughout. Ends
+        with the next restart of the stream."""
+        if subchannel_id != self._alert_subchannel:
+            self._alert_subchannel = subchannel_id
+            self._alert_label = DynamicLabelDecoder()
         self._update_announcements()
 
     @pyqtSlot(int, bool)
@@ -732,9 +768,18 @@ class DspWorker(QObject):
 
         Not while the audio of an announcement is decoded: label, images and the X-PAD
         applications FIG 0/13 announces belong to the selected service, and the
-        announcement's images would end up in its slideshow.
+        announcement's images would end up in its slideshow. The label of an emergency
+        warning played goes its own way, also when the selected service carries it.
         """
-        if not subfields or self._announcement_audio is not None:
+        if not subfields:
+            return
+        if self._alert_subchannel is not None:
+            component, _ = self._selected_subchannel()
+            if component is not None and component.subchannel_id == self._alert_subchannel:
+                alert_label = self._alert_label.process(subfields)
+                if alert_label is not None:
+                    self.alert_label_ready.emit(alert_label)
+        if self._announcement_audio is not None:
             return
         label = self._dynamic_label.process(subfields)
         if label is not None:
@@ -1013,9 +1058,22 @@ class DspWorker(QObject):
             self._emit_data_decoding()
             self._update_xpad_applications()
         # Also when no FIB was valid: an announcement whose FIG 0/19 stays away ends by
-        # its timeout.
+        # its timeout, and so does an emergency warning.
         self._announcement_monitor.update(ensemble, self._signal_time())
         self._update_announcements()
+        self._update_ews()
+
+    def _update_ews(self) -> None:
+        """Takes the FIG 0/15 just received and reports how the Emergency Warning System
+        stands when that changed."""
+        ensemble = self._ensemble
+        now = self._signal_time()
+        self._ews_monitor.update(ensemble.ews_signals, now)
+        ensemble.ews_signals.clear()
+        state = self._ews_monitor.state(ensemble, now)
+        if state != self._ews_state:
+            self._ews_state = state
+            self.ews_ready.emit(state)
 
     def _check_service_list_complete(self) -> None:
         """Reports once per stream that the service list is complete, timed like the
@@ -1060,18 +1118,26 @@ class DspWorker(QObject):
 
     def _announcement_audio_target(self) -> AudioComponent | None:
         """The audio component to decode instead of the selected service's own: that of
-        the running announcement, if switching is enabled and the announcement is in
-        another subchannel whose configuration is known."""
+        the emergency warning played, else that of the running announcement if
+        switching is enabled; either only in another subchannel whose configuration is
+        known."""
+        if self._alert_subchannel is not None:
+            source = audio_in_subchannel(self._ensemble, self._alert_subchannel)
+            return self._other_audio(None if source is None else source[1])
         status = self._announcement_status
         if not self._switch_to_announcements or status is None:
             return None
-        target = status.source_component
-        if target is None or target.subchannel_id not in self._ensemble.subchannels:
+        return self._other_audio(status.source_component)
+
+    def _other_audio(self, component: AudioComponent | None) -> AudioComponent | None:
+        """`component` if it can stand in for the selected service's audio: its
+        subchannel configured (FIG 0/1) and not the service's own."""
+        if component is None or component.subchannel_id not in self._ensemble.subchannels:
             return None
         own = self._ensemble.audio_components.get(self._selected_sid)
-        if own is not None and own.subchannel_id == target.subchannel_id:
+        if own is not None and own.subchannel_id == component.subchannel_id:
             return None
-        return target
+        return component
 
     def _data_configuration_state(self) -> tuple:
         """What the data components and the X-PAD applications are resolved from, for
@@ -1316,10 +1382,11 @@ class DspWorker(QObject):
             self.subchannel_info_ready.emit(None)
             return
         announcement = None
+        alert = self._announcement_audio is not None and self._alert_subchannel is not None
         if self._announcement_audio is not None and self._announcement_status is not None:
-            announcement = self._announcement_status.active
+            announcement = None if alert else self._announcement_status.active
         self.subchannel_info_ready.emit(
-            SubchannelStatus(*self._selected_subchannel(), announcement=announcement)
+            SubchannelStatus(*self._selected_subchannel(), announcement=announcement, alert=alert)
         )
 
     def _emit_data_decoding(self) -> None:
