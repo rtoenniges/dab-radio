@@ -286,6 +286,31 @@ msgstr "proprietär"
 msgid "Application 0x{app_type}"
 msgstr "Anwendung 0x{app_type}"
 
+#: src/dab/ews.py
+msgctxt "alert stage"
+msgid "Warning"
+msgstr "Warnung"
+
+#: src/dab/ews.py
+msgctxt "alert stage"
+msgid "Update"
+msgstr "Aktualisierung"
+
+#: src/dab/ews.py
+msgctxt "alert stage"
+msgid "Repeat"
+msgstr "Wiederholung"
+
+#: src/dab/ews.py
+msgctxt "alert stage"
+msgid "Critical warning"
+msgstr "Höchste Warnstufe"
+
+#: src/dab/ews.py
+msgctxt "alert stage"
+msgid "Test"
+msgstr "Test"
+
 #. a UEP protection level and its row in the UEP table of
 #. EN 300 401 (table 8).
 #: src/dab/fig.py

@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass, field
 from typing import NamedTuple
 
 import numpy as np
 
 from dab.charset import decode_charset
+from dab.location_code import LocationCode
 from dab.timecode import BroadcastTime, parse_date_time
 from i18n import tr
 
@@ -222,15 +224,52 @@ class OeAnnouncement:
     target_sid: int
 
 
+@dataclass(frozen=True)
+class EwsSignal:
+    """One FIG 0/15 of the Emergency Warning System (ETSI TS 104 089, annex E), as sent;
+    `dab.ews` makes sense of them over time.
+
+    The heartbeat (an empty field) only says that the ensemble takes part; every other
+    form describes one alert message: carried in this ensemble (`subchannel_id`) or in
+    another one (`eid`, always in its trigger phase). The status and the location codes
+    come with the pre-trigger and trigger phases only.
+    """
+
+    current: bool  # C/N flag
+    other_ensemble: bool  # OE flag
+    discard: bool  # P/D flag: sent while the seconds of the ensemble time are 30 to 59
+    # 0 pre-trigger, 1 trigger, 2 sustain, 3 end (`dab.ews.Phase`); None: heartbeat.
+    phase: int | None = None
+    subchannel_id: int | None = None  # this ensemble: the subchannel of the alert audio
+    eid: int | None = None  # another ensemble: the one carrying the alert
+    start_second: int | None = None  # pre-trigger: the seconds count the trigger starts at
+    last: bool | None = None  # the last FIG 0/15 of the alert group
+    stage: int | None = None  # `dab.ews.Stage`
+    incident: int | None = None  # IId, 0 to 15
+    following: int | None = None  # NFF: FIG 0/15s of this alert set still to come
+    # The alert area, sub-coded areas spelt out; none for the whole coverage area.
+    locations: tuple[LocationCode, ...] = ()
+
+    @property
+    def heartbeat(self) -> bool:
+        return self.phase is None
+
+
+# FIG 0/15 arrive about once per second, during an alert many per frame; the signal
+# processing takes them after every batch of FIBs, so this only bounds an ensemble no
+# one reads them from (the scan).
+EWS_SIGNALS_KEPT = 256
+
+
 @dataclass
 class Ensemble:
     """Collects the ensemble and service information that the FIC fields (FIG 0/0,
-    FIG 0/1, FIG 0/2, FIG 0/3, FIG 0/8, FIG 0/10, FIG 0/13, FIG 0/14, FIG 0/17, FIG 0/18,
-    FIG 0/19, FIG 0/21, FIG 0/24, FIG 0/25, FIG 0/26, FIG 1) deliver spread over many
-    frames."""
+    FIG 0/1, FIG 0/2, FIG 0/3, FIG 0/8, FIG 0/10, FIG 0/13, FIG 0/14, FIG 0/15, FIG 0/17,
+    FIG 0/18, FIG 0/19, FIG 0/21, FIG 0/24, FIG 0/25, FIG 0/26, FIG 1) deliver spread over
+    many frames."""
 
     label: str | None = None
-    eid: int | None = None  # from FIG 1/0, together with the label
+    eid: int | None = None  # from FIG 0/0, and from FIG 1/0 together with the label
     services: dict[int, str] = field(default_factory=dict)
     data_services: dict[int, str] = field(default_factory=dict)
     audio_components: dict[int, AudioComponent] = field(default_factory=dict)  # SId -> component
@@ -275,6 +314,9 @@ class Ensemble:
     # when the value repeats, so that a caller can tell that a new one has arrived, e.g.
     # to set the clock at the minute change of the short form.
     date_time: BroadcastTime | None = None
+    # The FIG 0/15 of the Emergency Warning System in the order received, for a reader
+    # to take and clear (`dab.ews.EwsMonitor`); the oldest drop out beyond the bound.
+    ews_signals: deque[EwsSignal] = field(default_factory=lambda: deque(maxlen=EWS_SIGNALS_KEPT))
 
     def add_service(self, sid: int, label: str, *, is_data: bool) -> None:
         if label:
@@ -325,8 +367,8 @@ def _parse_fig0(payload: np.ndarray, ensemble: Ensemble) -> None:
     FEC), the links to the user applications (0/8 and 0/13), the time of day (0/10),
     against which the slideshow evaluates its time parameters, the programme types
     (0/17), the announcements (0/18, 0/19, with the Al flag of 0/0, and from other
-    ensembles 0/25, 0/26), the frequencies of DAB ensembles (0/21) and the ensembles
-    carrying a service (0/24)."""
+    ensembles 0/25, 0/26), the Emergency Warning System (0/15), the frequencies of DAB
+    ensembles (0/21) and the ensembles carrying a service (0/24)."""
     if payload.size < 1:
         return
     extension = int(payload[0]) & 0x1F
@@ -344,6 +386,10 @@ def _parse_fig0(payload: np.ndarray, ensemble: Ensemble) -> None:
         _parse_fig0_ext13(payload, ensemble)
     elif extension == 14:
         _parse_fig0_ext14(payload, ensemble)
+    elif extension == 15:
+        signal = parse_ews_signal(payload.tobytes())
+        if signal is not None:
+            ensemble.ews_signals.append(signal)
     elif extension == 10:
         date_time = parse_date_time(payload[1:].tobytes())
         if date_time is not None:
@@ -365,13 +411,15 @@ def _parse_fig0(payload: np.ndarray, ensemble: Ensemble) -> None:
 
 
 def _parse_fig0_ext0(payload: np.ndarray, ensemble: Ensemble) -> None:
-    """FIG 0/0 (ensemble information, ETSI EN 300 401 clause 6.4.1): only the Al flag
-    is evaluated, which enables alarm announcements for all services.
+    """FIG 0/0 (ensemble information, ETSI EN 300 401 clause 6.4.1): the EId, which comes
+    in every frame, long before the label, and the Al flag, which enables alarm
+    announcements for all services.
 
     Field: EId (16 bits), change flags (2), Al flag (1), CIF count (5 + 8), with change
     flags an occurrence change byte.
     """
     if payload.size >= 4:
+        ensemble.eid = (int(payload[1]) << 8) | int(payload[2])
         ensemble.alarm_announcements = bool(payload[3] & 0x20)
 
 
@@ -579,6 +627,79 @@ def _parse_fig0_ext14(payload: np.ndarray, ensemble: Ensemble) -> None:
     subchannel, SubChId (6 bits) and FEC scheme (2 bits)."""
     for byte in payload[1:]:
         ensemble.fec_schemes[int(byte) >> 2] = int(byte) & 0x03
+
+
+# Phases of FIG 0/15 (ETSI TS 104 089, annex E), as `dab.ews.Phase` names them.
+_EWS_PRE_TRIGGER = 0
+_EWS_TRIGGER = 1
+
+
+def parse_ews_signal(field_bytes: bytes) -> EwsSignal | None:
+    """FIG 0/15 (Emergency Warning System, ETSI TS 104 089 annex E) from its type 0
+    field, the byte with the flags and the extension first. None if it is cut short.
+
+    Id field: in this ensemble (OE 0) phase (2 bits) and SubChId (6), in the
+    pre-trigger phase followed by Rfa (2) and the start second (6); in another ensemble
+    (OE 1) its EId (16). Status field, with the pre-trigger and trigger phases and from
+    other ensembles: Last flag (1), stage (3), IId (4). Then location codes up to the end
+    of the field: NFF (2), zone (6), SCF (1), number of further digits (3), first digit
+    (4), the further digits (4 each), padding to the byte (4) after an odd number of
+    them, and with SCF the sub-codes (16): bit i stands for the area with the further
+    digit i. A code that does not fit ends the reading; what came before it stays.
+    """
+    if not field_bytes:
+        return None
+    flags = field_bytes[0]
+    current, other, discard = bool(flags & 0x80), bool(flags & 0x40), bool(flags & 0x20)
+    data = field_bytes[1:]
+    if not data:
+        return EwsSignal(current, other, discard)  # heartbeat
+    signal: dict = {"current": current, "other_ensemble": other, "discard": discard}
+    if other:
+        if len(data) < 2:
+            return None
+        signal.update(phase=_EWS_TRIGGER, eid=int.from_bytes(data[:2], "big"))
+        p = 2
+    else:
+        phase = data[0] >> 6
+        signal.update(phase=phase, subchannel_id=data[0] & 0x3F)
+        p = 1
+        if phase == _EWS_PRE_TRIGGER:
+            if len(data) < 2:
+                return None
+            signal["start_second"] = data[1] & 0x3F
+            p = 2
+        if phase not in (_EWS_PRE_TRIGGER, _EWS_TRIGGER):
+            return EwsSignal(**signal)  # sustain and end: the Id field alone
+    if p >= len(data):
+        return None
+    status = data[p]
+    signal.update(last=bool(status & 0x80), stage=(status >> 4) & 0x07, incident=status & 0x0F)
+    p += 1
+    locations: list[LocationCode] = []
+    following = None
+    while p + 2 <= len(data):
+        zone = data[p] & 0x3F
+        sub_coded = bool(data[p + 1] & 0x80)
+        count = (data[p + 1] >> 4) & 0x07
+        size = 2 + (count + 1) // 2 + (2 if sub_coded else 0)
+        if p + size > len(data) or count > (4 if sub_coded else 5) or zone >= 42:
+            break
+        nibbles = data[p + 2 : p + 2 + (count + 1) // 2].hex().upper()[:count]
+        digits = f"{data[p + 1] & 0x0F:X}{nibbles}"
+        if following is None:
+            following = data[p] >> 6
+        if sub_coded:
+            areas = int.from_bytes(data[p + size - 2 : p + size], "big")
+            locations += [
+                LocationCode(zone, f"{digits}{area:X}") for area in range(16) if areas >> area & 1
+            ]
+        elif digits == "0" and zone in (0, 41):
+            locations.append(LocationCode(zone))  # a whole polar zone
+        else:
+            locations.append(LocationCode(zone, digits))
+        p += size
+    return EwsSignal(**signal, following=following, locations=tuple(locations))
 
 
 def _parse_fig0_ext17(payload: np.ndarray, ensemble: Ensemble) -> None:

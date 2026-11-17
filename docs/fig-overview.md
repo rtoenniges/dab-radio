@@ -9,7 +9,7 @@ everything it reads ends up in `dab.fig.Ensemble`.
 
 | FIG | Content | What of it is used | What for |
 |---|---|---|---|
-| **0/0** | Ensemble information | only the Al flag; not the change flags and the CIF counter | alarm announcements for all services |
+| **0/0** | Ensemble information | EId and Al flag; not the change flags and the CIF counter | alarm announcements for all services, the ensemble of an emergency warning |
 | **0/1** | Subchannel organisation | start address, size in CU, protection profile (UEP/EEP), bit rate | MSC decoding |
 | **0/2** | Service organisation | components per service: SubChId and ASCTy (DAB/DAB+), DSCTy for stream data, SCId for packet data | playback, data services |
 | **0/3** | Components in packet mode | subchannel, packet address, DSCTy per SCId | data services in packet mode |
@@ -17,6 +17,7 @@ everything it reads ends up in `dab.fig.Ensemble`.
 | **0/10** | Date and time | time of the ensemble | time parameters of the slideshow, clock |
 | **0/13** | User applications | Slideshow, SPI, TPEG, Journaline … per component | data services, X-PAD |
 | **0/14** | FEC in packet mode | FEC scheme per subchannel | packet FEC |
+| **0/15** | Emergency Warning System (ETSI TS 104 089) | heartbeat; per alert phase, subchannel or EId of the ensemble carrying it, stage, incident and location codes; not the pre-trigger | emergency warnings (ASA) |
 | **0/17** | Programme type | PTy code per service; not the S/D flag | station list |
 | **0/18** | Announcement support | ASu flags and clusters per service | announcements |
 | **0/19** | Announcement switching | ongoing announcement: cluster, type, subchannel, New flag | announcements |
@@ -29,6 +30,8 @@ Notes:
 
 - **0/25 and 0/26** were not broadcast by any of the channels 5C, 5D, 7A and 8C on 2026-10-06.
   They are only tested with vectors according to the standard.
+- **0/15** was broadcast on 5C only, as the heartbeat; the trigger is tested with the
+  examples of the standard (annexes C and E).
 - **0/24** was broadcast on 2026-10-06 by 5D, 7A and 8C. 5D names its own ensemble in it,
   which is therefore dropped from the display. The database only arrives complete about every
   2 minutes; the channel list therefore stores it and adds to it during reception
