@@ -101,6 +101,21 @@ def test_a_warning_shows_over_the_window_and_wakes_the_screen(window, monkeypatc
     assert not dialog.isVisible()
 
 
+def test_a_warning_without_a_dynamic_label_shows_its_panel(window):
+    """As the ASA function test: "ASA DE" sends no dynamic label, the one text in the
+    panel that wraps."""
+    window, controller = window
+    dialog = window._alert_dialog
+
+    controller.dsp_worker.ews_ready.emit(_playing(_alert()))
+
+    panel = dialog.panel.geometry()
+    assert dialog.text.isHidden()
+    assert panel.height() == dialog.panel.layout().totalSizeHint().height() > 100
+    assert dialog.rect().contains(panel)
+    assert panel.center().y() == pytest.approx(dialog.rect().center().y(), abs=1)
+
+
 def test_skipping_the_incident_lets_only_its_critical_warnings_through(window):
     window, controller = window
     dsp = controller.dsp_worker

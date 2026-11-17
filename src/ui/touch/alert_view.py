@@ -117,9 +117,15 @@ class AlertDialog(Overlay):
 
     def _place_panel(self) -> None:
         """As high as its texts need at its fixed width (see
-        `NotificationDialog._place_panel`)."""
+        `NotificationDialog._place_panel`). The dynamic label is the one text that
+        wraps; without it (the station sends none) the layout has no height for a
+        width, and its size hint says how high."""
         width = self.panel.width()
-        self.panel.resize(width, self.panel.layout().totalHeightForWidth(width))
+        layout = self.panel.layout()
+        height = layout.totalHeightForWidth(width)
+        if height < 0:
+            height = layout.totalSizeHint().height()
+        self.panel.resize(width, height)
         self.panel.move((self.width() - width) // 2, (self.height() - self.panel.height()) // 2)
 
     def _end(self, *, repeats: bool = False, incident: bool = False) -> None:
