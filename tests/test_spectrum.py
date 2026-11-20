@@ -1,7 +1,9 @@
+from unittest.mock import patch
+
 import numpy as np
 import pytest
 
-from dsp.spectrum import compute_power_spectrum, detect_clipping
+from dsp.spectrum import MAX_SEGMENTS, compute_power_spectrum, detect_clipping
 
 
 def test_compute_power_spectrum_peaks_at_tone_frequency():
@@ -18,6 +20,24 @@ def test_compute_power_spectrum_peaks_at_tone_frequency():
     peak_freq = freqs[np.argmax(power_db)]
     bin_width = sample_rate / fft_size
     assert abs(peak_freq - tone_freq) <= bin_width
+
+
+def test_compute_power_spectrum_averages_few_segments_from_all_over_the_samples():
+    """A read block holds 192 segments; at most `MAX_SEGMENTS` FFTs, but from the whole
+    block: a tone only in its last quarter still shows."""
+    sample_rate = 2_048_000.0
+    fft_size = 2048
+    tone_freq = 300_000.0
+    samples = np.zeros(192 * fft_size, dtype=np.complex64)
+    t = np.arange(48 * fft_size) / sample_rate
+    samples[-len(t) :] = np.exp(2j * np.pi * tone_freq * t)
+
+    with patch("numpy.fft.fft", wraps=np.fft.fft) as fft:
+        freqs, power_db = compute_power_spectrum(samples, sample_rate, fft_size=fft_size)
+
+    assert fft.call_args.args[0].shape == (MAX_SEGMENTS, fft_size)
+    assert fft.call_args.args[0].dtype == np.complex64
+    assert abs(freqs[np.argmax(power_db)] - tone_freq) <= sample_rate / fft_size
 
 
 def test_compute_power_spectrum_raises_when_too_few_samples():

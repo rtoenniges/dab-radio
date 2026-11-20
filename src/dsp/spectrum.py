@@ -2,7 +2,21 @@
 
 from __future__ import annotations
 
+from functools import cache
+
 import numpy as np
+
+# Segments averaged into one spectrum at most, spread evenly over the samples. A read
+# block holds 192 of 2048 samples: all of them would cost as many FFTs as demodulating
+# the two frames in it, for a display. With 32 the curve varies a little more from one
+# block to the next (0.7 instead of 0.4 dB in the band) at a sixth of the FFTs.
+MAX_SEGMENTS = 32
+
+
+@cache
+def _hann_window(fft_size: int) -> np.ndarray:
+    """In single precision, so that complex64 samples stay complex64."""
+    return np.hanning(fft_size).astype(np.float32)
 
 
 def compute_power_spectrum(
@@ -13,8 +27,9 @@ def compute_power_spectrum(
     """Estimates the power spectrum with an averaged, windowed periodogram.
 
     The sample buffer is cut into blocks of `fft_size`, weighted with a Hann window,
-    transformed by FFT and the power averaged over all blocks (Welch's method), which
-    reduces the spectral noise compared to a single FFT.
+    transformed by FFT and the power averaged over the blocks (Welch's method), which
+    reduces the spectral noise compared to a single FFT; over at most `MAX_SEGMENTS`
+    of them, evenly spaced.
 
     Returns:
         Tuple of frequency axis (Hz, centred on 0) and power (dB, relative).
@@ -26,14 +41,16 @@ def compute_power_spectrum(
     if num_segments == 0:
         raise ValueError("Too few samples for the chosen FFT size.")
 
-    window = np.hanning(fft_size)
-    window_power = np.sum(window**2)
+    window = _hann_window(fft_size)
+    window_power = float(np.sum(window.astype(np.float64) ** 2))
 
     segments = samples[: num_segments * fft_size].reshape(num_segments, fft_size)
+    segments = segments[:: -(-num_segments // MAX_SEGMENTS)]
     windowed = segments * window
     # Centred only after averaging: once on the mean instead of on every segment.
     spectra = np.fft.fft(windowed, axis=1)
-    power = np.fft.fftshift(np.mean(np.abs(spectra) ** 2, axis=0)) / (window_power * sample_rate)
+    magnitude = spectra.real**2 + spectra.imag**2
+    power = np.fft.fftshift(np.mean(magnitude, axis=0)) / (window_power * sample_rate)
 
     freqs = np.fft.fftshift(np.fft.fftfreq(fft_size, d=1.0 / sample_rate))
     power_db = 10.0 * np.log10(np.maximum(power, 1e-20))
