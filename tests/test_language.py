@@ -263,6 +263,16 @@ def test_the_radio_starts_anew_as_it_was_started(monkeypatch):
         assert calls == [("execv", "python", ["python", "src/main.py", "--touch"])]
 
 
+def test_openblas_computes_in_one_thread_unless_a_number_is_named():
+    """Its idle threads would spin after every small matrix product."""
+    environ: dict[str, str] = {}
+    main.limit_blas_threads(environ)
+    assert environ == {"OPENBLAS_NUM_THREADS": "1"}
+    environ = {"OPENBLAS_NUM_THREADS": "4"}
+    main.limit_blas_threads(environ)
+    assert environ == {"OPENBLAS_NUM_THREADS": "4"}
+
+
 def test_qt_takes_its_pulseaudio_backend_on_linux_unless_one_is_named():
     environ: dict[str, str] = {}
     main.choose_audio_backend(environ, "linux")

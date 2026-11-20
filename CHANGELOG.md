@@ -7,6 +7,10 @@ All notable changes to the radio. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Linux: Markedly less CPU load while receiving
+
 ## [1.6.0] - 2026-11-17
 
 ### Added

@@ -22,6 +22,14 @@ from ui.touch.splash import StartupSplash
 # at the same processing load. pyrtlsdr's reading thread waits for the GIL as well.
 GIL_SWITCH_INTERVAL_SECONDS = 0.0005
 
+# Threads of OpenBLAS, the library behind NumPy's matrix products. The radio's matrices
+# are small (above all the fit of the transmitter identification, `dsp.tii`, in every
+# other frame), yet OpenBLAS spreads such a product over several threads, and on Linux
+# these keep spinning for a while after every call instead of sleeping: that kept close
+# to half a core busy with no work at all. In one thread the products take no longer.
+# Only effective in the environment before NumPy is first imported.
+BLAS_THREADS = "1"
+
 # The audio backend of Qt Multimedia on Linux. Qt 6.11 brings two and takes its native
 # PipeWire one where PipeWire runs (the Pi), which leaks: when the sink of a QAudioSink
 # goes away (Bluetooth headphones disconnected), Qt reports an IOError and never
@@ -81,6 +89,12 @@ def configure_logging() -> None:
         logging.getLogger(name).setLevel(logging.INFO)
 
 
+def limit_blas_threads(environ: dict[str, str]) -> None:
+    """OpenBLAS in `BLAS_THREADS` threads, unless the environment names a number; set
+    before NumPy is imported."""
+    environ.setdefault("OPENBLAS_NUM_THREADS", BLAS_THREADS)
+
+
 def choose_audio_backend(environ: dict[str, str], platform: str) -> None:
     """Qt's PulseAudio backend on Linux (`QT_AUDIO_BACKEND`), unless the environment
     names one; set before Qt Multimedia starts."""
@@ -115,6 +129,7 @@ def main() -> None:
     arguments, qt_arguments = parse_arguments(sys.argv)
     sys.setswitchinterval(GIL_SWITCH_INTERVAL_SECONDS)
     configure_logging()
+    limit_blas_threads(os.environ)  # type: ignore[arg-type]
     choose_audio_backend(os.environ, sys.platform)  # type: ignore[arg-type]
     pin_audio_stream(os.environ, sys.platform, arguments.system_volume)  # type: ignore[arg-type]
     app = QApplication(qt_arguments)
