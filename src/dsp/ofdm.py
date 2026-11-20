@@ -64,11 +64,17 @@ def correct_frequency_offset(
     Instead it is assembled from the rotation within one block and the rotation at the
     start of every block, since exp(a + b) = exp(a) · exp(b). That is one exponential
     per block and per sample within a block, and one multiplication per sample.
+
+    In the precision of the samples, at least single: complex64 samples stay complex64,
+    and so does everything demodulated from them, at half the memory to go through. The
+    receivers deliver 8 to 14 bits; single precision resolves the phase of the phasor to
+    about 1e-7 rad.
     """
+    dtype = np.result_type(samples.dtype, np.complex64)
     step = -2 * np.pi * freq_offset_hz / sample_rate
     num_blocks = -(-len(samples) // _ROTATION_BLOCK)
-    within_block = np.exp(1j * step * np.arange(_ROTATION_BLOCK))
-    block_starts = np.exp(1j * step * _ROTATION_BLOCK * np.arange(num_blocks))
+    within_block = np.exp(1j * step * np.arange(_ROTATION_BLOCK)).astype(dtype)
+    block_starts = np.exp(1j * step * _ROTATION_BLOCK * np.arange(num_blocks)).astype(dtype)
     rotated = np.outer(block_starts, within_block).ravel()[: len(samples)]
     rotated *= samples
     return rotated

@@ -10,6 +10,8 @@ All notable changes to the radio. The format follows
 ### Changed
 
 - Linux: Markedly less CPU load while receiving
+- Reception, scan: Less computing time for the signal processing, most with an RTL-SDR
+  stick
 
 ## [1.6.0] - 2026-11-17
 

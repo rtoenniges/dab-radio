@@ -10,6 +10,7 @@ from rtlsdr.rtlsdr import LibUSBError
 
 from i18n import tr, tr_noop
 from sdr.exceptions import RtlSdrError
+from sdr.samples import to_samples
 
 # After opening, the stick briefly delivers samples from the frequency it was tuned to
 # before: the first 0.1-0.4 s can still hold one or two fully decodable frames of the
@@ -82,6 +83,10 @@ def open_rtlsdr(
         raise RtlSdrError(
             tr("Could not initialise the RTL-SDR: {error}").format(error=exc)
         ) from exc
+    # complex64 instead of pyrtlsdr's complex128 (`sdr.samples`), for the asynchronous
+    # reads of reception and the synchronous ones of the scan alike: pyrtlsdr converts
+    # every buffer through `packed_bytes_to_iq` of the device.
+    sdr.packed_bytes_to_iq = to_samples  # type: ignore[method-assign]
 
     try:
         sdr.sample_rate = sample_rate

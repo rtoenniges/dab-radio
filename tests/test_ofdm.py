@@ -202,6 +202,37 @@ def test_correct_frequency_offset_undoes_rotation():
     np.testing.assert_allclose(corrected, samples, atol=1e-10)
 
 
+def test_correct_frequency_offset_keeps_single_precision():
+    """The receivers deliver complex64; a phasor in double precision would turn every
+    frame into complex128, twice the memory for the FFT and all after it."""
+    n = np.arange(200_000)
+    offset_hz = 1234.5
+    rotated = np.exp(2j * np.pi * offset_hz * n / SAMPLE_RATE).astype(np.complex64)
+
+    corrected = correct_frequency_offset(rotated, offset_hz, SAMPLE_RATE)
+
+    assert corrected.dtype == np.complex64
+    np.testing.assert_allclose(corrected, np.ones(len(n)), atol=1e-5)
+
+
+def test_demodulate_frame_symbols_in_single_precision():
+    mode = _make_test_mode()
+    rng = np.random.default_rng(7)
+    num_data_symbols = 3
+    samples, expected = _build_synthetic_frame(mode, num_data_symbols, rng)
+    n = np.arange(len(samples))
+    rotated = (samples * np.exp(2j * np.pi * 5000.0 * n / SAMPLE_RATE)).astype(np.complex64)
+
+    frame = demodulate_frame_symbols(
+        rotated, null_start=0, mode=mode, sample_rate=SAMPLE_RATE, max_data_symbols=3
+    )
+
+    assert frame is not None
+    assert frame.symbols[0].dtype == np.complex64
+    assert frame.spectra.dtype == np.complex64
+    np.testing.assert_allclose(np.concatenate(frame.symbols), expected, atol=1e-3)
+
+
 def test_demodulate_frame_symbols_recovers_dqpsk_symbols():
     mode = _make_test_mode()
     rng = np.random.default_rng(42)

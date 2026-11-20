@@ -1,8 +1,10 @@
+import ctypes
 import sys
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
+from rtlsdr import RtlSdr
 from rtlsdr.rtlsdr import LibUSBError
 
 from sdr.device import DISCARD_AFTER_OPEN_SAMPLES
@@ -84,6 +86,19 @@ def test_open_device_disables_rtl_agc_for_manual_gain():
     # gain (see the comment in sdr.device.open_rtlsdr).
     mock_sdr.set_agc_mode.assert_called_once_with(False)
     assert mock_sdr.gain == 20.0
+
+
+def test_open_device_delivers_the_samples_of_pyrtlsdr_as_complex64(worker):
+    """pyrtlsdr's own conversion gives complex128, twice the memory for every stage of
+    the signal processing; the values stay the same."""
+    with patch("sdr.device.RtlSdr") as mock_rtlsdr_cls:
+        mock_rtlsdr_cls.get_device_serial_addresses.return_value = ["00000001"]
+        device = worker._open_device()
+    raw = bytes([0, 255, 255, 0, 127, 128, 3, 200])
+    samples = device.packed_bytes_to_iq((ctypes.c_ubyte * len(raw)).from_buffer_copy(raw))
+    assert samples.dtype == np.complex64
+    expected = RtlSdr.packed_bytes_to_iq(None, (ctypes.c_ubyte * len(raw)).from_buffer_copy(raw))
+    np.testing.assert_allclose(samples, expected, rtol=0, atol=1e-7)
 
 
 def test_run_emits_connected_and_samples_then_stops(worker):

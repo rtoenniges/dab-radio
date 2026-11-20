@@ -42,7 +42,6 @@ import time
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
-from functools import cache
 from pathlib import Path
 
 import numpy as np
@@ -51,6 +50,7 @@ from dab.constants import SAMPLE_RATE
 from i18n import tr
 from sdr.device import DISCARD_AFTER_OPEN_SAMPLES
 from sdr.exceptions import RtlTcpError
+from sdr.samples import to_samples
 
 logger = logging.getLogger(__name__)
 
@@ -236,22 +236,6 @@ def open_connection(address: tuple[str, int], timeout: float) -> socket.socket:
             continue
         return sock
     raise failure if failure is not None else OSError(f"no address for {host}")
-
-
-@cache
-def _sample_table() -> np.ndarray:
-    """complex64 for each pair of bytes read as a little-endian uint16: I in the low
-    byte, Q in the high one, scaled to full scale 1.0 as pyrtlsdr does."""
-    levels = (np.arange(256, dtype=np.float32) - np.float32(127.5)) / np.float32(127.5)
-    table = np.empty(65536, np.complex64)
-    table.real = np.tile(levels, 256)
-    table.imag = np.repeat(levels, 256)
-    return table
-
-
-def to_samples(data: bytes | bytearray | memoryview) -> np.ndarray:
-    """The samples in `data` (I and Q interleaved, unsigned 8 bit; an even length)."""
-    return _sample_table()[np.frombuffer(data, dtype="<u2")]
 
 
 class RtlTcpReader:
