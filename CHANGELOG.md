@@ -7,6 +7,8 @@ All notable changes to the radio. The format follows
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-11-20
+
 ### Changed
 
 - Linux: Markedly less CPU load while receiving
@@ -153,7 +155,8 @@ The first public release.
 - Desktop: Window for signal analysis
 - Languages: English and German
 
-[Unreleased]: https://github.com/rtoenniges/dab-radio/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/rtoenniges/dab-radio/compare/v1.6.1...HEAD
+[1.6.1]: https://github.com/rtoenniges/dab-radio/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/rtoenniges/dab-radio/compare/v1.5.3...v1.6.0
 [1.5.3]: https://github.com/rtoenniges/dab-radio/compare/v1.5.2...v1.5.3
 [1.5.2]: https://github.com/rtoenniges/dab-radio/compare/v1.5.1...v1.5.2
